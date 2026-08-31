@@ -1,9 +1,0 @@
-RewriteEngine On
-
-# Prawdziwe pliki (jeśli kiedyś się tu pojawią) obsługuj normalnie.
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
-
-# Wszystko inne pod tym katalogiem trafia do front controllera.
-RewriteRule ^ index.php [L]

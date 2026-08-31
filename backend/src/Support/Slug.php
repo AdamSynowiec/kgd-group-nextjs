@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /**
  * Reguły adresu strony — lustrzane odbicie normalizeSlug()/slugToSegments()
  * z src/lib/content.ts we frontendzie Next.js. Backend i frontend muszą się

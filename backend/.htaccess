@@ -1,0 +1,6 @@
+# Dodatkowa warstwa ochronna dla hostingów opartych o Apache (mod_rewrite).
+# GŁÓWNA ochrona src/ i .env jest w kodzie PHP — każdy plik w src/ sam
+# sprawdza stałą APP_ENTRY (patrz index.php) i nie zależy od tego, czy
+# .htaccess w ogóle jest respektowany (na nginx nie jest).
+RewriteEngine On
+RewriteRule ^(\.env|src/) - [F,L]

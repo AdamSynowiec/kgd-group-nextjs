@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Config;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /**
  * Czyta konfigurację z pliku .env obok tego katalogu oraz ze zmiennych
  * środowiskowych serwera — te drugie mają pierwszeństwo, żeby dało się

@@ -6,6 +6,11 @@ namespace App\Http;
 
 use App\Config\Config;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /** Jeden punkt konfiguracji CORS — origin sterowany zmienną środowiskową, nie rozsiany po kontrolerach. */
 final class Cors
 {

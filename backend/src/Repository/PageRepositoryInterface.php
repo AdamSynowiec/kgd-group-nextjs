@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /**
  * Granica między warstwą HTTP a źródłem danych. Dzięki interfejsowi kontroler
  * nie wie, że dane pochodzą z MySQL — podmiana na inny magazyn (np. cache,

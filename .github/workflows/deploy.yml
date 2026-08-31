@@ -25,10 +25,31 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Assemble backend into out/api
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+        run: |
+          mkdir -p out/api
+          cp -r backend/index.php backend/.htaccess backend/src out/api/
+          {
+            echo "DB_HOST=${DB_HOST}"
+            echo "DB_PORT=3306"
+            echo "DB_NAME=${DB_NAME}"
+            echo "DB_USER=${DB_USER}"
+            echo "DB_PASS=${DB_PASS}"
+            echo "APP_DEBUG=false"
+            echo "CORS_ALLOWED_ORIGIN=*"
+          } > out/api/.env
+
       - name: Check build output
         run: |
           echo "=== OUT DIRECTORY ==="
           ls -lah ./out/
+          echo "=== API DIRECTORY ==="
+          ls -lah ./out/api/
           echo "=== INDEX ==="
           ls -lah ./out/index.html
           echo "=== INDEX HASH ==="

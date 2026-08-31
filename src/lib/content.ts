@@ -129,32 +129,38 @@ function apiBaseUrl(): string {
 }
 
 /**
- * GET do backendu. Zwraca null na 404 (to prawidłowy, oczekiwany wynik —
- * "takiej strony nie ma"), rzuca błąd na każdą inną nieudaną odpowiedź, żeby
- * `next build` wyraźnie się wywalił zamiast po cichu wygenerować pustą stronę.
+ * GET do backendu, przez index.php?route=... — nie przez "ładny" URL.
+ * Część hostingów współdzielonych (np. gdy serwer stoi na nginx, nie
+ * Apache) ignoruje .htaccess/mod_rewrite, więc trasa musi dotrzeć jako
+ * zwykły parametr GET, nie jako ścieżka URL-a. Patrz backend/src/Http/Request.php.
+ *
+ * Zwraca null na 404 (to prawidłowy, oczekiwany wynik — "takiej strony nie
+ * ma"), rzuca błąd na każdą inną nieudaną odpowiedź, żeby `next build`
+ * wyraźnie się wywalił zamiast po cichu wygenerować pustą stronę.
  */
-async function apiGet<T>(path: string): Promise<T | null> {
-  const response = await fetch(`${apiBaseUrl()}${path}`);
+async function apiGet<T>(route: string): Promise<T | null> {
+  const url = `${apiBaseUrl()}/index.php?route=${encodeURIComponent(route)}`;
+  const response = await fetch(url);
 
   if (response.status === 404) {
     return null;
   }
 
   if (!response.ok) {
-    throw new Error(`Backend API zwrócił ${response.status} dla ${path}`);
+    throw new Error(`Backend API zwrócił ${response.status} dla ${route}`);
   }
 
   const body = (await response.json()) as { data: T };
   return body.data;
 }
 
-/** GET /api/pages — lista opublikowanych stron pod generateStaticParams(). */
+/** route=/pages — lista opublikowanych stron pod generateStaticParams(). */
 export const getAllPages = cache(async (): Promise<PageSummary[]> => {
   const pages = await apiGet<PageSummary[]>("/pages");
   return pages ?? [];
 });
 
-/** GET /api/page[/segment/...] — pełna treść jednej strony po slugu. */
+/** route=/page[/segment/...] — pełna treść jednej strony po slugu. */
 export const getPageBySlug = cache(async (slug: string): Promise<Page | null> => {
   const normalized = normalizeSlug(slug);
   const suffix = normalized === "/" ? "" : normalized;

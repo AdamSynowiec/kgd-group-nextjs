@@ -7,6 +7,11 @@ namespace App\Database;
 use App\Config\Config;
 use PDO;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /** Jedno połączenie PDO na cały request, tworzone leniwie przy pierwszym użyciu. */
 final class Connection
 {

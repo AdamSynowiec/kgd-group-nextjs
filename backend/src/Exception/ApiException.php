@@ -6,6 +6,11 @@ namespace App\Exception;
 
 use RuntimeException;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /** Bazowy wyjątek API — niesie status HTTP, który front controller odczyta przy renderowaniu błędu. */
 class ApiException extends RuntimeException
 {

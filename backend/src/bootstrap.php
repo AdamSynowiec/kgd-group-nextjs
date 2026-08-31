@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 use App\Config\Config;
 use App\Exception\ApiException;
 use App\Http\JsonResponse;
@@ -9,7 +14,7 @@ use App\Http\JsonResponse;
 /**
  * Punkt startowy backendu: autoloader (bez Composera — kod musi dać się
  * wgrać samym FTP na hosting bez dostępu do shella), konfiguracja i
- * globalna obsługa błędów. Wywoływane raz, na początku public/index.php.
+ * globalna obsługa błędów. Wywoływane raz, na początku index.php.
  */
 
 spl_autoload_register(static function (string $class): void {

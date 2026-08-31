@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /** Jeden, spójny kształt odpowiedzi dla całego API: {"data": ...} albo {"error": ...}. */
 final class JsonResponse
 {

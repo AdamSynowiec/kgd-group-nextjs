@@ -4,7 +4,21 @@ declare(strict_types=1);
 
 namespace App\Http;
 
-/** Cienka otoczka na dane żądania — kontrolery i router nie dotykają superglobalnych zmiennych bezpośrednio. */
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
+/**
+ * Cienka otoczka na dane żądania — kontrolery i router nie dotykają
+ * superglobalnych zmiennych bezpośrednio.
+ *
+ * Trasa NIE jest czytana z ładnego URL-a (REQUEST_URI), tylko z parametru
+ * ?route=. Powód: sam URL zależy od przepisywania adresów przez serwer
+ * (mod_rewrite w .htaccess) — na części hostingów współdzielonych (np. gdy
+ * serwer stoi na nginx, nie Apache) .htaccess jest po prostu ignorowany.
+ * Query string działa zawsze, bez żadnej konfiguracji serwera.
+ */
 final class Request
 {
     private function __construct(
@@ -18,15 +32,14 @@ final class Request
     public static function fromGlobals(): self
     {
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-        $uri = $_SERVER['REQUEST_URI'] ?? '/';
-        $path = (string) parse_url($uri, PHP_URL_PATH);
+        $route = $_GET['route'] ?? '/';
 
-        $normalized = rtrim($path, '/');
+        $normalized = rtrim((string) $route, '/');
 
         return new self($method, $normalized === '' ? '/' : $normalized, $_GET);
     }
 
-    /** Segmenty ścieżki żądania po odcięciu podanego prefiksu, np. "/api/page". */
+    /** Segmenty ścieżki żądania po odcięciu podanego prefiksu, np. "/page". */
     public function segmentsAfter(string $prefix): array
     {
         $prefix = '/' . trim($prefix, '/');

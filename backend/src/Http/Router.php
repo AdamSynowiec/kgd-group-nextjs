@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /**
  * Router dopasowujący po prefiksie ścieżki, nie po pełnych wyrażeniach
  * regularnych — każdy endpoint sam interpretuje resztę ścieżki przez

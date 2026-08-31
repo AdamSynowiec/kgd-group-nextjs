@@ -8,6 +8,11 @@ use JsonException;
 use PDO;
 use RuntimeException;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /** Implementacja PageRepositoryInterface na tabeli "pages" (patrz db/schema.sql). */
 final class MysqlPageRepository implements PageRepositoryInterface
 {

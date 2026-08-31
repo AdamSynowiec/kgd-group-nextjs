@@ -10,18 +10,23 @@ use App\Http\Request;
 use App\Repository\PageRepositoryInterface;
 use App\Support\Slug;
 
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
 /** Jedyne miejsce tłumaczące żądanie HTTP na wywołanie repozytorium i z powrotem na odpowiedź JSON. */
 final class PageController
 {
-    private const SLUG_PREFIX = '/api/page';
+    private const SLUG_PREFIX = '/page';
 
     public function __construct(private readonly PageRepositoryInterface $pages)
     {
     }
 
     /**
-     * GET /api/page                     -> slug "/"
-     * GET /api/page/link1/link2/link3   -> slug "/link1/link2/link3"
+     * ?route=/page                     -> slug "/"
+     * ?route=/page/link1/link2/link3   -> slug "/link1/link2/link3"
      */
     public function show(Request $request): void
     {
@@ -40,7 +45,7 @@ final class PageController
         JsonResponse::ok($page['content'], ['slug' => $page['slug'], 'updatedAt' => $page['updatedAt']]);
     }
 
-    /** GET /api/pages — lekka lista opublikowanych stron, np. pod nawigację albo sitemapę. */
+    /** ?route=/pages — lekka lista opublikowanych stron, np. pod nawigację albo sitemapę. */
     public function index(Request $request): void
     {
         JsonResponse::ok($this->pages->listPublished());
