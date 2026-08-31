@@ -1,7 +1,9 @@
 {
   "slug": "/",
   "parent": null,
+  "template": "home",
   "title": "Strona główna",
+  "updatedAt": "2026-08-31",
   "status": "published",
 
   "nav": {
@@ -11,7 +13,24 @@
 
   "seo": {
     "title": "KGD Group — strona główna",
-    "description": "Przykładowa strona główna zbudowana z pliku JSON w src/data/pages/home.json."
+    "description": "Przykładowa strona główna zbudowana z pliku JSON w src/data/pages/home.json.",
+    "keywords": ["kgd group", "strona firmowa", "next.js"],
+    "canonical": null,
+    "robots": { "index": true, "follow": true },
+    "author": "KGD Group",
+    "ogTitle": null,
+    "ogDescription": null,
+    "ogImage": null,
+    "ogType": "website",
+    "ogUrl": null,
+    "ogSiteName": "KGD Group",
+    "ogLocale": "pl_PL",
+    "twitterCard": "summary_large_image",
+    "twitterTitle": null,
+    "twitterDescription": null,
+    "twitterImage": null,
+    "language": "pl",
+    "structuredData": [{ "type": "WebPage" }]
   },
 
   "sections": [
@@ -46,5 +65,7 @@
         ]
       }
     }
-  ]
+  ],
+
+  "related": { "mode": "auto" }
 }

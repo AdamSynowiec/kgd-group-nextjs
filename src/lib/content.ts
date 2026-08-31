@@ -13,7 +13,18 @@ export type NavLink = { label: string; href: string };
 export type SiteConfig = {
   brand: { name: string; tagline?: string };
   nav: { primary: NavLink[] };
-  seoDefaults: { siteName: string; title: string; description: string };
+  seoDefaults: {
+    siteName: string;
+    title: string;
+    description: string;
+    /** Pełny adres domeny, np. "https://kgd-group.pl" — baza dla canonical, OG i JSON-LD. */
+    metadataBase: string;
+    ogImage?: string;
+    ogLocale?: string;
+    themeColor?: string;
+    twitterSite?: string | null;
+    author?: string;
+  };
 };
 
 export type PageSection = {
@@ -23,14 +34,61 @@ export type PageSection = {
   visible?: boolean;
 };
 
+/**
+ * Wpis danych strukturalnych (JSON-LD) do wygenerowania dla strony.
+ * "from" wskazuje źródło treści: łańcuch rodziców (breadcrumbs) albo
+ * konkretna sekcja po id — dzięki temu schema czyta te same dane,
+ * które widzi użytkownik, nawet zanim sekcja ma gotowy komponent wizualny.
+ */
+export type StructuredDataEntry =
+  | { type: "BreadcrumbList"; from: "parent" }
+  | { type: "WebPage" }
+  | { type: "FAQPage"; from: `section:${string}` };
+
+export type PageSeo = {
+  title?: string;
+  description?: string;
+  keywords?: string[];
+  /** Nadpisuje wyliczany canonical; zwykle null — wtedy liczony ze slug. */
+  canonical?: string | null;
+  robots?: { index?: boolean; follow?: boolean };
+  author?: string;
+  ogTitle?: string | null;
+  ogDescription?: string | null;
+  ogImage?: string | null;
+  ogType?: "website" | "article";
+  ogUrl?: string | null;
+  ogSiteName?: string;
+  ogLocale?: string;
+  twitterCard?: "summary" | "summary_large_image";
+  twitterTitle?: string | null;
+  twitterDescription?: string | null;
+  twitterImage?: string | null;
+  language?: string;
+  structuredData?: StructuredDataEntry[];
+};
+
+export type PageNav = {
+  label?: string;
+  order?: number;
+  summary?: string;
+  /** Pola pod kafelki na hubach/stronie głównej (SolutionGrid i podobne). */
+  problem?: string;
+  answer?: string;
+  services?: string[];
+};
+
 export type Page = {
   slug: string;
   parent?: string | null;
+  template?: string;
   title: string;
+  updatedAt?: string;
   status?: "draft" | "published";
-  nav?: { label?: string; order?: number; summary?: string };
-  seo?: { title?: string; description?: string };
+  nav?: PageNav;
+  seo?: PageSeo;
   sections: PageSection[];
+  related?: { mode?: "auto" | "manual"; manual?: string[] };
 };
 
 const ROOT = process.cwd();

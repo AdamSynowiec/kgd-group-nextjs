@@ -1,17 +1,41 @@
 {
   "slug": "/o-nas",
   "parent": "/",
+  "template": "about",
   "title": "O nas",
+  "updatedAt": "2026-08-31",
   "status": "published",
 
   "nav": {
     "label": "O nas",
-    "order": 2
+    "order": 2,
+    "summary": "Kim jest KGD Group i jak dodawać kolejne podstrony."
   },
 
   "seo": {
     "title": "O nas — KGD Group",
-    "description": "Przykładowa podstrona pokazująca, że wystarczy dodać plik JSON w src/data/pages, żeby powstał nowy adres."
+    "description": "Przykładowa podstrona pokazująca, że wystarczy dodać plik JSON w src/data/pages, żeby powstał nowy adres.",
+    "keywords": ["o nas", "kgd group"],
+    "canonical": null,
+    "robots": { "index": true, "follow": true },
+    "author": "KGD Group",
+    "ogTitle": null,
+    "ogDescription": null,
+    "ogImage": null,
+    "ogType": "website",
+    "ogUrl": null,
+    "ogSiteName": "KGD Group",
+    "ogLocale": "pl_PL",
+    "twitterCard": "summary_large_image",
+    "twitterTitle": null,
+    "twitterDescription": null,
+    "twitterImage": null,
+    "language": "pl",
+    "structuredData": [
+      { "type": "BreadcrumbList", "from": "parent" },
+      { "type": "WebPage" },
+      { "type": "FAQPage", "from": "section:faq-o-nas" }
+    ]
   },
 
   "sections": [
@@ -46,6 +70,26 @@
           }
         ]
       }
+    },
+    {
+      "id": "faq-o-nas",
+      "component": "FAQ",
+      "label": "FAQ (komponent jeszcze nie istnieje — sekcja nie wyrenderuje się wizualnie)",
+      "fields": {
+        "heading": "Częste pytania",
+        "items": [
+          {
+            "question": "Czy sekcja musi mieć gotowy komponent, żeby zasilić SEO?",
+            "answer": "Nie. Dane strukturalne (JSON-LD) czytają pole \"fields.items\" bezpośrednio z tej sekcji, niezależnie od tego, czy komponent FAQ jest już zarejestrowany w src/lib/sections.tsx."
+          },
+          {
+            "question": "Co się stanie, gdy komponent sekcji nie istnieje?",
+            "answer": "SectionRenderer zaloguje ostrzeżenie w konsoli builda i pominie tę sekcję wizualnie — reszta strony renderuje się normalnie."
+          }
+        ]
+      }
     }
-  ]
+  ],
+
+  "related": { "mode": "auto" }
 }

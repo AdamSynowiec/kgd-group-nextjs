@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import SiteHeader from "@/components/layout/SiteHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
@@ -18,9 +18,15 @@ const geistMono = Geist_Mono({
 export function generateMetadata(): Metadata {
   const { seoDefaults } = getSite();
   return {
+    metadataBase: new URL(seoDefaults.metadataBase),
     title: { default: seoDefaults.title, template: `%s — ${seoDefaults.siteName}` },
     description: seoDefaults.description,
   };
+}
+
+export function generateViewport(): Viewport {
+  const { seoDefaults } = getSite();
+  return { themeColor: seoDefaults.themeColor };
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

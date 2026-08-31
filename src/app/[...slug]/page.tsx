@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAllPages, getPageBySlug, slugToSegments } from "@/lib/content";
+import { buildMetadata } from "@/lib/seo";
 import PageShell from "@/components/layout/PageShell";
 
 /**
@@ -23,7 +24,7 @@ type Params = { slug: string[] };
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
   const page = getPageBySlug(`/${slug.join("/")}`);
-  return page?.seo ? { title: page.seo.title, description: page.seo.description } : {};
+  return page ? buildMetadata(page) : {};
 }
 
 export default async function ContentPage({ params }: { params: Promise<Params> }) {
