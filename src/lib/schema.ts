@@ -1,4 +1,4 @@
-import { getBreadcrumbs, getSite, type Page } from "@/lib/content";
+import { getBreadcrumbs, getSite, toUrlPath, type Page } from "@/lib/content";
 
 /**
  * Dane strukturalne (JSON-LD) sterowane polem "seo.structuredData" strony.
@@ -39,7 +39,7 @@ async function buildBreadcrumbList(page: Page, base: string) {
       "@type": "ListItem",
       position: index + 1,
       name: crumb.label,
-      item: new URL(crumb.href, base).toString(),
+      item: new URL(toUrlPath(crumb.href), base).toString(),
     })),
   };
 }
@@ -50,7 +50,7 @@ function buildWebPage(page: Page, base: string) {
     "@type": "WebPage",
     name: page.seo?.title || page.title,
     description: page.seo?.description,
-    url: new URL(page.slug, base).toString(),
+    url: new URL(toUrlPath(page.slug), base).toString(),
   };
 }
 

@@ -1,4 +1,4 @@
-import { getAllPages, getSite } from "@/lib/content";
+import { getAllPages, getSite, toUrlPath } from "@/lib/content";
 
 export const dynamic = "force-static";
 
@@ -20,7 +20,7 @@ export async function GET() {
     "",
     "## Strony",
     "",
-    ...pages.map((page) => `- [${page.title}](${base}${page.slug === "/" ? "" : page.slug})`),
+    ...pages.map((page) => `- [${page.title}](${base}${toUrlPath(page.slug)})`),
   ];
 
   return new Response(lines.join("\n") + "\n", {

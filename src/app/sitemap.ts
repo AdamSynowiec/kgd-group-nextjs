@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getAllPages, getSite } from "@/lib/content";
+import { getAllPages, getSite, toUrlPath } from "@/lib/content";
 
 export const dynamic = "force-static";
 
@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const pages = await getAllPages();
 
   return pages.map((page) => ({
-    url: new URL(page.slug, base).toString(),
+    url: new URL(toUrlPath(page.slug), base).toString(),
     lastModified: page.updatedAt,
   }));
 }

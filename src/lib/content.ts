@@ -120,6 +120,17 @@ export function slugToSegments(slug: string): string[] {
   return normalizeSlug(slug).split("/").filter(Boolean);
 }
 
+/**
+ * Slug -> ścieżka URL zgodna z next.config.ts (trailingSlash: true), czyli
+ * z ukośnikiem na końcu poza "/", które już go ma. next/link i metadata API
+ * Next.js robią to automatycznie; ten helper jest dla miejsc, gdzie adres
+ * budujemy ręcznie przez new URL() — JSON-LD, sitemap.xml, llms.txt.
+ */
+export function toUrlPath(slug: string): string {
+  const normalized = normalizeSlug(slug);
+  return normalized === "/" ? "/" : `${normalized}/`;
+}
+
 /** Adres backendu — zmienna środowiskowa albo domena z site.json + "/api". */
 function apiBaseUrl(): string {
   const explicit = process.env.API_BASE_URL;
