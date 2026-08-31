@@ -23,6 +23,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check build output
+        run: |
+          echo "=== OUT DIRECTORY ==="
+          ls -lah ./out/
+          echo "=== INDEX ==="
+          ls -lah ./out/index.html
+          echo "=== INDEX HASH ==="
+          sha256sum ./out/index.html
+
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
@@ -31,3 +40,4 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
           local-dir: ./out/
+          clean-slate: true
