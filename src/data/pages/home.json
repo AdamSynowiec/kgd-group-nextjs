@@ -1,0 +1,50 @@
+{
+  "slug": "/",
+  "parent": null,
+  "title": "Strona główna",
+  "status": "published",
+
+  "nav": {
+    "label": "Strona główna",
+    "order": 1
+  },
+
+  "seo": {
+    "title": "KGD Group — strona główna",
+    "description": "Przykładowa strona główna zbudowana z pliku JSON w src/data/pages/home.json."
+  },
+
+  "sections": [
+    {
+      "id": "hero-home",
+      "component": "Hero",
+      "fields": {
+        "eyebrow": "KGD Group",
+        "heading": "Tytuł strony głównej",
+        "lead": "To jest przykładowa treść wygenerowana z pliku src/data/pages/home.json. Podmień pola w JSON-ie, żeby zmienić stronę.",
+        "primaryCta": { "label": "O nas", "href": "/o-nas" }
+      }
+    },
+    {
+      "id": "o-firmie",
+      "component": "RichText",
+      "fields": {
+        "heading": "O firmie",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Ta sekcja pochodzi z komponentu RichText i pola \"blocks\" w JSON-ie. Każdy blok ma typ (paragraph, heading, list) i jest renderowany semantycznie."
+          },
+          {
+            "type": "list",
+            "style": "bullet",
+            "items": [
+              "Nowa podstrona = nowy plik JSON w src/data/pages/",
+              "Nowy typ sekcji = nowy komponent zarejestrowany w src/lib/sections.tsx"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

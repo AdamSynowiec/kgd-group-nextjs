@@ -1,0 +1,17 @@
+{
+  "brand": {
+    "name": "KGD Group",
+    "tagline": "Krótki opis firmy w jednym zdaniu."
+  },
+  "nav": {
+    "primary": [
+      { "label": "Strona główna", "href": "/" },
+      { "label": "O nas", "href": "/o-nas" }
+    ]
+  },
+  "seoDefaults": {
+    "siteName": "KGD Group",
+    "title": "KGD Group",
+    "description": "Opis firmy widoczny domyślnie w wyszukiwarkach, gdy podstrona nie poda własnego."
+  }
+}

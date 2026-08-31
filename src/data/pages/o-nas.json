@@ -1,0 +1,51 @@
+{
+  "slug": "/o-nas",
+  "parent": "/",
+  "title": "O nas",
+  "status": "published",
+
+  "nav": {
+    "label": "O nas",
+    "order": 2
+  },
+
+  "seo": {
+    "title": "O nas — KGD Group",
+    "description": "Przykładowa podstrona pokazująca, że wystarczy dodać plik JSON w src/data/pages, żeby powstał nowy adres."
+  },
+
+  "sections": [
+    {
+      "id": "hero-o-nas",
+      "component": "Hero",
+      "fields": {
+        "eyebrow": "O nas",
+        "heading": "Ta strona to plik src/data/pages/o-nas.json",
+        "lead": "Ścieżka pliku odpowiada adresowi: o-nas.json → /o-nas. Zagnieżdżony katalog, np. o-nas/zespol.json, dałby /o-nas/zespol."
+      }
+    },
+    {
+      "id": "tresc-o-nas",
+      "component": "RichText",
+      "fields": {
+        "heading": "Jak dodać kolejną podstronę",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Skopiuj ten plik pod nową nazwą, zmień pole \"slug\" i uzupełnij sekcje. Router (src/app/[...slug]/page.tsx) wykryje go automatycznie przy kolejnym buildzie — nic więcej nie trzeba zmieniać."
+          },
+          {
+            "type": "list",
+            "style": "number",
+            "items": [
+              "Utwórz plik JSON w src/data/pages/",
+              "Ustaw unikalny \"slug\" i opcjonalnie \"parent\"",
+              "Dodaj sekcje z listy zarejestrowanej w src/lib/sections.tsx",
+              "Uruchom npm run build, żeby sprawdzić eksport statyczny"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
