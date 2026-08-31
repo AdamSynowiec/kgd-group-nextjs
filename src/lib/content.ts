@@ -4,8 +4,15 @@ import { cache } from "react";
 
 /**
  * Warstwa dostępu do treści.
- * Wszystko czytane jest z src/data w czasie builda (SSG) — zero requestów w runtime.
- * Dodanie podstrony = dodanie pliku JSON w src/data/pages. Nic więcej.
+ *
+ * getSite() nadal czyta src/data/site.json z dysku — backend (backend/) na
+ * razie wystawia tylko podstrony ("pages"), nie konfigurację serwisu.
+ *
+ * getAllPages()/getPageBySlug() natomiast pytają PHP-owe API (backend/),
+ * które czyta z MySQL (db/schema.sql) — nie z lokalnych plików JSON.
+ * Dzieje się to w czasie builda (SSG): `next build` uruchamia te funkcje
+ * po stronie Node.js, wynik trafia do statycznego HTML-a w out/. W wygenerowanej
+ * stronie nie ma już ani jednego zapytania do API — przeglądarka go nie widzi.
  */
 
 export type NavLink = { label: string; href: string };
@@ -91,31 +98,17 @@ export type Page = {
   related?: { mode?: "auto" | "manual"; manual?: string[] };
 };
 
+/** Lekki wpis z listy `GET /api/pages` — tyle, ile backend zwraca bez wczytywania pełnej treści. */
+export type PageSummary = { slug: string; title: string; updatedAt: string };
+
 const ROOT = process.cwd();
-const PAGES_DIR = path.join(ROOT, "src", "data", "pages");
 const SITE_FILE = path.join(ROOT, "src", "data", "site.json");
 
 function readJson<T>(filePath: string): T {
   return JSON.parse(fs.readFileSync(filePath, "utf8")) as T;
 }
 
-function walk(dir: string): string[] {
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return walk(full);
-    return entry.name.endsWith(".json") ? [full] : [];
-  });
-}
-
 export const getSite = cache((): SiteConfig => readJson<SiteConfig>(SITE_FILE));
-
-export const getAllPages = cache((): Page[] =>
-  walk(PAGES_DIR)
-    .map((file) => readJson<Page>(file))
-    .filter((page) => page.status !== "draft")
-    .sort((a, b) => (a.nav?.order ?? 99) - (b.nav?.order ?? 99))
-);
 
 export function normalizeSlug(slug: string): string {
   if (!slug || slug === "/") return "/";
@@ -127,20 +120,56 @@ export function slugToSegments(slug: string): string[] {
   return normalizeSlug(slug).split("/").filter(Boolean);
 }
 
-export const getPageBySlug = cache((slug: string): Page | null => {
+/** Adres backendu — zmienna środowiskowa albo domena z site.json + "/api". */
+function apiBaseUrl(): string {
+  const explicit = process.env.API_BASE_URL;
+  if (explicit) return explicit.replace(/\/+$/, "");
+
+  return `${getSite().seoDefaults.metadataBase.replace(/\/+$/, "")}/api`;
+}
+
+/**
+ * GET do backendu. Zwraca null na 404 (to prawidłowy, oczekiwany wynik —
+ * "takiej strony nie ma"), rzuca błąd na każdą inną nieudaną odpowiedź, żeby
+ * `next build` wyraźnie się wywalił zamiast po cichu wygenerować pustą stronę.
+ */
+async function apiGet<T>(path: string): Promise<T | null> {
+  const response = await fetch(`${apiBaseUrl()}${path}`);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Backend API zwrócił ${response.status} dla ${path}`);
+  }
+
+  const body = (await response.json()) as { data: T };
+  return body.data;
+}
+
+/** GET /api/pages — lista opublikowanych stron pod generateStaticParams(). */
+export const getAllPages = cache(async (): Promise<PageSummary[]> => {
+  const pages = await apiGet<PageSummary[]>("/pages");
+  return pages ?? [];
+});
+
+/** GET /api/page[/segment/...] — pełna treść jednej strony po slugu. */
+export const getPageBySlug = cache(async (slug: string): Promise<Page | null> => {
   const normalized = normalizeSlug(slug);
-  return getAllPages().find((page) => page.slug === normalized) ?? null;
+  const suffix = normalized === "/" ? "" : normalized;
+  return apiGet<Page>(`/page${suffix}`);
 });
 
 /** Okruszki wyprowadzane z pola "parent", nie z URL-a. */
-export function getBreadcrumbs(page: Page): NavLink[] {
+export async function getBreadcrumbs(page: Page): Promise<NavLink[]> {
   const crumbs: NavLink[] = [];
   let current: Page | null = page;
   let guard = 0;
 
   while (current && current.slug !== "/" && guard < 6) {
     crumbs.unshift({ label: current.nav?.label || current.title, href: current.slug });
-    current = current.parent ? getPageBySlug(current.parent) : null;
+    current = current.parent ? await getPageBySlug(current.parent) : null;
     guard += 1;
   }
 

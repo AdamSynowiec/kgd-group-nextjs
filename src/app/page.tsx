@@ -4,13 +4,13 @@ import { getPageBySlug } from "@/lib/content";
 import { buildMetadata } from "@/lib/seo";
 import PageShell from "@/components/layout/PageShell";
 
-export function generateMetadata(): Metadata {
-  const page = getPageBySlug("/");
+export async function generateMetadata(): Promise<Metadata> {
+  const page = await getPageBySlug("/");
   return page ? buildMetadata(page) : {};
 }
 
-export default function HomePage() {
-  const page = getPageBySlug("/");
+export default async function HomePage() {
+  const page = await getPageBySlug("/");
   if (!page) notFound();
 
   return <PageShell page={page} showBreadcrumbs={false} />;

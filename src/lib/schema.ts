@@ -6,13 +6,13 @@ import { getBreadcrumbs, getSite, type Page } from "@/lib/content";
  * dana sekcja ma już gotowy komponent wizualny — schema i UI dzielą to
  * samo źródło prawdy, ale nie zależą od siebie nawzajem.
  */
-export function buildPageSchema(page: Page): Record<string, unknown>[] {
+export async function buildPageSchema(page: Page): Promise<Record<string, unknown>[]> {
   const { seoDefaults } = getSite();
   const base = seoDefaults.metadataBase;
   const entries = page.seo?.structuredData ?? [];
 
-  return entries
-    .map((entry): Record<string, unknown> | null => {
+  const results = await Promise.all(
+    entries.map((entry): Record<string, unknown> | null | Promise<Record<string, unknown> | null> => {
       switch (entry.type) {
         case "BreadcrumbList":
           return buildBreadcrumbList(page, base);
@@ -24,14 +24,18 @@ export function buildPageSchema(page: Page): Record<string, unknown>[] {
           return null;
       }
     })
-    .filter((item): item is Record<string, unknown> => item !== null);
+  );
+
+  return results.filter((item): item is Record<string, unknown> => item !== null);
 }
 
-function buildBreadcrumbList(page: Page, base: string) {
+async function buildBreadcrumbList(page: Page, base: string) {
+  const crumbs = await getBreadcrumbs(page);
+
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: getBreadcrumbs(page).map((crumb, index) => ({
+    itemListElement: crumbs.map((crumb, index) => ({
       "@type": "ListItem",
       position: index + 1,
       name: crumb.label,
