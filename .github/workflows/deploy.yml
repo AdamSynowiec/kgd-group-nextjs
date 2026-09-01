@@ -31,9 +31,11 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASS: ${{ secrets.DB_PASS }}
+          ADMIN_USER: ${{ secrets.ADMIN_USER }}
+          ADMIN_PASS: ${{ secrets.ADMIN_PASS }}
         run: |
           mkdir -p out/api
-          cp -r backend/index.php backend/.htaccess backend/src out/api/
+          cp -r backend/index.php backend/admin.php backend/.htaccess backend/src out/api/
           {
             echo "DB_HOST=${DB_HOST}"
             echo "DB_PORT=3306"
@@ -42,6 +44,11 @@ jobs:
             echo "DB_PASS=${DB_PASS}"
             echo "APP_DEBUG=false"
             echo "CORS_ALLOWED_ORIGIN=*"
+            # Panel edycji zostaje wyłączony w CI, dopóki świadomie nie ustawisz
+            # sekretów ADMIN_USER/ADMIN_PASS i nie przełączysz tego na true.
+            echo "ADMIN_AUTH_ENABLED=false"
+            echo "ADMIN_USER=${ADMIN_USER}"
+            echo "ADMIN_PASS=${ADMIN_PASS}"
           } > out/api/.env
 
       - name: Check build output

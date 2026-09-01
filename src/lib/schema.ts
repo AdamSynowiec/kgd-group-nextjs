@@ -1,4 +1,5 @@
 import { getBreadcrumbs, getSite, toUrlPath, type Page } from "@/lib/content";
+import { unwrap } from "@/lib/editable";
 
 /**
  * Dane strukturalne (JSON-LD) sterowane polem "seo.structuredData" strony.
@@ -48,8 +49,8 @@ function buildWebPage(page: Page, base: string) {
   return {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    name: page.seo?.title || page.title,
-    description: page.seo?.description,
+    name: unwrap(page.seo?.title) || unwrap(page.title),
+    description: unwrap(page.seo?.description),
     url: new URL(toUrlPath(page.slug), base).toString(),
   };
 }

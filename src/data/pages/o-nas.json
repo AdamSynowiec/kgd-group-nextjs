@@ -2,7 +2,7 @@
   "slug": "/o-nas",
   "parent": "/",
   "template": "about",
-  "title": "O nas",
+  "title": { "value": "O nas", "editable": true },
   "updatedAt": "2026-08-31",
   "status": "published",
 
@@ -13,8 +13,11 @@
   },
 
   "seo": {
-    "title": "O nas — KGD Group",
-    "description": "Przykładowa podstrona pokazująca, że wystarczy dodać plik JSON w src/data/pages, żeby powstał nowy adres.",
+    "title": { "value": "O nas — KGD Group", "editable": true },
+    "description": {
+      "value": "Przykładowa podstrona pokazująca, że wystarczy dodać plik JSON w src/data/pages, żeby powstał nowy adres.",
+      "editable": true
+    },
     "keywords": ["o nas", "kgd group"],
     "canonical": null,
     "robots": { "index": true, "follow": true },
@@ -43,16 +46,20 @@
       "id": "hero-o-nas",
       "component": "Hero",
       "fields": {
-        "eyebrow": "O nas",
-        "heading": "Ta strona to plik src/data/pages/o-nas.json",
-        "lead": "Ścieżka pliku odpowiada adresowi: o-nas.json → /o-nas. Zagnieżdżony katalog, np. o-nas/zespol.json, dałby /o-nas/zespol."
+        "eyebrow": { "value": "O nas", "editable": true },
+        "heading": { "value": "Ta strona to plik src/data/pages/o-nas.json", "editable": true },
+        "lead": {
+          "value": "Ścieżka pliku odpowiada adresowi: o-nas.json → /o-nas. Zagnieżdżony katalog, np. o-nas/zespol.json, dałby /o-nas/zespol.",
+          "editable": true
+        },
+        "internalId": { "value": "hero-o-nas-001", "editable": false }
       }
     },
     {
       "id": "tresc-o-nas",
       "component": "RichText",
       "fields": {
-        "heading": "Jak dodać kolejną podstronę",
+        "heading": { "value": "Jak dodać kolejną podstronę", "editable": true },
         "blocks": [
           {
             "type": "paragraph",

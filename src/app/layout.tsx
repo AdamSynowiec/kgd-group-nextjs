@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import SiteHeader from "@/components/layout/SiteHeader";
-import SiteFooter from "@/components/layout/SiteFooter";
 import { getSite } from "@/lib/content";
 import "./globals.css";
 
@@ -29,17 +27,14 @@ export function generateViewport(): Viewport {
   return { themeColor: seoDefaults.themeColor };
 }
 
+/** Wspólne dla całej aplikacji (fonty, <html>/<body>). Nagłówek/stopka są tylko w (site)/layout.tsx. */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pl"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
-      </body>
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }

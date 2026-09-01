@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { JSX } from "react";
+import { unwrap, type EditableValue } from "@/lib/editable";
 
 type HeroFields = {
-  eyebrow?: string;
-  heading: string;
-  lead?: string;
+  eyebrow?: EditableValue<string> | string;
+  heading: EditableValue<string> | string;
+  lead?: EditableValue<string> | string;
   primaryCta?: { label: string; href: string };
   secondaryCta?: { label: string; href: string };
 };
@@ -16,7 +17,10 @@ export default function Hero({
   fields: HeroFields;
   headingLevel?: number;
 }) {
-  const { eyebrow, heading, lead, primaryCta, secondaryCta } = fields;
+  const eyebrow = unwrap(fields.eyebrow);
+  const heading = unwrap(fields.heading);
+  const lead = unwrap(fields.lead);
+  const { primaryCta, secondaryCta } = fields;
   const Heading = `h${headingLevel}` as keyof JSX.IntrinsicElements;
 
   return (

@@ -52,4 +52,24 @@ final class Request
             static fn (string $segment): bool => $segment !== ''
         ));
     }
+
+    /**
+     * Treść żądania POST jako tablica (oczekiwany JSON w body). Rzuca przy
+     * niepoprawnym JSON-ie — kontroler zamienia to na czytelną odpowiedź 400.
+     *
+     * @return array<string, mixed>
+     */
+    public function jsonBody(): array
+    {
+        $raw = file_get_contents('php://input') ?: '';
+
+        if (trim($raw) === '') {
+            return [];
+        }
+
+        /** @var array<string, mixed> $decoded */
+        $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+
+        return $decoded;
+    }
 }

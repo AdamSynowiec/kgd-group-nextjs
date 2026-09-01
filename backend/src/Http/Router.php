@@ -22,8 +22,18 @@ final class Router
 
     public function get(string $prefix, callable $handler): void
     {
+        $this->register('GET', $prefix, $handler);
+    }
+
+    public function post(string $prefix, callable $handler): void
+    {
+        $this->register('POST', $prefix, $handler);
+    }
+
+    private function register(string $method, string $prefix, callable $handler): void
+    {
         $this->routes[] = [
-            'method' => 'GET',
+            'method' => $method,
             'prefix' => '/' . trim($prefix, '/'),
             'handler' => $handler,
         ];

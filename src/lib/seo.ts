@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getSite, normalizeSlug, type Page } from "@/lib/content";
+import { unwrap } from "@/lib/editable";
 
 /**
  * Buduje next/Metadata z bloku "seo" strony, spadając na seoDefaults z site.json,
@@ -10,8 +11,8 @@ export function buildMetadata(page: Page): Metadata {
   const { seoDefaults } = getSite();
   const seo = page.seo ?? {};
 
-  const title = seo.title || seoDefaults.title;
-  const description = seo.description || seoDefaults.description;
+  const title = unwrap(seo.title) || seoDefaults.title;
+  const description = unwrap(seo.description) || seoDefaults.description;
   const canonical = seo.canonical || normalizeSlug(page.slug);
   const ogImage = seo.ogImage || seoDefaults.ogImage;
 

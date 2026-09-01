@@ -34,6 +34,10 @@ final class Connection
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
+            // rowCount() po UPDATE ma liczyć wiersze DOPASOWANE przez WHERE, nie tylko
+            // faktycznie zmienione — inaczej zapis identycznej treści (0 zmian) wyglądałby
+            // tak samo jak "nie znaleziono strony o takim slugu" (patrz AdminController::savePage).
+            PDO::MYSQL_ATTR_FOUND_ROWS => true,
         ]);
 
         return self::$instance;

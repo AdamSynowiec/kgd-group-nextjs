@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { cache } from "react";
+import { unwrap, type EditableValue } from "@/lib/editable";
 
 /**
  * Warstwa dostępu do treści.
@@ -53,8 +54,9 @@ export type StructuredDataEntry =
   | { type: "FAQPage"; from: `section:${string}` };
 
 export type PageSeo = {
-  title?: string;
-  description?: string;
+  /** Edytowalne z panelu /admin — patrz src/lib/editable.ts. Zwykły string dla starszej treści. */
+  title?: EditableValue<string> | string;
+  description?: EditableValue<string> | string;
   keywords?: string[];
   /** Nadpisuje wyliczany canonical; zwykle null — wtedy liczony ze slug. */
   canonical?: string | null;
@@ -89,7 +91,8 @@ export type Page = {
   slug: string;
   parent?: string | null;
   template?: string;
-  title: string;
+  /** Edytowalne z panelu /admin — patrz src/lib/editable.ts. Zwykły string dla starszej treści. */
+  title: EditableValue<string> | string;
   updatedAt?: string;
   status?: "draft" | "published";
   nav?: PageNav;
@@ -185,7 +188,7 @@ export async function getBreadcrumbs(page: Page): Promise<NavLink[]> {
   let guard = 0;
 
   while (current && current.slug !== "/" && guard < 6) {
-    crumbs.unshift({ label: current.nav?.label || current.title, href: current.slug });
+    crumbs.unshift({ label: current.nav?.label || unwrap(current.title) || current.slug, href: current.slug });
     current = current.parent ? await getPageBySlug(current.parent) : null;
     guard += 1;
   }

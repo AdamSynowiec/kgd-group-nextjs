@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { unwrap, type EditableValue } from "@/lib/editable";
 
 type Block =
   | { type: "paragraph"; text: string }
@@ -6,9 +7,9 @@ type Block =
   | { type: "list"; style?: "bullet" | "number"; items: string[] };
 
 type RichTextFields = {
-  eyebrow?: string;
-  heading?: string;
-  lead?: string;
+  eyebrow?: EditableValue<string> | string;
+  heading?: EditableValue<string> | string;
+  lead?: EditableValue<string> | string;
   blocks?: Block[];
 };
 
@@ -50,7 +51,10 @@ export default function RichText({
   fields: RichTextFields;
   headingLevel?: number;
 }) {
-  const { eyebrow, heading, lead, blocks = [] } = fields;
+  const eyebrow = unwrap(fields.eyebrow);
+  const heading = unwrap(fields.heading);
+  const lead = unwrap(fields.lead);
+  const { blocks = [] } = fields;
   const Heading = `h${headingLevel}` as keyof JSX.IntrinsicElements;
 
   return (

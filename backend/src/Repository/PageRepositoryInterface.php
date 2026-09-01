@@ -21,4 +21,17 @@ interface PageRepositoryInterface
 
     /** @return list<array{slug: string, title: string, updatedAt: string}> */
     public function listPublished(): array;
+
+    /**
+     * Jak listPublished(), ale pokazuje też szkice — pod panel edycji.
+     * @return list<array{slug: string, title: string, status: string, updatedAt: string}>
+     */
+    public function listAll(): array;
+
+    /**
+     * Nadpisuje "content" strony o podanym slugu. Nie tworzy nowego wiersza —
+     * rzuca, jeśli taki slug jeszcze nie istnieje (patrz db/schema.sql, jak
+     * dodać nową stronę).
+     */
+    public function save(string $slug, array $content): void;
 }

@@ -2,7 +2,7 @@
   "slug": "/",
   "parent": null,
   "template": "home",
-  "title": "Strona główna",
+  "title": { "value": "Strona główna", "editable": true },
   "updatedAt": "2026-08-31",
   "status": "published",
 
@@ -12,8 +12,11 @@
   },
 
   "seo": {
-    "title": "KGD Group — strona główna",
-    "description": "Przykładowa strona główna zbudowana z pliku JSON w src/data/pages/home.json.",
+    "title": { "value": "KGD Group — strona główna", "editable": true },
+    "description": {
+      "value": "Przykładowa strona główna zbudowana z pliku JSON w src/data/pages/home.json.",
+      "editable": true
+    },
     "keywords": ["kgd group", "strona firmowa", "next.js"],
     "canonical": null,
     "robots": { "index": true, "follow": true },
@@ -38,9 +41,12 @@
       "id": "hero-home",
       "component": "Hero",
       "fields": {
-        "eyebrow": "KGD Group",
-        "heading": "Tytuł strony głównej",
-        "lead": "To jest przykładowa treść wygenerowana z pliku src/data/pages/home.json. Podmień pola w JSON-ie, żeby zmienić stronę.",
+        "eyebrow": { "value": "KGD Group", "editable": true },
+        "heading": { "value": "Tytuł strony głównej", "editable": true },
+        "lead": {
+          "value": "To jest przykładowa treść wygenerowana z pliku src/data/pages/home.json. Podmień pola w JSON-ie albo w panelu /admin, żeby zmienić stronę.",
+          "editable": true
+        },
         "primaryCta": { "label": "O nas", "href": "/o-nas" }
       }
     },
@@ -48,7 +54,7 @@
       "id": "o-firmie",
       "component": "RichText",
       "fields": {
-        "heading": "O firmie",
+        "heading": { "value": "O firmie", "editable": true },
         "blocks": [
           {
             "type": "paragraph",
