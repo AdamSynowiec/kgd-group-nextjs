@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import LoginForm from "@/components/admin/LoginForm";
+import { useRouter } from "next/navigation";
 import PageList from "@/components/admin/PageList";
 import PageEditor from "@/components/admin/PageEditor";
 import AdminShell from "@/components/admin/AdminShell";
@@ -19,17 +19,15 @@ import {
  * /admin — pełnoprawny widok aplikacji (nie statyczny plik HTML w backendzie).
  * Cała logika działa w przeglądarce: strona po zbudowaniu to pusta powłoka,
  * dane i autoryzacja przychodzą z API dopiero po wejściu. Backend
- * (backend/admin.php + BasicAuth) jest jedynym źródłem prawdy o dostępie —
- * to on zwraca 401, gdy uwierzytelnianie jest włączone i dane się nie zgadzają;
- * frontend tylko na to reaguje, nie decyduje o uprawnieniach sam.
- *
- * Ekran logowania renderuje się BEZ powłoki dashboardu (AdminShell) — sidebar
- * i pasek konta nie mają sensu, dopóki nie wiadomo, kto wchodzi.
+ * (backend/admin.php + BasicAuth, sprawdzane względem tabeli `users`) jest
+ * jedynym źródłem prawdy o dostępie — to on zwraca 401, gdy dane logowania
+ * są niepoprawne; frontend tylko na to reaguje, nie decyduje o uprawnieniach
+ * sam. Brak sesji (401) przekierowuje na osobną stronę /admin/login —
+ * logowanie nie jest stanem wewnątrz tego komponentu.
  */
 
 type ViewState =
   | { status: "checking" }
-  | { status: "login"; message?: string }
   | { status: "list"; pages: PageSummary[] }
   | { status: "editing"; slug: string; content: Record<string, unknown> }
   | { status: "error"; message: string };
@@ -48,24 +46,34 @@ function viewTitle(view: ViewState): string {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   // Odczyt sessionStorage jest synchroniczny — leniwy inicjalizator useState
   // (nie efekt) to właściwe miejsce na to, patrz https://react.dev/learn/you-might-not-need-an-effect.
   const [credentials, setCredentials] = useState<Credentials | null>(() => loadCredentials());
   const [view, setView] = useState<ViewState>({ status: "checking" });
 
-  const checkAccessAndLoad = useCallback(async (creds: Credentials | null) => {
-    setView({ status: "checking" });
-    try {
-      const pages = await fetchPages(creds);
-      setView({ status: "list", pages });
-    } catch (error) {
-      if (error instanceof AdminApiError && error.status === 401) {
-        setView({ status: "login" });
-        return;
+  const goToLogin = useCallback(() => {
+    storeCredentials(null);
+    setCredentials(null);
+    router.replace("/admin/login");
+  }, [router]);
+
+  const checkAccessAndLoad = useCallback(
+    async (creds: Credentials | null) => {
+      setView({ status: "checking" });
+      try {
+        const pages = await fetchPages(creds);
+        setView({ status: "list", pages });
+      } catch (error) {
+        if (error instanceof AdminApiError && error.status === 401) {
+          goToLogin();
+          return;
+        }
+        setView({ status: "error", message: error instanceof Error ? error.message : "Nieznany błąd." });
       }
-      setView({ status: "error", message: error instanceof Error ? error.message : "Nieznany błąd." });
-    }
-  }, []);
+    },
+    [goToLogin]
+  );
 
   // Prawdziwe zapytanie sieciowe do zewnętrznego systemu (backend) przy
   // montowaniu — dokładnie przypadek, do którego useEffect jest przeznaczony
@@ -76,21 +84,8 @@ export default function AdminPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- patrz komentarz wyżej: to jest fetch danych przy montowaniu, nie kaskada stanu
     void checkAccessAndLoad(credentials);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- ma się uruchomić tylko raz, przy montowaniu; ponowne logowanie woła checkAccessAndLoad bezpośrednio
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ma się uruchomić tylko raz, przy montowaniu
   }, []);
-
-  function handleLogin(username: string, password: string) {
-    const creds = { username, password };
-    storeCredentials(creds);
-    setCredentials(creds);
-    void checkAccessAndLoad(creds);
-  }
-
-  function handleLogout() {
-    storeCredentials(null);
-    setCredentials(null);
-    setView({ status: "login" });
-  }
 
   async function handleEdit(slug: string) {
     setView({ status: "checking" });
@@ -99,7 +94,7 @@ export default function AdminPage() {
       setView({ status: "editing", slug, content });
     } catch (error) {
       if (error instanceof AdminApiError && error.status === 401) {
-        setView({ status: "login", message: "Sesja wygasła — zaloguj się ponownie." });
+        goToLogin();
         return;
       }
       setView({ status: "error", message: error instanceof Error ? error.message : "Nieznany błąd." });
@@ -110,16 +105,8 @@ export default function AdminPage() {
     void checkAccessAndLoad(credentials);
   }
 
-  if (view.status === "login") {
-    return (
-      <main className="flex min-h-full flex-1 items-center justify-center bg-zinc-50 px-6 dark:bg-zinc-950">
-        <LoginForm onSubmit={handleLogin} errorMessage={view.message} />
-      </main>
-    );
-  }
-
   return (
-    <AdminShell title={viewTitle(view)} credentials={credentials} onLogout={handleLogout}>
+    <AdminShell title={viewTitle(view)} credentials={credentials} onLogout={goToLogin}>
       {view.status === "checking" && <p className="text-sm text-zinc-500">Wczytywanie...</p>}
 
       {view.status === "list" && <PageList pages={view.pages} onEdit={handleEdit} />}

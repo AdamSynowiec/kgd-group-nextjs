@@ -6,11 +6,22 @@ export default function LoginForm({
   onSubmit,
   errorMessage,
 }: {
-  onSubmit: (username: string, password: string) => void;
+  onSubmit: (username: string, password: string) => void | Promise<void>;
   errorMessage?: string;
 }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      await onSubmit(username, password);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -21,13 +32,7 @@ export default function LoginForm({
         <span className="text-sm font-semibold text-zinc-900 dark:text-white">KGD Group — panel</span>
       </div>
 
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          onSubmit(username, password);
-        }}
-        className="space-y-4"
-      >
+      <form onSubmit={handleSubmit} className="space-y-4">
         {errorMessage && (
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
             {errorMessage}
@@ -39,7 +44,8 @@ export default function LoginForm({
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             autoFocus
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950"
+            disabled={submitting}
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
         <div>
@@ -48,14 +54,16 @@ export default function LoginForm({
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950"
+            disabled={submitting}
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950"
           />
         </div>
         <button
           type="submit"
-          className="w-full rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+          disabled={submitting}
+          className="w-full rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
         >
-          Zaloguj
+          {submitting ? "Logowanie..." : "Zaloguj"}
         </button>
       </form>
     </div>

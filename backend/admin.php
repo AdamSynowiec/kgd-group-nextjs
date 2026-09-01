@@ -28,7 +28,9 @@ use App\Repository\MysqlPageRepository;
 $config = require __DIR__ . '/src/bootstrap.php';
 
 Cors::handle($config);
-BasicAuth::guard($config);
+// Gdy ADMIN_AUTH_ENABLED=false, $currentUser jest null — requireRole() poniżej
+// wtedy nic nie blokuje (patrz komentarz w BasicAuth.php).
+$currentUser = BasicAuth::guard($config);
 
 // Połączenie z bazą jest leniwe — otwiera się dopiero, gdy faktycznie
 // obsługujemy trasę, która go potrzebuje. Dzięki temu "Zbuduj stronę" działa
@@ -49,7 +51,15 @@ $router = new Router();
 $router->get('/pages', static fn (Request $request) => $adminController()->listPages());
 $router->get('/page', static fn (Request $request) => $adminController()->getPage($request));
 $router->post('/page', static fn (Request $request) => $adminController()->savePage($request));
-$router->post('/build', static fn (Request $request) => $buildController->trigger());
-$router->get('/build/status', static fn (Request $request) => $buildController->status($request));
+// "Zbuduj stronę" wymaga roli "admin" — edytorzy mogą zmieniać treść,
+// ale nie wyzwalać deployu na produkcję.
+$router->post('/build', static function (Request $request) use ($buildController, $currentUser) {
+    BasicAuth::requireRole($currentUser, 'admin');
+    $buildController->trigger();
+});
+$router->get('/build/status', static function (Request $request) use ($buildController, $currentUser) {
+    BasicAuth::requireRole($currentUser, 'admin');
+    $buildController->status($request);
+});
 
 $router->dispatch(Request::fromGlobals());
