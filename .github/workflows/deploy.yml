@@ -33,6 +33,7 @@ jobs:
           DB_PASS: ${{ secrets.DB_PASS }}
           ADMIN_USER: ${{ secrets.ADMIN_USER }}
           ADMIN_PASS: ${{ secrets.ADMIN_PASS }}
+          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
         run: |
           mkdir -p out/api
           cp -r backend/index.php backend/admin.php backend/.htaccess backend/src out/api/
@@ -46,9 +47,17 @@ jobs:
             echo "CORS_ALLOWED_ORIGIN=*"
             # Panel edycji zostaje wyłączony w CI, dopóki świadomie nie ustawisz
             # sekretów ADMIN_USER/ADMIN_PASS i nie przełączysz tego na true.
-            echo "ADMIN_AUTH_ENABLED=false"
+            echo "ADMIN_AUTH_ENABLED=${ADMIN_AUTH_ENABLED}"
             echo "ADMIN_USER=${ADMIN_USER}"
             echo "ADMIN_PASS=${ADMIN_PASS}"
+            # GH_DISPATCH_TOKEN, bo GitHub Actions nie pozwala nazwać sekretu
+            # "GITHUB_TOKEN" (nazwa zastrzeżona) — w .env zostaje już pod
+            # docelową nazwą, której oczekuje GithubDispatcher.php.
+            echo "GITHUB_TOKEN=${GH_DISPATCH_TOKEN}"
+            echo "GITHUB_OWNER=AdamSynowiec"
+            echo "GITHUB_REPO=kgd-group-nextjs"
+            echo "GITHUB_WORKFLOW=deploy.yml"
+            echo "GITHUB_REF=main"
           } > out/api/.env
 
       - name: Check build output

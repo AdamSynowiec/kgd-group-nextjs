@@ -98,3 +98,8 @@ export function savePage(
 ): Promise<{ saved: boolean }> {
   return request<{ saved: boolean }>("/page", { method: "POST", slug, body: content, credentials });
 }
+
+/** Odpala GitHub Actions (workflow_dispatch) przez backend — token GitHuba nigdy nie trafia do przeglądarki. */
+export function triggerBuild(credentials: Credentials | null): Promise<{ triggered: boolean }> {
+  return request<{ triggered: boolean }>("/build", { method: "POST", credentials });
+}

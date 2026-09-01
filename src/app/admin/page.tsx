@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import LoginForm from "@/components/admin/LoginForm";
 import PageList from "@/components/admin/PageList";
 import PageEditor from "@/components/admin/PageEditor";
+import BuildButton from "@/components/admin/BuildButton";
 import {
   AdminApiError,
   fetchPage,
@@ -95,13 +96,16 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto min-h-full max-w-3xl px-6 py-10">
-      <header className="mb-8 flex items-center justify-between">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Panel KGD Group</h1>
-        {credentials && (
-          <button onClick={handleLogout} className="text-sm text-zinc-500 hover:underline">
-            Wyloguj
-          </button>
-        )}
+        <div className="flex items-center gap-4">
+          <BuildButton credentials={credentials} />
+          {credentials && (
+            <button onClick={handleLogout} className="text-sm text-zinc-500 hover:underline">
+              Wyloguj
+            </button>
+          )}
+        </div>
       </header>
 
       {view.status === "checking" && <p className="text-sm text-zinc-500">Wczytywanie...</p>}
