@@ -50,5 +50,6 @@ $router->get('/pages', static fn (Request $request) => $adminController()->listP
 $router->get('/page', static fn (Request $request) => $adminController()->getPage($request));
 $router->post('/page', static fn (Request $request) => $adminController()->savePage($request));
 $router->post('/build', static fn (Request $request) => $buildController->trigger());
+$router->get('/build/status', static fn (Request $request) => $buildController->status($request));
 
 $router->dispatch(Request::fromGlobals());

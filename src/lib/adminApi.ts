@@ -59,10 +59,9 @@ function authHeader(credentials: Credentials | null): Record<string, string> {
 
 async function request<T>(
   route: string,
-  options: { method?: string; slug?: string; body?: unknown; credentials: Credentials | null }
+  options: { method?: string; params?: Record<string, string>; body?: unknown; credentials: Credentials | null }
 ): Promise<T> {
-  const params = new URLSearchParams({ route });
-  if (options.slug) params.set("slug", options.slug);
+  const params = new URLSearchParams({ route, ...(options.params ?? {}) });
 
   const response = await fetch(`${adminBaseUrl()}?${params.toString()}`, {
     method: options.method ?? "GET",
@@ -88,7 +87,7 @@ export function fetchPages(credentials: Credentials | null): Promise<PageSummary
 }
 
 export function fetchPage(slug: string, credentials: Credentials | null): Promise<Record<string, unknown>> {
-  return request<Record<string, unknown>>("/page", { slug, credentials });
+  return request<Record<string, unknown>>("/page", { params: { slug }, credentials });
 }
 
 export function savePage(
@@ -96,10 +95,22 @@ export function savePage(
   content: Record<string, unknown>,
   credentials: Credentials | null
 ): Promise<{ saved: boolean }> {
-  return request<{ saved: boolean }>("/page", { method: "POST", slug, body: content, credentials });
+  return request<{ saved: boolean }>("/page", { method: "POST", params: { slug }, body: content, credentials });
 }
 
+export type BuildStatus = {
+  status: "pending" | "queued" | "in_progress" | "completed" | string;
+  conclusion: "success" | "failure" | "cancelled" | "timed_out" | string | null;
+  htmlUrl: string | null;
+  runNumber: number | null;
+};
+
 /** Odpala GitHub Actions (workflow_dispatch) przez backend — token GitHuba nigdy nie trafia do przeglądarki. */
-export function triggerBuild(credentials: Credentials | null): Promise<{ triggered: boolean }> {
-  return request<{ triggered: boolean }>("/build", { method: "POST", credentials });
+export function triggerBuild(credentials: Credentials | null): Promise<{ triggered: boolean; dispatchedAt: string }> {
+  return request<{ triggered: boolean; dispatchedAt: string }>("/build", { method: "POST", credentials });
+}
+
+/** Odpytuje status przebiegu uruchomionego przez triggerBuild() — "since" to jego dispatchedAt. */
+export function fetchBuildStatus(since: string, credentials: Credentials | null): Promise<BuildStatus> {
+  return request<BuildStatus>("/build/status", { params: { since }, credentials });
 }
