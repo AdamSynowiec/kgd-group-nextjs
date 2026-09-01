@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import LoginForm from "@/components/admin/LoginForm";
 import PageList from "@/components/admin/PageList";
 import PageEditor from "@/components/admin/PageEditor";
-import BuildButton from "@/components/admin/BuildButton";
+import AdminShell from "@/components/admin/AdminShell";
 import {
   AdminApiError,
   fetchPage,
@@ -22,6 +22,9 @@ import {
  * (backend/admin.php + BasicAuth) jest jedynym źródłem prawdy o dostępie —
  * to on zwraca 401, gdy uwierzytelnianie jest włączone i dane się nie zgadzają;
  * frontend tylko na to reaguje, nie decyduje o uprawnieniach sam.
+ *
+ * Ekran logowania renderuje się BEZ powłoki dashboardu (AdminShell) — sidebar
+ * i pasek konta nie mają sensu, dopóki nie wiadomo, kto wchodzi.
  */
 
 type ViewState =
@@ -30,6 +33,19 @@ type ViewState =
   | { status: "list"; pages: PageSummary[] }
   | { status: "editing"; slug: string; content: Record<string, unknown> }
   | { status: "error"; message: string };
+
+function viewTitle(view: ViewState): string {
+  switch (view.status) {
+    case "editing":
+      return `Edycja — ${view.slug}`;
+    case "error":
+      return "Błąd";
+    case "checking":
+      return "Wczytywanie...";
+    default:
+      return "Strony";
+  }
+}
 
 export default function AdminPage() {
   // Odczyt sessionStorage jest synchroniczny — leniwy inicjalizator useState
@@ -94,23 +110,17 @@ export default function AdminPage() {
     void checkAccessAndLoad(credentials);
   }
 
+  if (view.status === "login") {
+    return (
+      <main className="flex min-h-full flex-1 items-center justify-center bg-zinc-50 px-6 dark:bg-zinc-950">
+        <LoginForm onSubmit={handleLogin} errorMessage={view.message} />
+      </main>
+    );
+  }
+
   return (
-    <div className="mx-auto min-h-full max-w-3xl px-6 py-10">
-      <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Panel KGD Group</h1>
-        <div className="flex items-center gap-4">
-          <BuildButton credentials={credentials} />
-          {credentials && (
-            <button onClick={handleLogout} className="text-sm text-zinc-500 hover:underline">
-              Wyloguj
-            </button>
-          )}
-        </div>
-      </header>
-
+    <AdminShell title={viewTitle(view)} credentials={credentials} onLogout={handleLogout}>
       {view.status === "checking" && <p className="text-sm text-zinc-500">Wczytywanie...</p>}
-
-      {view.status === "login" && <LoginForm onSubmit={handleLogin} errorMessage={view.message} />}
 
       {view.status === "list" && <PageList pages={view.pages} onEdit={handleEdit} />}
 
@@ -123,6 +133,6 @@ export default function AdminPage() {
           {view.message}
         </div>
       )}
-    </div>
+    </AdminShell>
   );
 }

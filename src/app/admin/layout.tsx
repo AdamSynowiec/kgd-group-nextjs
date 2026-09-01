@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** Bez <main> tutaj — AdminShell (login lub dashboard) renderuje własny, jedyny <main> na stronę. */
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return <main className="flex-1">{children}</main>;
+  return <div className="flex min-h-full flex-1 flex-col">{children}</div>;
 }
