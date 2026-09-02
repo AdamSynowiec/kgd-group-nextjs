@@ -1,0 +1,43 @@
+# Najlepszy-wysiłek warstwa dla hostingów opartych o Apache/LiteSpeed
+# (mod_expires, mod_deflate, mod_headers). NA TYM HOSTINGU (ct8.pl, nginx)
+# .htaccess dla PRZEPISYWANIA URL-i jest ignorowany — patrz backend/.htaccess
+# i src/lib/content.ts (dlatego API woła się przez ?route=, nie przez ładny
+# URL). mod_expires/mod_deflate/mod_headers to inne moduły niż mod_rewrite —
+# mogą być respektowane nawet tam, gdzie rewrite nie działa (zależy od
+# konfiguracji hosta) — stąd wciąż warto to mieć jako plik, który nic nie
+# psuje, jeśli zostanie zignorowany.
+#
+# Jeśli po wdrożeniu PageSpeed Insights nadal zgłasza brak długiego cache /
+# kompresji dla plików _next/static/... i .css/.js/.woff2 — hosting
+# najprawdopodobniej ignoruje cały ten plik (tak jak przewidziano) i trzeba
+# szukać opcji "browser caching" / "kompresja" w panelu hostingu albo
+# zapytać wsparcie ct8.pl.
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml application/xml
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+
+  # Pliki w _next/static/ mają w nazwie hash treści — bezpieczne jest cache'owanie
+  # ich "na zawsze" (rok), bo zmiana treści = nowa nazwa pliku, nie nadpisanie starej.
+  <FilesMatch "\.(js|css|woff2?)$">
+    ExpiresDefault "access plus 1 year"
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  <FilesMatch "\.(png|jpe?g|gif|svg|ico|webp|avif)$">
+    ExpiresDefault "access plus 1 month"
+  </FilesMatch>
+
+  # HTML NIE dostaje długiego cache — build generuje go na nowo przy każdym
+  # deployu, a stare zcache'owane HTML-e wskazywałyby na nieistniejące już
+  # skróty plików JS/CSS.
+  <FilesMatch "\.html$">
+    ExpiresDefault "access plus 0 seconds"
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+</IfModule>
