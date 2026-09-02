@@ -26,40 +26,15 @@ jobs:
         run: npm run build
 
       - name: Assemble backend into out/api
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASS: ${{ secrets.DB_PASS }}
-          ADMIN_AUTH_ENABLED: ${{ secrets.ADMIN_AUTH_ENABLED }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
         run: |
           mkdir -p out/api
           cp -r backend/index.php backend/admin.php backend/.htaccess backend/src out/api/
-          {
-            echo "DB_HOST=${DB_HOST}"
-            echo "DB_PORT=3306"
-            echo "DB_NAME=${DB_NAME}"
-            echo "DB_USER=${DB_USER}"
-            echo "DB_PASS=${DB_PASS}"
-            echo "APP_DEBUG=false"
-            echo "CORS_ALLOWED_ORIGIN=*"
-            # Dane logowania NIE są tu generowane — logowanie sprawdza się
-            # względem tabeli `users` w bazie, patrz db/005_create_users_table.sql.
-            # Domyślnie "false" (sekret ADMIN_AUTH_ENABLED jeszcze nie ustawiony) —
-            # panel jest wtedy otwarty dla każdego, kto zna adres.
-            echo "ADMIN_AUTH_ENABLED=${ADMIN_AUTH_ENABLED:-false}"
-            echo "SESSION_SECRET=${SESSION_SECRET}"
-            # GH_DISPATCH_TOKEN, bo GitHub Actions nie pozwala nazwać sekretu
-            # "GITHUB_TOKEN" (nazwa zastrzeżona) — w .env zostaje już pod
-            # docelową nazwą, której oczekuje GithubDispatcher.php.
-            echo "GITHUB_TOKEN=${GH_DISPATCH_TOKEN}"
-            echo "GITHUB_OWNER=AdamSynowiec"
-            echo "GITHUB_REPO=kgd-group-nextjs"
-            echo "GITHUB_WORKFLOW=deploy.yml"
-            echo "GITHUB_REF=main"
-          } > out/api/.env
+          # ŚWIADOMIE bez .env tutaj. To plik konfiguracji SERWERA (dane do bazy,
+          # sekrety), nie kod — wgrywasz go RAZ ręcznie przez FTP i zostaje tam
+          # na stałe (patrz "exclude" w kroku "Deploy to FTP" niżej, który chroni
+          # go przed skasowaniem przez clean-slate). CI nigdy go nie generuje ani
+          # nie nadpisuje — to był dotąd cały problem: brakujący sekret w GitHub
+          # = puste pole w .env = serwer się psuł po KAŻDYM pushu.
 
       - name: Check build output
         run: |
@@ -81,3 +56,8 @@ jobs:
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
           local-dir: ./out/
           clean-slate: true
+          # .env na serwerze (dane do bazy, tokeny) przeżywa clean-slate — nie ma
+          # go w out/, więc bez tego wpisu zostałby skasowany jako "plik, którego
+          # już nie ma lokalnie". Wgrywasz go raz ręcznie, zostaje tam na stałe.
+          exclude: |
+            **/.env
