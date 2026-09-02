@@ -7,6 +7,7 @@ define('APP_ENTRY', true);
 use App\Controller\AdminController;
 use App\Controller\AuthController;
 use App\Controller\BuildController;
+use App\Controller\UsersController;
 use App\Database\Connection;
 use App\Http\Cors;
 use App\Http\GithubDispatcher;
@@ -48,6 +49,9 @@ $authController = static fn (): AuthController => new AuthController(
     new SessionToken($config->get('SESSION_SECRET'))
 );
 
+$usersController = static fn (): UsersController =>
+    new UsersController(new MysqlUserRepository(Connection::get($config)));
+
 $buildController = new BuildController(new GithubDispatcher(
     $config->get('GITHUB_TOKEN'),
     $config->get('GITHUB_OWNER'),
@@ -70,6 +74,22 @@ $router->post('/build', static function (Request $req) use ($buildController, $c
 $router->get('/build/status', static function (Request $req) use ($buildController, $currentSession) {
     SessionAuth::requireRole($currentSession, 'admin');
     $buildController->status($req);
+});
+
+// Zarządzanie kontami ("Ustawienia" w panelu) — tylko rola "admin", z tych
+// samych powodów co "Zbuduj stronę": to operacja wpływająca na dostęp do
+// całego panelu, nie na treść jednej strony.
+$router->get('/users', static function (Request $req) use ($usersController, $currentSession) {
+    SessionAuth::requireRole($currentSession, 'admin');
+    $usersController()->listUsers();
+});
+$router->post('/users', static function (Request $req) use ($usersController, $currentSession) {
+    SessionAuth::requireRole($currentSession, 'admin');
+    $usersController()->createUser($req);
+});
+$router->delete('/users', static function (Request $req) use ($usersController, $currentSession) {
+    SessionAuth::requireRole($currentSession, 'admin');
+    $usersController()->deleteUser($req, $currentSession);
 });
 
 $router->dispatch($request);

@@ -128,3 +128,25 @@ export function triggerBuild(session: Session | null): Promise<{ triggered: bool
 export function fetchBuildStatus(since: string, session: Session | null): Promise<BuildStatus> {
   return request<BuildStatus>("/build/status", { params: { since }, session });
 }
+
+export type UserAccount = { id: number; login: string; role: string; createdAt: string };
+
+/** GET /users — tylko rola "admin" (backend odrzuci innych 403-ką, patrz UsersController.php). */
+export function fetchUsers(session: Session | null): Promise<UserAccount[]> {
+  return request<UserAccount[]>("/users", { session });
+}
+
+export function createUser(
+  input: { login: string; password: string; role: string },
+  session: Session | null
+): Promise<{ id: number; login: string; role: string }> {
+  return request<{ id: number; login: string; role: string }>("/users", { method: "POST", body: input, session });
+}
+
+export function deleteUser(id: number, session: Session | null): Promise<{ deleted: boolean; id: number }> {
+  return request<{ deleted: boolean; id: number }>("/users", {
+    method: "DELETE",
+    params: { id: String(id) },
+    session,
+  });
+}

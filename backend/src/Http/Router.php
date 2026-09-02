@@ -30,6 +30,11 @@ final class Router
         $this->register('POST', $prefix, $handler);
     }
 
+    public function delete(string $prefix, callable $handler): void
+    {
+        $this->register('DELETE', $prefix, $handler);
+    }
+
     private function register(string $method, string $prefix, callable $handler): void
     {
         $this->routes[] = [

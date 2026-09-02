@@ -1,19 +1,18 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { PagesIcon, SettingsIcon } from "@/components/admin/icons";
 import { useBrand } from "@/components/admin/BrandProvider";
 
-/**
- * Lista nawigacji — na razie jedna prawdziwa pozycja ("Strony"). Kolejne
- * sekcje CMS-a (Media, Użytkownicy...) dopisuje się tu jako kolejny wpis;
- * "active: false" renderuje pozycję jako zapowiedź, nie martwy link.
- */
-const NAV_ITEMS = [{ label: "Strony", Icon: PagesIcon, active: true }] as const;
-
-const UPCOMING_ITEMS = [{ label: "Ustawienia", Icon: SettingsIcon }] as const;
+const NAV_ITEMS = [
+  { label: "Strony", href: "/admin", Icon: PagesIcon },
+  { label: "Ustawienia", href: "/admin/settings", Icon: SettingsIcon },
+] as const;
 
 export default function Sidebar() {
   const brand = useBrand();
+  const pathname = usePathname();
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white sm:flex dark:border-zinc-800 dark:bg-zinc-900">
@@ -25,29 +24,24 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {NAV_ITEMS.map(({ label, Icon, active }) => (
-          <button
-            key={label}
-            type="button"
-            aria-current={active ? "page" : undefined}
-            className="flex w-full items-center gap-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900 dark:bg-zinc-800 dark:text-white"
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </button>
-        ))}
-
-        <p className="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">Wkrótce</p>
-
-        {UPCOMING_ITEMS.map(({ label, Icon }) => (
-          <div
-            key={label}
-            className="flex w-full cursor-default items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400 dark:text-zinc-600"
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </div>
-        ))}
+        {NAV_ITEMS.map(({ label, href, Icon }) => {
+          const active = pathname === href;
+          return (
+            <Link
+              key={label}
+              href={href}
+              aria-current={active ? "page" : undefined}
+              className={
+                active
+                  ? "flex w-full items-center gap-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900 dark:bg-zinc-800 dark:text-white"
+                  : "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );
