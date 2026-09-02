@@ -3,19 +3,19 @@
 import { useState } from "react";
 import EditableField from "@/components/admin/EditableField";
 import { deepSet } from "@/lib/deepSet";
-import { savePage, type Credentials } from "@/lib/adminApi";
+import { savePage, type Session } from "@/lib/adminApi";
 
 type SaveState = "idle" | "saving" | "success" | "error";
 
 export default function PageEditor({
   slug,
   initialContent,
-  credentials,
+  session,
   onBack,
 }: {
   slug: string;
   initialContent: Record<string, unknown>;
-  credentials: Credentials | null;
+  session: Session | null;
   onBack: () => void;
 }) {
   const [content, setContent] = useState(initialContent);
@@ -31,7 +31,7 @@ export default function PageEditor({
     setSaveState("saving");
     setErrorMessage("");
     try {
-      await savePage(slug, content, credentials);
+      await savePage(slug, content, session);
       setSaveState("success");
     } catch (error) {
       setSaveState("error");

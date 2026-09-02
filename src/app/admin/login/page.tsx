@@ -3,26 +3,25 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import LoginForm from "@/components/admin/LoginForm";
-import { AdminApiError, fetchPages, storeCredentials } from "@/lib/adminApi";
+import { AdminApiError, login, storeSession } from "@/lib/adminApi";
 
 /**
  * Osobna strona logowania (nie stan wewnątrz /admin) — dokładnie jak
  * wp-login.php w WordPressie: wchodzisz tu, dopiero po sukcesie trafiasz
  * do dashboardu. Weryfikacja loginu/hasła dzieje się na backendzie
- * (fetchPages() z podanymi danymi) — ta strona nigdy sama nie decyduje,
- * czy dane są poprawne, tylko odczytuje odpowiedź API.
+ * (POST /login) — ta strona nigdy sama nie decyduje, czy dane są poprawne,
+ * tylko odczytuje odpowiedź API i zapisuje wystawiony token sesji.
  */
 export default function AdminLoginPage() {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
-  async function handleSubmit(username: string, password: string) {
+  async function handleSubmit(loginName: string, password: string) {
     setErrorMessage(undefined);
-    const credentials = { username, password };
 
     try {
-      await fetchPages(credentials);
-      storeCredentials(credentials);
+      const session = await login(loginName, password);
+      storeSession(session);
       router.push("/admin");
     } catch (error) {
       if (error instanceof AdminApiError && error.status === 401) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useBrand } from "@/components/admin/BrandProvider";
 
 export default function LoginForm({
   onSubmit,
@@ -9,6 +10,7 @@ export default function LoginForm({
   onSubmit: (username: string, password: string) => void | Promise<void>;
   errorMessage?: string;
 }) {
+  const brand = useBrand();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -27,9 +29,9 @@ export default function LoginForm({
     <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-6 flex items-center gap-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-md bg-foreground text-sm font-bold text-background">
-          K
+          {brand.name.charAt(0).toUpperCase()}
         </span>
-        <span className="text-sm font-semibold text-zinc-900 dark:text-white">KGD Group — panel</span>
+        <span className="truncate text-sm font-semibold text-zinc-900 dark:text-white">{brand.name} — panel</span>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

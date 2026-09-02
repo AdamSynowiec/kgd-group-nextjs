@@ -1,32 +1,37 @@
 /**
- * Klient API panelu admina — działa w przeglądarce, w czasie rzeczywistym
+ * Klient API panelu — działa w przeglądarce, w czasie rzeczywistym
  * (w odróżnieniu od src/lib/content.ts, które czyta dane w czasie builda).
  * Dogaduje się z backend/admin.php: ta sama konwencja ?route=, ten sam
  * kształt odpowiedzi {"data": ...} / {"error": ...} co publiczne API.
+ *
+ * Uwierzytelnianie: token sesji (nagłówek "Authorization: Bearer <token>"),
+ * nie HTTP Basic Auth — schemat Bearer nie jest rozpoznawany przez
+ * przeglądarki jako interaktywny, więc nie ryzykujemy natywnego okienka
+ * logowania nad własnym UI panelu (patrz backend/src/Http/SessionAuth.php).
  */
 
 export type PageSummary = { slug: string; title: string; status: string; updatedAt: string };
 
-export type Credentials = { username: string; password: string };
+export type Session = { token: string; login: string; role: string };
 
-const CREDENTIALS_KEY = "kgd-admin-credentials";
+const SESSION_KEY = "admin-session";
 
-export function loadCredentials(): Credentials | null {
+export function loadSession(): Session | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.sessionStorage.getItem(CREDENTIALS_KEY);
-    return raw ? (JSON.parse(raw) as Credentials) : null;
+    const raw = window.localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as Session) : null;
   } catch {
     return null;
   }
 }
 
-export function storeCredentials(credentials: Credentials | null): void {
+export function storeSession(session: Session | null): void {
   if (typeof window === "undefined") return;
-  if (credentials) {
-    window.sessionStorage.setItem(CREDENTIALS_KEY, JSON.stringify(credentials));
+  if (session) {
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } else {
-    window.sessionStorage.removeItem(CREDENTIALS_KEY);
+    window.localStorage.removeItem(SESSION_KEY);
   }
 }
 
@@ -41,9 +46,9 @@ export class AdminApiError extends Error {
 
 /**
  * Domyślnie względna ścieżka "/api" — działa automatycznie, bo backend
- * i statyczna strona żyją pod tą samą domeną (patrz architektura /api/*
- * ustalona wcześniej w projekcie). NEXT_PUBLIC_API_BASE_URL nadpisuje to
- * tylko wtedy, gdy backend faktycznie jest gdzie indziej (np. dev lokalny).
+ * i statyczna strona żyją pod tą samą domeną. NEXT_PUBLIC_API_BASE_URL
+ * nadpisuje to tylko wtedy, gdy backend faktycznie jest gdzie indziej
+ * (np. dev lokalny, albo inny projekt korzystający z tego samego panelu).
  */
 function adminBaseUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -51,15 +56,13 @@ function adminBaseUrl(): string {
   return `${base}/admin.php`;
 }
 
-function authHeader(credentials: Credentials | null): Record<string, string> {
-  if (!credentials) return {};
-  const token = typeof window !== "undefined" ? window.btoa(`${credentials.username}:${credentials.password}`) : "";
-  return token ? { Authorization: `Basic ${token}` } : {};
+function authHeader(session: Session | null): Record<string, string> {
+  return session ? { Authorization: `Bearer ${session.token}` } : {};
 }
 
 async function request<T>(
   route: string,
-  options: { method?: string; params?: Record<string, string>; body?: unknown; credentials: Credentials | null }
+  options: { method?: string; params?: Record<string, string>; body?: unknown; session: Session | null }
 ): Promise<T> {
   const params = new URLSearchParams({ route, ...(options.params ?? {}) });
 
@@ -67,7 +70,7 @@ async function request<T>(
     method: options.method ?? "GET",
     headers: {
       "Content-Type": "application/json",
-      ...authHeader(options.credentials),
+      ...authHeader(options.session),
     },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
@@ -82,20 +85,31 @@ async function request<T>(
   return body.data as T;
 }
 
-export function fetchPages(credentials: Credentials | null): Promise<PageSummary[]> {
-  return request<PageSummary[]>("/pages", { credentials });
+/** POST /login — weryfikuje dane i wystawia token sesji. Backend jest jedynym źródłem prawdy o tym, czy dane są poprawne. */
+export async function login(loginName: string, password: string): Promise<Session> {
+  const data = await request<{ token: string; user: { login: string; role: string } }>("/login", {
+    method: "POST",
+    body: { login: loginName, password },
+    session: null,
+  });
+
+  return { token: data.token, login: data.user.login, role: data.user.role };
 }
 
-export function fetchPage(slug: string, credentials: Credentials | null): Promise<Record<string, unknown>> {
-  return request<Record<string, unknown>>("/page", { params: { slug }, credentials });
+export function fetchPages(session: Session | null): Promise<PageSummary[]> {
+  return request<PageSummary[]>("/pages", { session });
+}
+
+export function fetchPage(slug: string, session: Session | null): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>("/page", { params: { slug }, session });
 }
 
 export function savePage(
   slug: string,
   content: Record<string, unknown>,
-  credentials: Credentials | null
+  session: Session | null
 ): Promise<{ saved: boolean }> {
-  return request<{ saved: boolean }>("/page", { method: "POST", params: { slug }, body: content, credentials });
+  return request<{ saved: boolean }>("/page", { method: "POST", params: { slug }, body: content, session });
 }
 
 export type BuildStatus = {
@@ -106,11 +120,11 @@ export type BuildStatus = {
 };
 
 /** Odpala GitHub Actions (workflow_dispatch) przez backend — token GitHuba nigdy nie trafia do przeglądarki. */
-export function triggerBuild(credentials: Credentials | null): Promise<{ triggered: boolean; dispatchedAt: string }> {
-  return request<{ triggered: boolean; dispatchedAt: string }>("/build", { method: "POST", credentials });
+export function triggerBuild(session: Session | null): Promise<{ triggered: boolean; dispatchedAt: string }> {
+  return request<{ triggered: boolean; dispatchedAt: string }>("/build", { method: "POST", session });
 }
 
 /** Odpytuje status przebiegu uruchomionego przez triggerBuild() — "since" to jego dispatchedAt. */
-export function fetchBuildStatus(since: string, credentials: Credentials | null): Promise<BuildStatus> {
-  return request<BuildStatus>("/build/status", { params: { since }, credentials });
+export function fetchBuildStatus(since: string, session: Session | null): Promise<BuildStatus> {
+  return request<BuildStatus>("/build/status", { params: { since }, session });
 }

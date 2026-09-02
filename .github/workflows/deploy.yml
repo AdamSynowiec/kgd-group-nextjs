@@ -32,6 +32,7 @@ jobs:
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASS: ${{ secrets.DB_PASS }}
           ADMIN_AUTH_ENABLED: ${{ secrets.ADMIN_AUTH_ENABLED }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
         run: |
           mkdir -p out/api
@@ -49,6 +50,7 @@ jobs:
             # Domyślnie "false" (sekret ADMIN_AUTH_ENABLED jeszcze nie ustawiony) —
             # panel jest wtedy otwarty dla każdego, kto zna adres.
             echo "ADMIN_AUTH_ENABLED=${ADMIN_AUTH_ENABLED:-false}"
+            echo "SESSION_SECRET=${SESSION_SECRET}"
             # GH_DISPATCH_TOKEN, bo GitHub Actions nie pozwala nazwać sekretu
             # "GITHUB_TOKEN" (nazwa zastrzeżona) — w .env zostaje już pod
             # docelową nazwą, której oczekuje GithubDispatcher.php.

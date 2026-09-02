@@ -1,6 +1,7 @@
 "use client";
 
 import { PagesIcon, SettingsIcon } from "@/components/admin/icons";
+import { useBrand } from "@/components/admin/BrandProvider";
 
 /**
  * Lista nawigacji — na razie jedna prawdziwa pozycja ("Strony"). Kolejne
@@ -12,13 +13,15 @@ const NAV_ITEMS = [{ label: "Strony", Icon: PagesIcon, active: true }] as const;
 const UPCOMING_ITEMS = [{ label: "Ustawienia", Icon: SettingsIcon }] as const;
 
 export default function Sidebar() {
+  const brand = useBrand();
+
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white sm:flex dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex h-16 items-center gap-2 border-b border-zinc-200 px-6 dark:border-zinc-800">
         <span className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground text-sm font-bold text-background">
-          K
+          {brand.name.charAt(0).toUpperCase()}
         </span>
-        <span className="text-sm font-semibold text-zinc-900 dark:text-white">KGD Group</span>
+        <span className="truncate text-sm font-semibold text-zinc-900 dark:text-white">{brand.name}</span>
       </div>
 
       <nav className="flex-1 space-y-1 p-3">

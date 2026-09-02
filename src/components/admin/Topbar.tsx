@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import BuildButton from "@/components/admin/BuildButton";
 import { ChevronDownIcon } from "@/components/admin/icons";
-import type { Credentials } from "@/lib/adminApi";
+import type { Session } from "@/lib/adminApi";
 
 export default function Topbar({
   title,
-  credentials,
+  session,
   onLogout,
 }: {
   title: string;
-  credentials: Credentials | null;
+  session: Session | null;
   onLogout: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -27,7 +27,10 @@ export default function Topbar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const displayName = credentials?.username || "Gość";
+  // Brak sesji = logowanie wyłączone (tryb developerski) — pokazuj wszystko,
+  // tak jak backend, który w tym trybie też nic nie blokuje (patrz SessionAuth::requireRole()).
+  const canBuild = session === null || session.role === "admin";
+  const displayName = session?.login || "Gość";
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
@@ -35,7 +38,7 @@ export default function Topbar({
       <h1 className="truncate text-base font-semibold text-zinc-900 dark:text-white">{title}</h1>
 
       <div className="flex items-center gap-4">
-        <BuildButton credentials={credentials} />
+        {canBuild && <BuildButton session={session} />}
 
         <div ref={menuRef} className="relative">
           <button
@@ -55,9 +58,12 @@ export default function Topbar({
             <div className="absolute right-0 top-full z-10 mt-2 w-44 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
               <div className="border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                 Zalogowano jako
-                <div className="truncate font-medium text-zinc-700 dark:text-zinc-300">{displayName}</div>
+                <div className="truncate font-medium text-zinc-700 dark:text-zinc-300">
+                  {displayName}
+                  {session && <span className="text-zinc-400"> · {session.role}</span>}
+                </div>
               </div>
-              {credentials ? (
+              {session ? (
                 <button
                   onClick={onLogout}
                   className="block w-full px-4 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"

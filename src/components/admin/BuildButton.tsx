@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchBuildStatus, triggerBuild, type Credentials } from "@/lib/adminApi";
+import { fetchBuildStatus, triggerBuild, type Session } from "@/lib/adminApi";
 
 type State =
   | { phase: "idle" }
@@ -15,7 +15,8 @@ type State =
 const POLL_INTERVAL_MS = 4000;
 const MAX_WAIT_MS = 10 * 60 * 1000; // 10 minut — dłużej niż realistyczny czas builda + deployu
 
-const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO_URL || "https://github.com/AdamSynowiec/kgd-group-nextjs";
+/** Bez zaszytego fallbacku — link "sprawdź ręcznie" pokazuje się tylko, gdy projekt to skonfiguruje. */
+const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO_URL;
 
 function Spinner() {
   return (
@@ -26,7 +27,7 @@ function Spinner() {
   );
 }
 
-export default function BuildButton({ credentials }: { credentials: Credentials | null }) {
+export default function BuildButton({ session }: { session: Session | null }) {
   const [state, setState] = useState<State>({ phase: "idle" });
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef(0);
@@ -53,7 +54,7 @@ export default function BuildButton({ credentials }: { credentials: Credentials 
     }
 
     try {
-      const result = await fetchBuildStatus(dispatchedAt, credentials);
+      const result = await fetchBuildStatus(dispatchedAt, session);
 
       if (result.status !== "completed") {
         // "pending" (GitHub jeszcze nie pokazuje przebiegu), "queued", "in_progress" — czekamy dalej.
@@ -76,7 +77,7 @@ export default function BuildButton({ credentials }: { credentials: Credentials 
   async function handleClick() {
     setState({ phase: "triggering" });
     try {
-      const { dispatchedAt } = await triggerBuild(credentials);
+      const { dispatchedAt } = await triggerBuild(session);
       startedAtRef.current = Date.now();
       setState({ phase: "waiting" });
       pollRef.current = setInterval(() => void poll(dispatchedAt), POLL_INTERVAL_MS);
@@ -131,11 +132,16 @@ export default function BuildButton({ credentials }: { credentials: Credentials 
 
       {state.phase === "timeout" && (
         <span className="text-sm text-amber-600 dark:text-amber-400">
-          Build trwa dłużej niż zwykle —{" "}
-          <a href={`${repoUrl}/actions`} target="_blank" rel="noreferrer" className="underline">
-            sprawdź ręcznie
-          </a>
-          .
+          Build trwa dłużej niż zwykle.
+          {repoUrl && (
+            <>
+              {" "}
+              <a href={`${repoUrl}/actions`} target="_blank" rel="noreferrer" className="underline">
+                Sprawdź ręcznie
+              </a>
+              .
+            </>
+          )}
         </span>
       )}
 
