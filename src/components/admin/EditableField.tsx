@@ -8,96 +8,136 @@ type OnChange = (path: Path, value: unknown) => void;
 const inputClass =
   "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900";
 
-/** "internalId" -> "Internal id" — heurystyka, nie słownik nazw pól. */
+/**
+ * Etykiety pól pochodzą przede wszystkim z danych — z pola "label" zapisanego
+ * obok "value"/"editable" w JSON-ie (czyli w bazie, edytowalne tak samo jak
+ * reszta treści). Słownik poniżej to wyłącznie AWARYJNY fallback dla starszej
+ * treści bez "label" — żeby panel nie pokazywał surowych nazw kluczy zanim
+ * dane zostaną uzupełnione. Nie dodawaj tu nowych, specyficznych dla projektu
+ * pól — właściwe miejsce na nowy podpis to "label" w JSON-ie, nie ten plik.
+ */
+const FIELD_LABELS: Record<string, string> = {
+  title: "Tytuł",
+  description: "Opis",
+  heading: "Nagłówek",
+  lead: "Wprowadzenie",
+  eyebrow: "Etykieta nad nagłówkiem",
+  seo: "SEO",
+  sections: "Sekcje",
+  nav: "Nawigacja",
+  label: "Etykieta",
+  text: "Treść",
+  question: "Pytanie",
+  answer: "Odpowiedź",
+  blocks: "Bloki treści",
+  items: "Elementy",
+  component: "Typ sekcji",
+};
+
+/** Nazwy typów sekcji (pole "component") -> czytelna, polska nazwa. Nieznany typ pokazuje się bez zmian. */
+const COMPONENT_LABELS: Record<string, string> = {
+  Hero: "Sekcja powitalna",
+  RichText: "Blok tekstowy",
+  FAQ: "Pytania i odpowiedzi",
+};
+
+/** Czysto techniczne klucze-kontenery bez własnego znaczenia dla użytkownika — ich zawartość spłaszcza się bez dodawania niczego do etykiety. */
+const TRANSPARENT_KEYS = new Set(["fields"]);
+
+/** "internalId" -> "Internal id" — heurystyka, awaryjna dla kluczy spoza FIELD_LABELS. */
 function humanizeKey(key: string): string {
   const spaced = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[-_]/g, " ");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-/** Czy gdzieś w tym poddrzewie jest choć jedno pole editable — jeśli nie, nie ma czego pokazywać. */
-function hasEditableDescendant(node: unknown): boolean {
-  if (isEditableValue(node)) return true;
-  if (Array.isArray(node)) return node.some(hasEditableDescendant);
-  if (node !== null && typeof node === "object") {
-    return Object.values(node as Record<string, unknown>).some(hasEditableDescendant);
-  }
-  return false;
+function labelFor(key: string): string {
+  return FIELD_LABELS[key] ?? humanizeKey(key);
 }
 
-/** Krótki opis elementu tablicy do etykiety ("Sekcje 1 — Hero") — czysta heurystyka, nie znajomość konkretnych pól. */
+/** Krótka, samodzielna nazwa elementu tablicy (np. sekcji) — z danych ("label" w JSON-ie ma pierwszeństwo), potem z typu komponentu, tytułu albo numeru porządkowego. */
 function describeArrayItem(item: unknown, fallback: string): string {
   if (item !== null && typeof item === "object" && !Array.isArray(item) && !isEditableValue(item)) {
     const record = item as Record<string, unknown>;
-    const hint = record.component ?? record.title ?? record.label;
-    if (typeof hint === "string") return `${fallback} — ${hint}`;
+
+    if (typeof record.label === "string" && record.label.trim() !== "") {
+      return record.label;
+    }
+
+    if (typeof record.component === "string") {
+      return COMPONENT_LABELS[record.component] ?? record.component;
+    }
+
+    if (typeof record.title === "string") return record.title;
   }
+
   return fallback;
 }
 
-/**
- * Rekurencyjnie renderuje formularz na podstawie kształtu danych, nie listy
- * nazw pól. Węzeł {value, editable} -> kontrolka (albo widok tylko-do-odczytu);
- * zwykły obiekt/tablica -> rekursja; wszystko inne, co nie prowadzi do żadnego
- * pola editable, jest pomijane — to backend rządzi tym, co w ogóle da się edytować.
- */
-export default function EditableField({
-  label,
-  node,
-  path,
-  onChange,
-  root = false,
-}: {
-  label: string;
-  node: unknown;
-  path: Path;
-  onChange: OnChange;
-  root?: boolean;
-}) {
-  if (!hasEditableDescendant(node)) {
-    return null;
+/** Nazwa grupy dla pól zagnieżdżonego obiektu — "label" w danych ma pierwszeństwo przed nazwą klucza. */
+function groupLabelFor(childKey: string, value: Record<string, unknown>): string {
+  if (typeof value.label === "string" && value.label.trim() !== "") {
+    return value.label;
   }
+  return labelFor(childKey);
+}
 
+type FlatField = { label: string; node: EditableValue; path: Path };
+
+/**
+ * Zbiera WSZYSTKIE edytowalne pola z dowolnie zagnieżdżonej struktury w jedną
+ * płaską listę — bez pudełka w pudełku w pudełku. Kontekst (np. nazwa sekcji)
+ * dolicza się do etykiety pola najwyżej RAZ ("Sekcja powitalna – Nagłówek"),
+ * nie przy każdym kolejnym poziomie zagnieżdżenia — stąd i tak długie ścieżki
+ * w danych dają krótkie, czytelne podpisy.
+ */
+function collectFields(node: unknown, path: Path, group: string | null, key: string | null): FlatField[] {
   if (isEditableValue(node)) {
-    return <EditableControl label={label} node={node} path={path} onChange={onChange} />;
+    const fieldLabel = node.label && node.label.trim() !== "" ? node.label : key ? labelFor(key) : "Wartość";
+    return [{ label: group ? `${group} – ${fieldLabel}` : fieldLabel, node, path }];
   }
 
   if (Array.isArray(node)) {
-    const items = node.map((item, index) => (
-      <EditableField
-        key={index}
-        label={describeArrayItem(item, `${label} ${index + 1}`)}
-        node={item}
-        path={[...path, index]}
-        onChange={onChange}
-      />
-    ));
-
-    if (root) return <div className="space-y-6">{items}</div>;
-
-    return (
-      <fieldset className="mb-6 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-        <legend className="px-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">{label}</legend>
-        {items}
-      </fieldset>
-    );
+    return node.flatMap((item, index) => {
+      const itemGroup = describeArrayItem(item, `Element ${index + 1}`);
+      return collectFields(item, [...path, index], itemGroup, null);
+    });
   }
 
   if (node !== null && typeof node === "object") {
-    const entries = Object.entries(node as Record<string, unknown>).map(([key, value]) => (
-      <EditableField key={key} label={humanizeKey(key)} node={value} path={[...path, key]} onChange={onChange} />
-    ));
+    return Object.entries(node as Record<string, unknown>).flatMap(([childKey, value]) => {
+      if (TRANSPARENT_KEYS.has(childKey)) {
+        return collectFields(value, [...path, childKey], group, null);
+      }
 
-    if (root) return <div className="space-y-6">{entries}</div>;
+      const isPlainObject =
+        value !== null && typeof value === "object" && !Array.isArray(value) && !isEditableValue(value);
+      const nextGroup =
+        isPlainObject && group === null ? groupLabelFor(childKey, value as Record<string, unknown>) : group;
 
-    return (
-      <fieldset className="mb-6 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-        <legend className="px-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">{label}</legend>
-        {entries}
-      </fieldset>
-    );
+      return collectFields(value, [...path, childKey], nextGroup, childKey);
+    });
   }
 
-  return null;
+  return [];
+}
+
+/** Wejście panelu: zamienia treść strony na płaski formularz — jeden podpisany input pod drugim, bez zagnieżdżeń. */
+export default function EditableField({ node, onChange }: { node: unknown; onChange: OnChange }) {
+  const fields = collectFields(node, [], null, null);
+
+  if (fields.length === 0) {
+    return <p className="text-sm text-zinc-500">Ta strona nie ma pól do edycji.</p>;
+  }
+
+  return (
+    <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+      {fields.map((field) => (
+        <div key={field.path.join(".")} className="py-4 first:pt-0 last:pb-0">
+          <EditableControl label={field.label} node={field.node} path={field.path} onChange={onChange} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function EditableControl({
@@ -115,7 +155,7 @@ function EditableControl({
 
   if (!node.editable) {
     return (
-      <div className="mb-4">
+      <div>
         <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{label}</div>
         <div className="mt-1 text-sm text-zinc-400 dark:text-zinc-600">{String(node.value)} · tylko do odczytu</div>
       </div>
@@ -124,7 +164,7 @@ function EditableControl({
 
   if (typeof node.value === "boolean") {
     return (
-      <label className="mb-4 flex items-center gap-2 text-sm font-medium">
+      <label className="flex items-center gap-2 text-sm font-medium">
         <input type="checkbox" checked={node.value} onChange={(event) => onChange(valuePath, event.target.checked)} />
         {label}
       </label>
@@ -133,7 +173,7 @@ function EditableControl({
 
   if (typeof node.value === "number") {
     return (
-      <div className="mb-4">
+      <div>
         <label className="mb-1 block text-sm font-medium">{label}</label>
         <input
           type="number"
@@ -149,7 +189,7 @@ function EditableControl({
   const multiline = text.length > 80 || text.includes("\n");
 
   return (
-    <div className="mb-4">
+    <div>
       <label className="mb-1 block text-sm font-medium">{label}</label>
       {multiline ? (
         <textarea

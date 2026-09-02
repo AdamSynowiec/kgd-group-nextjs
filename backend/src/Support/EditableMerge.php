@@ -31,10 +31,13 @@ final class EditableMerge
 
             $incomingValue = Editable::isEditableNode($incoming) ? $incoming['value'] : $incoming;
 
-            return [
+            // array_merge (nie tylko ['value', 'editable']) zachowuje dodatkowe
+            // klucze zapisane obok wartości w bazie — np. "label" — które inaczej
+            // znikałyby przy każdym zapisie z panelu.
+            return array_merge($stored, [
                 'value' => self::coerceSameType($stored['value'], $incomingValue),
                 'editable' => true,
-            ];
+            ]);
         }
 
         if (is_array($stored) && array_is_list($stored)) {

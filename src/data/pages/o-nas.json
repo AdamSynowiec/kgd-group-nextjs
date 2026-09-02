@@ -2,7 +2,7 @@
   "slug": "/o-nas",
   "parent": "/",
   "template": "about",
-  "title": { "value": "O nas", "editable": true },
+  "title": { "value": "O nas", "editable": true, "label": "Tytuł strony" },
   "updatedAt": "2026-08-31",
   "status": "published",
 
@@ -13,10 +13,11 @@
   },
 
   "seo": {
-    "title": { "value": "O nas — KGD Group", "editable": true },
+    "title": { "value": "O nas — KGD Group", "editable": true, "label": "Tytuł SEO" },
     "description": {
       "value": "Przykładowa podstrona pokazująca, że wystarczy dodać plik JSON w src/data/pages, żeby powstał nowy adres.",
-      "editable": true
+      "editable": true,
+      "label": "Opis SEO"
     },
     "keywords": ["o nas", "kgd group"],
     "canonical": null,
@@ -45,21 +46,28 @@
     {
       "id": "hero-o-nas",
       "component": "Hero",
+      "label": "Sekcja powitalna",
       "fields": {
-        "eyebrow": { "value": "O nas", "editable": true },
-        "heading": { "value": "Ta strona to plik src/data/pages/o-nas.json", "editable": true },
+        "eyebrow": { "value": "O nas", "editable": true, "label": "Etykieta nad nagłówkiem" },
+        "heading": {
+          "value": "Ta strona to plik src/data/pages/o-nas.json",
+          "editable": true,
+          "label": "Nagłówek"
+        },
         "lead": {
           "value": "Ścieżka pliku odpowiada adresowi: o-nas.json → /o-nas. Zagnieżdżony katalog, np. o-nas/zespol.json, dałby /o-nas/zespol.",
-          "editable": true
+          "editable": true,
+          "label": "Wprowadzenie"
         },
-        "internalId": { "value": "hero-o-nas-001", "editable": false }
+        "internalId": { "value": "hero-o-nas-001", "editable": false, "label": "Identyfikator wewnętrzny" }
       }
     },
     {
       "id": "tresc-o-nas",
       "component": "RichText",
+      "label": "Treść strony",
       "fields": {
-        "heading": { "value": "Jak dodać kolejną podstronę", "editable": true },
+        "heading": { "value": "Jak dodać kolejną podstronę", "editable": true, "label": "Nagłówek" },
         "blocks": [
           {
             "type": "paragraph",

@@ -2,7 +2,7 @@
   "slug": "/",
   "parent": null,
   "template": "home",
-  "title": { "value": "Strona główna", "editable": true },
+  "title": { "value": "Strona główna", "editable": true, "label": "Tytuł strony" },
   "updatedAt": "2026-08-31",
   "status": "published",
 
@@ -12,10 +12,11 @@
   },
 
   "seo": {
-    "title": { "value": "KGD Group — strona główna", "editable": true },
+    "title": { "value": "KGD Group — strona główna", "editable": true, "label": "Tytuł SEO" },
     "description": {
       "value": "Przykładowa strona główna zbudowana z pliku JSON w src/data/pages/home.json.",
-      "editable": true
+      "editable": true,
+      "label": "Opis SEO"
     },
     "keywords": ["kgd group", "strona firmowa", "next.js"],
     "canonical": null,
@@ -40,12 +41,14 @@
     {
       "id": "hero-home",
       "component": "Hero",
+      "label": "Sekcja powitalna",
       "fields": {
-        "eyebrow": { "value": "KGD Group", "editable": true },
-        "heading": { "value": "Tytuł strony głównej", "editable": true },
+        "eyebrow": { "value": "KGD Group", "editable": true, "label": "Etykieta nad nagłówkiem" },
+        "heading": { "value": "Tytuł strony głównej", "editable": true, "label": "Nagłówek" },
         "lead": {
           "value": "To jest przykładowa treść wygenerowana z pliku src/data/pages/home.json. Podmień pola w JSON-ie albo w panelu /admin, żeby zmienić stronę.",
-          "editable": true
+          "editable": true,
+          "label": "Wprowadzenie"
         },
         "primaryCta": { "label": "O nas", "href": "/o-nas" }
       }
@@ -53,8 +56,9 @@
     {
       "id": "o-firmie",
       "component": "RichText",
+      "label": "O firmie",
       "fields": {
-        "heading": { "value": "O firmie", "editable": true },
+        "heading": { "value": "O firmie", "editable": true, "label": "Nagłówek" },
         "blocks": [
           {
             "type": "paragraph",
