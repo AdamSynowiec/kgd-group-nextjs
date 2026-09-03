@@ -1,61 +1,54 @@
 import type { ComponentType } from "react";
 import type { Page } from "@/lib/content";
 
-import Navbar from "@/components/investments/rudava-park/Navbar";
-import Hero from "@/components/investments/rudava-park/Hero";
-import AboutUs from "@/components/investments/rudava-park/AboutUs";
-import Apartaments from "@/components/investments/rudava-park/Apartaments";
-import Gallery from "@/components/investments/rudava-park/Gallery";
-import Localization from "@/components/investments/rudava-park/Localization";
-import Cta from "@/components/investments/rudava-park/Cta";
-import PriceHistory from "@/components/investments/rudava-park/PriceHistory";
-
-import Deweloper from "@/components/investments/shared/Deweloper";
-import Contact from "@/components/investments/shared/Contact";
-import Footer from "@/components/investments/shared/Footer";
-import PrivacyPolicy from "@/components/investments/shared/PrivacyPolicy";
+import rudavaParkTemplate from "@/components/investments/rudava-park/template";
+import morelifeApartmentsTemplate from "@/components/investments/morelife-apartments/template";
 
 type SectionProps = { fields: Record<string, unknown> };
+type Template = Record<string, ComponentType<SectionProps>>;
 
 /**
- * REJESTR SEKCJI DLA INWESTYCJI — mirror src/lib/sections.tsx, ale bez
- * generycznego <Section> (za bardzo "strona treściowa" — border, max-w-5xl).
- * Każdy komponent sekcji sam renderuje własny <section>.
+ * REJESTR SEKCJI DLA INWESTYCJI — dwupoziomowy, mirror starego
+ * src/components/templates/index.js + per-inwestycja template.js:
+ * page.template (np. "rudava-park") wybiera pod-rejestr, w którym
+ * section.component (np. "Hero") wskazuje właściwy komponent.
  *
- * "PhoneCall" i "Features" celowo nie mają tu wpisu — w źródłowym projekcie
- * (kgd-group-deweloper) te sekcje też nie miały komponentu w template.js,
- * więc się nie renderowały. Dane tych sekcji zostają w SQL (patrz reguła o
- * niepomijaniu danych), po prostu żadna z inwestycji jeszcze ich nie pokazuje.
+ * Konieczne, bo różne inwestycje używają tych samych nazw sekcji (Hero,
+ * AboutUs, Gallery, Localization, PriceHistory) z zupełnie różnymi,
+ * niekompatybilnymi komponentami — płaski rejestr by kolidował.
+ *
+ * Bez generycznego <Section> z src/lib/sections.tsx (za bardzo "strona
+ * treściowa" — border, max-w-5xl). Każdy komponent sekcji sam renderuje
+ * własny <section>.
  */
-const REGISTRY: Record<string, ComponentType<SectionProps>> = {
-  Navbar: Navbar as ComponentType<SectionProps>,
-  Hero: Hero as ComponentType<SectionProps>,
-  AboutUs: AboutUs as ComponentType<SectionProps>,
-  Apartaments: Apartaments as ComponentType<SectionProps>,
-  Gallery: Gallery as ComponentType<SectionProps>,
-  Localization: Localization as ComponentType<SectionProps>,
-  Cta: Cta as ComponentType<SectionProps>,
-  PriceHistory: PriceHistory as ComponentType<SectionProps>,
-  Deweloper: Deweloper as ComponentType<SectionProps>,
-  Contact: Contact as ComponentType<SectionProps>,
-  Footer: Footer as ComponentType<SectionProps>,
-  PrivacyPolicy: PrivacyPolicy as ComponentType<SectionProps>,
+const TEMPLATES: Record<string, Template> = {
+  "rudava-park": rudavaParkTemplate,
+  "morelife-apartments": morelifeApartmentsTemplate,
 };
 
-export function getInvestmentSectionComponent(name: string) {
-  return REGISTRY[name] ?? null;
+export function getInvestmentSectionComponent(templateName: string, componentName: string) {
+  return TEMPLATES[templateName]?.[componentName] ?? null;
 }
 
 export default function InvestmentSectionRenderer({ page }: { page: Page }) {
+  const template = page.template ? TEMPLATES[page.template] : undefined;
+
+  if (!template) {
+    console.warn(`[investments/sections] Nieznany szablon "${page.template}" dla ${page.slug}.`);
+    return null;
+  }
+
   return (
     <>
       {(page.sections || [])
         .filter((section) => section.visible !== false)
         .map((section) => {
-          const Component = REGISTRY[section.component];
+          const Component = template[section.component];
 
           if (!Component) {
-            console.warn(`[investments/sections] Nieznany komponent "${section.component}" w ${page.slug} (id: ${section.id}). Sekcja pominięta.`);
+            console.warn(
+              `[investments/sections] Nieznany komponent "${section.component}" w szablonie "${page.template}" (${page.slug}, id: ${section.id}). Sekcja pominięta.`
+            );
             return null;
           }
 
