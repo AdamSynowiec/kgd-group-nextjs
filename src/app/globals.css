@@ -17,6 +17,8 @@
   --font-ebgaramond-regular: var(--ebgaramond-src), serif;
   --font-playfairdisplay: var(--playfairdisplay-src), serif;
   --font-lato: var(--lato-src), sans-serif;
+  --font-libre-caslon: var(--librecaslon-src), serif;
+  --font-roboto: var(--roboto-src), sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {

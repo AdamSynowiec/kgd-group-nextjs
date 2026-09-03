@@ -1,5 +1,5 @@
 import localFont from "next/font/local";
-import { Poppins, EB_Garamond, Playfair_Display, Lato } from "next/font/google";
+import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto } from "next/font/google";
 
 /**
  * Fonty specyficzne dla stron inwestycji (nie ładowane w root layout / (site),
@@ -45,4 +45,18 @@ export const lato = Lato({
   display: "swap",
 });
 
-export const investmentFontVariables = `${ranadeVariable.variable} ${poppins.variable} ${ebGaramond.variable} ${playfairDisplay.variable} ${lato.variable}`;
+export const libreCaslonText = Libre_Caslon_Text({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "700"],
+  variable: "--librecaslon-src",
+  display: "swap",
+});
+
+export const roboto = Roboto({
+  subsets: ["latin", "latin-ext"],
+  weight: ["300", "400", "500", "700"],
+  variable: "--roboto-src",
+  display: "swap",
+});
+
+export const investmentFontVariables = `${ranadeVariable.variable} ${poppins.variable} ${ebGaramond.variable} ${playfairDisplay.variable} ${lato.variable} ${libreCaslonText.variable} ${roboto.variable}`;
