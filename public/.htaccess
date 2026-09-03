@@ -33,6 +33,10 @@
     ExpiresDefault "access plus 1 month"
   </FilesMatch>
 
+  <FilesMatch "\.(mp4|webm|ogg|mp3)$">
+    ExpiresDefault "access plus 1 month"
+  </FilesMatch>
+
   # HTML NIE dostaje długiego cache — build generuje go na nowo przy każdym
   # deployu, a stare zcache'owane HTML-e wskazywałyby na nieistniejące już
   # skróty plików JS/CSS.

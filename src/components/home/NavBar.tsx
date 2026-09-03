@@ -24,7 +24,9 @@ export default function NavBar({ logo, menu, phone }: { logo: string; menu: Menu
               decoding="async"
               src={logo}
               alt="Logo"
-              className={`transition-all duration-300 ${isScrolled ? "h-[35px] lg:h-[52px]" : "h-[40px] lg:h-[52px]"}`}
+              width={267}
+              height={63}
+              className={`w-auto transition-all duration-300 ${isScrolled ? "h-[35px] lg:h-[52px]" : "h-[40px] lg:h-[52px]"}`}
             />
           </a>
         </div>
