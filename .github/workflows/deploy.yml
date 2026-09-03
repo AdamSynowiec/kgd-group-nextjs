@@ -55,7 +55,7 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
           local-dir: ./out/
-          clean-slate: true
+          # clean-slate: true
           # .env na serwerze (dane do bazy, tokeny) przeżywa clean-slate — nie ma
           # go w out/, więc bez tego wpisu zostałby skasowany jako "plik, którego
           # już nie ma lokalnie". Wgrywasz go raz ręcznie, zostaje tam na stałe.
