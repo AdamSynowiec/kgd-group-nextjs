@@ -3,8 +3,9 @@ import type { Page } from "@/lib/content";
 
 import rudavaParkTemplate from "@/components/investments/rudava-park/template";
 import morelifeApartmentsTemplate from "@/components/investments/morelife-apartments/template";
+import podStokiemWillaTemplate from "@/components/investments/pod-stokiem-willa/template";
 
-type SectionProps = { fields: Record<string, unknown> };
+type SectionProps = { fields: Record<string, unknown>; id?: string };
 type Template = Record<string, ComponentType<SectionProps>>;
 
 /**
@@ -24,6 +25,7 @@ type Template = Record<string, ComponentType<SectionProps>>;
 const TEMPLATES: Record<string, Template> = {
   "rudava-park": rudavaParkTemplate,
   "morelife-apartments": morelifeApartmentsTemplate,
+  "pod-stokiem-willa": podStokiemWillaTemplate,
 };
 
 export function getInvestmentSectionComponent(templateName: string, componentName: string) {
@@ -52,7 +54,7 @@ export default function InvestmentSectionRenderer({ page }: { page: Page }) {
             return null;
           }
 
-          return <Component key={section.id} fields={section.fields ?? {}} />;
+          return <Component key={section.id} fields={section.fields ?? {}} id={section.hashId} />;
         })}
     </>
   );

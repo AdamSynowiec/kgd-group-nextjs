@@ -40,6 +40,8 @@ export type PageSection = {
   component: string;
   fields?: Record<string, unknown>;
   visible?: boolean;
+  /** Opcjonalna kotwica (np. "inwestycja") do zaczepienia linku nawigacji o tę konkretną instancję sekcji. */
+  hashId?: string;
 };
 
 /**
