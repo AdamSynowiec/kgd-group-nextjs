@@ -9,9 +9,9 @@ import Localization from "./Localization";
 import Gallery from "./Gallery";
 import PriceHistory from "./PriceHistory";
 
-import Deweloper from "@/components/investments/shared/Deweloper";
-import Contact from "@/components/investments/shared/Contact";
-import Footer from "@/components/investments/shared/Footer";
+import Deweloper from "@/components/shared/Deweloper";
+import Contact from "@/components/shared/Contact";
+import Footer from "@/components/shared/Footer";
 
 /**
  * Rejestr sekcji dla szablonu "morelife-apartments" — mirror starego

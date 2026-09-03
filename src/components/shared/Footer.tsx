@@ -8,6 +8,7 @@ type KgdBuildingLinks = { private: string; developer: string };
 type CooperationLinks = { investor: string; land: string };
 
 type FooterFields = {
+  custom?: { header?: EditableValue<string> | string };
   description?: EditableValue<string> | string;
   building_description?: EditableValue<string> | string;
   company?: EditableValue<string> | string;
@@ -45,6 +46,7 @@ const socialIcons: Record<SocialLink["icon"], React.ReactNode> = {
 
 /** Naprawdę globalna sekcja (identyczna w każdej inwestycji) — patrz AGENTS.md, wyjątek dla Footer/Contact/Deweloper. */
 export default function Footer({ fields }: { fields: FooterFields }) {
+  const customHeader = unwrap(fields.custom?.header);
   const description = unwrap(fields.description);
   const buildingDescription = unwrap(fields.building_description);
   const company = unwrap(fields.company);
@@ -101,7 +103,7 @@ export default function Footer({ fields }: { fields: FooterFields }) {
           <div className="col-span-12 md:col-span-9">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-14">
               <div>
-                <p className="text-xs uppercase tracking-wider text-gray-500">{columnHeaders?.developer}</p>
+                <p className="text-xs uppercase tracking-wider text-gray-500">{customHeader || columnHeaders?.developer}</p>
                 <div className="mt-6 flex flex-col space-y-2 text-sm text-gray-400">
                   <span>{company}</span>
                   <span className="pt-2">{address}</span>

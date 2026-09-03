@@ -18,7 +18,7 @@ export default function AdminShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-full bg-zinc-50 dark:bg-zinc-950">
+    <div className="flex min-h-full bg-zinc-50">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar title={title} session={session} onLogout={onLogout} />

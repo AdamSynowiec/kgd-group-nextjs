@@ -40,7 +40,7 @@ function BlockView({ block, baseLevel }: { block: Block; baseLevel: number }) {
       );
     case "paragraph":
     default:
-      return <p className="mt-4 leading-7 text-zinc-600 dark:text-zinc-400">{block.text}</p>;
+      return <p className="mt-4 leading-7 text-zinc-600">{block.text}</p>;
   }
 }
 
@@ -60,12 +60,12 @@ export default function RichText({
   return (
     <div className="max-w-2xl">
       {eyebrow && (
-        <p className="text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
           {eyebrow}
         </p>
       )}
       {heading && <Heading className="text-2xl font-semibold tracking-tight">{heading}</Heading>}
-      {lead && <p className="mt-2 text-lg text-zinc-600 dark:text-zinc-400">{lead}</p>}
+      {lead && <p className="mt-2 text-lg text-zinc-600">{lead}</p>}
 
       {blocks.map((block, i) => (
         <BlockView key={`${block.type}-${i}`} block={block} baseLevel={headingLevel + 1} />

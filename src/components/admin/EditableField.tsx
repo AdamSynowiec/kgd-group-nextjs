@@ -6,7 +6,7 @@ type Path = (string | number)[];
 type OnChange = (path: Path, value: unknown) => void;
 
 const inputClass =
-  "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900";
+  "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
 
 /**
  * Etykiety pól pochodzą przede wszystkim z danych — z pola "label" zapisanego
@@ -130,7 +130,7 @@ export default function EditableField({ node, onChange }: { node: unknown; onCha
   }
 
   return (
-    <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+    <div className="divide-y divide-zinc-100">
       {fields.map((field) => (
         <div key={field.path.join(".")} className="py-4 first:pt-0 last:pb-0">
           <EditableControl label={field.label} node={field.node} path={field.path} onChange={onChange} />
@@ -156,8 +156,8 @@ function EditableControl({
   if (!node.editable) {
     return (
       <div>
-        <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{label}</div>
-        <div className="mt-1 text-sm text-zinc-400 dark:text-zinc-600">{String(node.value)} · tylko do odczytu</div>
+        <div className="text-sm font-medium text-zinc-500">{label}</div>
+        <div className="mt-1 text-sm text-zinc-400">{String(node.value)} · tylko do odczytu</div>
       </div>
     );
   }

@@ -1,5 +1,5 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
-import PriceHistoryTable, { type PriceHistoryColumn, type PriceHistoryRow } from "@/components/investments/shared/PriceHistoryTable";
+import PriceHistoryTable, { type PriceHistoryColumn, type PriceHistoryRow } from "@/components/shared/PriceHistoryTable";
 
 type PriceHistoryFields = {
   columns?: EditableValue<PriceHistoryColumn[]> | PriceHistoryColumn[];

@@ -1,18 +1,19 @@
 import localFont from "next/font/local";
-import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto } from "next/font/google";
+import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto, Montserrat } from "next/font/google";
 
 /**
- * Fonty specyficzne dla stron inwestycji (nie ładowane w root layout / (site),
- * żeby nie powiększać bundle'a głównej strony). Nazwy CSS-variable dobrane
- * pod istniejące w portowanym kodzie klasy Tailwind: font-ranade-variable,
- * font-poppins, font-ebgaramond-regular, font-playfairdisplay, font-lato —
- * patrz src/app/inwestycja/layout.tsx. Wspólny plik dla wszystkich inwestycji
- * (layout jest jeden dla /inwestycja/**, nie per-inwestycja) — dodanie fontów
- * dla kolejnej inwestycji jest addytywne, nie wpływa na już renderowane.
+ * Loader fontów współdzielony przez strony inwestycji i stronę główną (nie
+ * ładowane w root layout, żeby nie powiększać bundle'a generycznych stron
+ * (site) jak /o-nas). Nazwy CSS-variable dobrane pod istniejące w portowanym
+ * kodzie klasy Tailwind: font-ranade-variable, font-poppins,
+ * font-ebgaramond-regular, font-playfairdisplay, font-lato, font-libre-caslon,
+ * font-roboto, font-montserrat — patrz src/app/inwestycja/layout.tsx i
+ * src/app/page.tsx. Dodanie fontu dla kolejnej strony jest addytywne, nie
+ * wpływa na już renderowane.
  */
 
 export const ranadeVariable = localFont({
-  src: "../../assets/fonts/Ranade-Variable.woff2",
+  src: "../assets/fonts/Ranade-Variable.woff2",
   variable: "--ranade-variable-src",
   display: "swap",
 });
@@ -59,4 +60,13 @@ export const roboto = Roboto({
   display: "swap",
 });
 
+export const montserrat = Montserrat({
+  subsets: ["latin", "latin-ext"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--montserrat-src",
+  display: "swap",
+});
+
 export const investmentFontVariables = `${ranadeVariable.variable} ${poppins.variable} ${ebGaramond.variable} ${playfairDisplay.variable} ${lato.variable} ${libreCaslonText.variable} ${roboto.variable}`;
+
+export const homeFontVariables = `${poppins.variable} ${montserrat.variable}`;

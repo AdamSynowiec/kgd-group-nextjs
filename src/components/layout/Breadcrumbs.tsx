@@ -3,7 +3,7 @@ import type { NavLink } from "@/lib/content";
 
 export default function Breadcrumbs({ items }: { items: NavLink[] }) {
   return (
-    <nav aria-label="Okruszki" className="mx-auto max-w-5xl px-6 pt-6 text-sm text-zinc-500 dark:text-zinc-400">
+    <nav aria-label="Okruszki" className="mx-auto max-w-5xl px-6 pt-6 text-sm text-zinc-500">
       <ol className="flex flex-wrap gap-1">
         {items.map((item, i) => (
           <li key={item.href} className="flex items-center gap-1">

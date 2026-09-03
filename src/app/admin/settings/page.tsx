@@ -63,7 +63,7 @@ export default function AdminSettingsPage() {
       {view.status === "checking" && <p className="text-sm text-zinc-500">Wczytywanie...</p>}
 
       {view.status === "forbidden" && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
           Zarządzanie kontami wymaga roli &quot;admin&quot;.
         </div>
       )}
@@ -71,7 +71,7 @@ export default function AdminSettingsPage() {
       {view.status === "ready" && <UsersPanel initialUsers={view.users} session={session} />}
 
       {view.status === "error" && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {view.message}
         </div>
       )}

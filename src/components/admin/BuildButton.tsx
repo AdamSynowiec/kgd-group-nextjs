@@ -22,7 +22,7 @@ function Spinner() {
   return (
     <span
       aria-hidden
-      className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600 dark:border-zinc-700 dark:border-t-zinc-300"
+      className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600"
     />
   );
 }
@@ -94,7 +94,7 @@ export default function BuildButton({ session }: { session: Session | null }) {
       <button
         onClick={handleClick}
         disabled={busy}
-        className="flex items-center gap-2 rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/[.04] disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-white/[.06]"
+        className="flex items-center gap-2 rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/[.04] disabled:opacity-50"
       >
         {busy && <Spinner />}
         {state.phase === "triggering" && "Uruchamianie..."}
@@ -103,7 +103,7 @@ export default function BuildButton({ session }: { session: Session | null }) {
       </button>
 
       {state.phase === "success" && (
-        <span className="text-sm text-green-600 dark:text-green-400">
+        <span className="text-sm text-green-600">
           ✓ Zbudowano pomyślnie.
           {state.htmlUrl && (
             <>
@@ -117,7 +117,7 @@ export default function BuildButton({ session }: { session: Session | null }) {
       )}
 
       {state.phase === "failure" && (
-        <span className="text-sm text-red-600 dark:text-red-400">
+        <span className="text-sm text-red-600">
           Build zakończył się błędem ({state.conclusion}).
           {state.htmlUrl && (
             <>
@@ -131,7 +131,7 @@ export default function BuildButton({ session }: { session: Session | null }) {
       )}
 
       {state.phase === "timeout" && (
-        <span className="text-sm text-amber-600 dark:text-amber-400">
+        <span className="text-sm text-amber-600">
           Build trwa dłużej niż zwykle.
           {repoUrl && (
             <>
@@ -145,7 +145,7 @@ export default function BuildButton({ session }: { session: Session | null }) {
         </span>
       )}
 
-      {state.phase === "error" && <span className="text-sm text-red-600 dark:text-red-400">{state.message}</span>}
+      {state.phase === "error" && <span className="text-sm text-red-600">{state.message}</span>}
     </div>
   );
 }

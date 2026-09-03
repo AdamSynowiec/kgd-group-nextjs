@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="flex min-h-full flex-1 items-center justify-center bg-zinc-50 px-6 dark:bg-zinc-950">
+    <main className="flex min-h-full flex-1 items-center justify-center bg-zinc-50 px-6">
       <LoginForm onSubmit={handleSubmit} errorMessage={errorMessage} />
     </main>
   );

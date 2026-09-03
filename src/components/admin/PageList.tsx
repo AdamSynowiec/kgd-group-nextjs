@@ -8,15 +8,15 @@ export default function PageList({ pages, onEdit }: { pages: PageSummary[]; onEd
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+      <ul className="divide-y divide-zinc-100">
         {pages.map((page) => (
           <li key={page.slug} className="flex items-center justify-between gap-4 px-5 py-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="truncate font-medium text-zinc-900 dark:text-white">{page.title}</span>
+                <span className="truncate font-medium text-zinc-900">{page.title}</span>
                 {page.status === "draft" && (
-                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
                     szkic
                   </span>
                 )}
@@ -27,7 +27,7 @@ export default function PageList({ pages, onEdit }: { pages: PageSummary[]; onEd
             </div>
             <button
               onClick={() => onEdit(page.slug)}
-              className="shrink-0 rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className="shrink-0 rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-50"
             >
               Edytuj
             </button>

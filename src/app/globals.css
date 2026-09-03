@@ -11,7 +11,7 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  /* Fonty stron inwestycji (ładowane tylko w src/app/inwestycja/layout.tsx) */
+  /* Fonty stron inwestycji i strony głównej (ładowane w src/app/inwestycja/layout.tsx / src/app/page.tsx) */
   --font-ranade-variable: var(--ranade-variable-src), serif;
   --font-poppins: var(--poppins-src), sans-serif;
   --font-ebgaramond-regular: var(--ebgaramond-src), serif;
@@ -19,13 +19,7 @@
   --font-lato: var(--lato-src), sans-serif;
   --font-libre-caslon: var(--librecaslon-src), serif;
   --font-roboto: var(--roboto-src), sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-montserrat: var(--montserrat-src), sans-serif;
 }
 
 body {

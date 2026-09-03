@@ -26,7 +26,7 @@ export default function Hero({
   return (
     <div className="max-w-2xl">
       {eyebrow && (
-        <p className="text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
           {eyebrow}
         </p>
       )}
@@ -34,7 +34,7 @@ export default function Hero({
         {heading}
       </Heading>
       {lead && (
-        <p className="mt-4 text-lg leading-8 text-zinc-600 dark:text-zinc-400">
+        <p className="mt-4 text-lg leading-8 text-zinc-600">
           {lead}
         </p>
       )}
@@ -43,7 +43,7 @@ export default function Hero({
           {primaryCta && (
             <Link
               href={primaryCta.href}
-              className="rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+              className="rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838]"
             >
               {primaryCta.label}
             </Link>
@@ -51,7 +51,7 @@ export default function Hero({
           {secondaryCta && (
             <Link
               href={secondaryCta.href}
-              className="rounded-full border border-black/[.08] px-5 py-2.5 text-sm font-medium transition-colors hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
+              className="rounded-full border border-black/[.08] px-5 py-2.5 text-sm font-medium transition-colors hover:bg-black/[.04]"
             >
               {secondaryCta.label}
             </Link>

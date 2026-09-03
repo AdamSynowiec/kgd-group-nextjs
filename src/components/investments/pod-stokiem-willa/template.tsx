@@ -11,10 +11,10 @@ import Offert from "./Offert";
 import Gallery from "./Gallery";
 import Map from "./Map";
 
-import Deweloper from "@/components/investments/shared/Deweloper";
-import Contact from "@/components/investments/shared/Contact";
-import Footer from "@/components/investments/shared/Footer";
-import PrivacyPolicy from "@/components/investments/shared/PrivacyPolicy";
+import Deweloper from "@/components/shared/Deweloper";
+import Contact from "@/components/shared/Contact";
+import Footer from "@/components/shared/Footer";
+import PrivacyPolicy from "@/components/shared/PrivacyPolicy";
 
 /**
  * Rejestr sekcji dla szablonu "pod-stokiem-willa" — mirror starego
