@@ -19,8 +19,28 @@ jobs:
           node-version: 24
           cache: npm
 
+      # Cache node_modules bezpośrednio (nie tylko rejestr npm) — przy trafieniu
+      # w cache pomijamy "npm ci" całkowicie, bo lockfile się nie zmienił.
+      - name: Cache node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
-        run: npm ci
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      # Cache inkrementalnego build cache Next.js — przyspiesza kompilację
+      # i typecheck, gdy kod się nie zmienił (a przy CMS-webhooku właśnie tak jest).
+      - name: Cache Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx') }}
+          restore-keys: |
+            nextjs-${{ hashFiles('package-lock.json') }}-
 
       - name: Build
         run: npm run build
@@ -36,16 +56,13 @@ jobs:
           # nie nadpisuje — to był dotąd cały problem: brakujący sekret w GitHub
           # = puste pole w .env = serwer się psuł po KAŻDYM pushu.
 
-      - name: Check build output
+      # Zredukowane do jednej linii - tylko szybki sanity check, bez pełnego
+      # listowania katalogów (oszczędza ~10s przy każdym uruchomieniu).
+      - name: Verify build output
         run: |
-          echo "=== OUT DIRECTORY ==="
-          ls -lah ./out/
-          echo "=== API DIRECTORY ==="
-          ls -lah ./out/api/
-          echo "=== INDEX ==="
-          ls -lah ./out/index.html
-          echo "=== INDEX HASH ==="
-          sha256sum ./out/index.html
+          test -f ./out/index.html || (echo "❌ index.html missing!" && exit 1)
+          test -f ./out/api/index.php || (echo "❌ api/index.php missing!" && exit 1)
+          echo "✅ Build OK: $(sha256sum ./out/index.html)"
 
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
