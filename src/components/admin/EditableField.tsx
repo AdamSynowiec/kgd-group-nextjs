@@ -140,6 +140,138 @@ export default function EditableField({ node, onChange }: { node: unknown; onCha
   );
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Prosty input dla surowej (niezawiniętej w EditableValue) wartości prymitywnej gdzieś w głębi struktury — cała gałąź jest edytowalna, bo rodzic (EditableValue) już jest. */
+function PrimitiveField({
+  label,
+  value,
+  path,
+  onChange,
+}: {
+  label: string;
+  value: unknown;
+  path: Path;
+  onChange: OnChange;
+}) {
+  if (typeof value === "boolean") {
+    return (
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input type="checkbox" checked={value} onChange={(event) => onChange(path, event.target.checked)} />
+        {label}
+      </label>
+    );
+  }
+
+  if (typeof value === "number") {
+    return (
+      <div>
+        <label className="mb-1 block text-sm font-medium text-zinc-600">{label}</label>
+        <input
+          type="number"
+          value={value}
+          onChange={(event) => onChange(path, Number(event.target.value))}
+          className={inputClass}
+        />
+      </div>
+    );
+  }
+
+  const text = String(value ?? "");
+  const multiline = text.length > 80 || text.includes("\n");
+
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-zinc-600">{label}</label>
+      {multiline ? (
+        <textarea value={text} rows={3} onChange={(event) => onChange(path, event.target.value)} className={inputClass} />
+      ) : (
+        <input type="text" value={text} onChange={(event) => onChange(path, event.target.value)} className={inputClass} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Edytor dla wartości ZŁOŻONEJ (obiekt albo tablica) gdzieś pod EditableValue —
+ * np. "cooperationLinks": {value: {investor, land}, editable, label}. Zamiast
+ * jednego zepsutego pola tekstowego (dawniej String(node.value) -> "[object
+ * Object]"), rozkłada strukturę na osobne, podpisane kontrolki — rekurencyjnie,
+ * dowolnie głęboko. Elementy niżej nie mają własnego "editable" — dziedziczą je
+ * po najbliższym przodku typu EditableValue (stąd brak tu takiego sprawdzenia).
+ */
+function CompoundEditor({ value, path, onChange }: { value: unknown; path: Path; onChange: OnChange }) {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return <p className="text-xs italic text-zinc-400">Pusta lista.</p>;
+    }
+
+    const allPrimitive = value.every((item) => typeof item === "string" || typeof item === "number");
+    if (allPrimitive) {
+      const isNumeric = value.every((item) => typeof item === "number");
+      return (
+        <textarea
+          value={value.join("\n")}
+          rows={Math.min(Math.max(value.length, 2), 8)}
+          onChange={(event) => {
+            const lines = event.target.value.split("\n");
+            onChange(
+              path,
+              isNumeric
+                ? lines.map((line) => {
+                    const n = Number(line);
+                    return Number.isFinite(n) ? n : 0;
+                  })
+                : lines
+            );
+          }}
+          className={inputClass}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {value.map((item, index) => (
+          <div key={index} className="rounded-md border border-zinc-200 p-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              {describeArrayItem(item, `Element ${index + 1}`)}
+            </div>
+            <CompoundEditor value={item} path={[...path, index]} onChange={onChange} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isPlainObject(value)) {
+    return (
+      <div className="space-y-3 border-l-2 border-zinc-100 pl-3">
+        {Object.entries(value).map(([key, child]) => {
+          const childPath = [...path, key];
+
+          if (isPlainObject(child) || Array.isArray(child)) {
+            const childLabel = isPlainObject(child) ? groupLabelFor(key, child) : labelFor(key);
+            return (
+              <div key={key}>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">{childLabel}</div>
+                <CompoundEditor value={child} path={childPath} onChange={onChange} />
+              </div>
+            );
+          }
+
+          return <PrimitiveField key={key} label={labelFor(key)} value={child} path={childPath} onChange={onChange} />;
+        })}
+      </div>
+    );
+  }
+
+  // Rzadki brzegowy przypadek (np. tablica mieszająca prymitywy z obiektami) — pojedyncza wartość bez własnej etykiety z kontekstu.
+  return <PrimitiveField label="Wartość" value={value} path={path} onChange={onChange} />;
+}
+
 function EditableControl({
   label,
   node,
@@ -154,10 +286,20 @@ function EditableControl({
   const valuePath = [...path, "value"];
 
   if (!node.editable) {
+    const preview = isPlainObject(node.value) || Array.isArray(node.value) ? JSON.stringify(node.value) : String(node.value);
     return (
       <div>
         <div className="text-sm font-medium text-zinc-500">{label}</div>
-        <div className="mt-1 text-sm text-zinc-400">{String(node.value)} · tylko do odczytu</div>
+        <div className="mt-1 text-sm text-zinc-400">{preview} · tylko do odczytu</div>
+      </div>
+    );
+  }
+
+  if (isPlainObject(node.value) || Array.isArray(node.value)) {
+    return (
+      <div>
+        <div className="mb-1 block text-sm font-medium">{label}</div>
+        <CompoundEditor value={node.value} path={valuePath} onChange={onChange} />
       </div>
     );
   }
