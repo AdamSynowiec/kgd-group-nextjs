@@ -47,7 +47,7 @@ export default function PageEditor({
       <p className="mb-6 font-mono text-sm text-zinc-400">{slug}</p>
 
       <div className="rounded-xl border border-zinc-200 bg-white p-6">
-        <EditableField node={content} onChange={handleChange} />
+        <EditableField node={content} session={session} onChange={handleChange} />
 
         <div className="mt-6 flex items-center gap-3 border-t border-zinc-100 pt-6">
           <button

@@ -112,6 +112,33 @@ export function savePage(
   return request<{ saved: boolean }>("/page", { method: "POST", params: { slug }, body: content, session });
 }
 
+/**
+ * Pola typu "asset" w EditableField.tsx — wysyła plik jako multipart/form-data
+ * (nie JSON, w odróżnieniu od reszty tego klienta) i dostaje z powrotem URL
+ * względny od korzenia domeny (np. "/api/uploads/abc123.webp"), gotowy do
+ * zapisania wprost w polu "value" tak samo jak wklejony ręcznie tekst.
+ */
+export async function uploadAsset(file: File, session: Session | null): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const params = new URLSearchParams({ route: "/upload" });
+  const response = await fetch(`${adminBaseUrl()}?${params.toString()}`, {
+    method: "POST",
+    headers: authHeader(session),
+    body: formData,
+  });
+
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = (body && body.error && body.error.message) || `Błąd ${response.status}`;
+    throw new AdminApiError(response.status, message);
+  }
+
+  return (body.data as { url: string }).url;
+}
+
 export type BuildStatus = {
   status: "pending" | "queued" | "in_progress" | "completed" | string;
   conclusion: "success" | "failure" | "cancelled" | "timed_out" | string | null;

@@ -1,0 +1,6 @@
+# Pliki wgrane przez panel (UploadController.php) — dane runtime serwera,
+# nie kod aplikacji, tak samo jak backend/.env. Katalog istnieje w repo
+# (ten plik), żeby "git clone" dawał gotową strukturę, ale jego zawartość
+# nigdy nie trafia do commitów ani do statycznego builda (out/).
+*
+!.gitignore

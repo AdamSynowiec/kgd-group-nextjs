@@ -1,12 +1,30 @@
 "use client";
 
+import { useState } from "react";
 import { isEditableValue, type EditableValue } from "@/lib/editable";
+import { uploadAsset, type Session } from "@/lib/adminApi";
 
 type Path = (string | number)[];
 type OnChange = (path: Path, value: unknown) => void;
 
 const inputClass =
   "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
+
+/**
+ * Rozpoznanie pola "obrazkowego" bez osobnego znacznika typu w danych: albo
+ * aktualna wartość już wygląda na ścieżkę do obrazu (najpewniejszy sygnał —
+ * łapie 1:1 wszystko, co dziś jest w bazie), albo — dla pustych pól — etykieta
+ * sugeruje obraz (logo/ikona/zdjęcie/...). Nowa treść może to dodatkowo
+ * doprecyzować przez "label" w JSON-ie; tu tylko awaryjna heurystyka.
+ */
+const ASSET_VALUE_PATTERN = /\.(png|jpe?g|gif|webp|svg|avif|ico)(\?.*)?$/i;
+const ASSET_LABEL_HINT = /logo|ikon|zdj[eę]c|obraz|miniatur|thumbnail|photo|image|\bt[łl]o\b|background|avatar|favicon|baner|banner|wizualizacj/i;
+
+function isAssetField(label: string, value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  if (ASSET_VALUE_PATTERN.test(value)) return true;
+  return value === "" && ASSET_LABEL_HINT.test(label);
+}
 
 /**
  * Etykiety pól pochodzą przede wszystkim z danych — z pola "label" zapisanego
@@ -122,7 +140,15 @@ function collectFields(node: unknown, path: Path, group: string | null, key: str
 }
 
 /** Wejście panelu: zamienia treść strony na płaski formularz — jeden podpisany input pod drugim, bez zagnieżdżeń. */
-export default function EditableField({ node, onChange }: { node: unknown; onChange: OnChange }) {
+export default function EditableField({
+  node,
+  session,
+  onChange,
+}: {
+  node: unknown;
+  session: Session | null;
+  onChange: OnChange;
+}) {
   const fields = collectFields(node, [], null, null);
 
   if (fields.length === 0) {
@@ -133,7 +159,7 @@ export default function EditableField({ node, onChange }: { node: unknown; onCha
     <div className="divide-y divide-zinc-100">
       {fields.map((field) => (
         <div key={field.path.join(".")} className="py-4 first:pt-0 last:pb-0">
-          <EditableControl label={field.label} node={field.node} path={field.path} onChange={onChange} />
+          <EditableControl label={field.label} node={field.node} path={field.path} session={session} onChange={onChange} />
         </div>
       ))}
     </div>
@@ -149,13 +175,19 @@ function PrimitiveField({
   label,
   value,
   path,
+  session,
   onChange,
 }: {
   label: string;
   value: unknown;
   path: Path;
+  session: Session | null;
   onChange: OnChange;
 }) {
+  if (isAssetField(label, value)) {
+    return <AssetField label={label} value={value} path={path} session={session} onChange={onChange} />;
+  }
+
   if (typeof value === "boolean") {
     return (
       <label className="flex items-center gap-2 text-sm font-medium">
@@ -195,6 +227,85 @@ function PrimitiveField({
 }
 
 /**
+ * Pole typu "asset" — podgląd + wybór pliku z dysku. Plik leci na serwer
+ * (UploadController.php, patrz backend/), a do pola trafia sam URL, który
+ * wraca — dokładnie tak samo, jakby ktoś wkleił tam gotową ścieżkę ręcznie
+ * (stąd input tekstowy obok zostaje jako awaryjne wyjście). Bez URL-a plik
+ * nie renderuje się nigdzie na stronie — sama zawartość binarna nigdy nie
+ * trafia do treści strony (bazy).
+ */
+function AssetField({
+  label,
+  value,
+  path,
+  session,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  path: Path;
+  session: Session | null;
+  onChange: OnChange;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const url = await uploadAsset(file, session);
+      onChange(path, url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nie udało się przesłać pliku.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-zinc-600">{label}</label>
+      <div className="flex items-start gap-3">
+        {value ? (
+          // eslint-disable-next-line @next/next/no-img-element -- podgląd w panelu admina, nie treść strony
+          <img src={value} alt="" className="h-16 w-16 flex-shrink-0 rounded border border-zinc-200 object-cover" />
+        ) : (
+          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded border border-dashed border-zinc-300 text-center text-[10px] text-zinc-400">
+            Brak zdjęcia
+          </div>
+        )}
+
+        <div className="flex-1 space-y-2">
+          <input
+            type="text"
+            value={value}
+            onChange={(event) => onChange(path, event.target.value)}
+            className={inputClass}
+            placeholder="/investments/.../plik.webp"
+          />
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50">
+            {uploading ? "Przesyłanie…" : "Wybierz plik…"}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void handleFile(file);
+              }}
+            />
+          </label>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Edytor dla wartości ZŁOŻONEJ (obiekt albo tablica) gdzieś pod EditableValue —
  * np. "cooperationLinks": {value: {investor, land}, editable, label}. Zamiast
  * jednego zepsutego pola tekstowego (dawniej String(node.value) -> "[object
@@ -202,7 +313,17 @@ function PrimitiveField({
  * dowolnie głęboko. Elementy niżej nie mają własnego "editable" — dziedziczą je
  * po najbliższym przodku typu EditableValue (stąd brak tu takiego sprawdzenia).
  */
-function CompoundEditor({ value, path, onChange }: { value: unknown; path: Path; onChange: OnChange }) {
+function CompoundEditor({
+  value,
+  path,
+  session,
+  onChange,
+}: {
+  value: unknown;
+  path: Path;
+  session: Session | null;
+  onChange: OnChange;
+}) {
   if (Array.isArray(value)) {
     if (value.length === 0) {
       return <p className="text-xs italic text-zinc-400">Pusta lista.</p>;
@@ -239,7 +360,7 @@ function CompoundEditor({ value, path, onChange }: { value: unknown; path: Path;
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
               {describeArrayItem(item, `Element ${index + 1}`)}
             </div>
-            <CompoundEditor value={item} path={[...path, index]} onChange={onChange} />
+            <CompoundEditor value={item} path={[...path, index]} session={session} onChange={onChange} />
           </div>
         ))}
       </div>
@@ -257,30 +378,32 @@ function CompoundEditor({ value, path, onChange }: { value: unknown; path: Path;
             return (
               <div key={key}>
                 <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">{childLabel}</div>
-                <CompoundEditor value={child} path={childPath} onChange={onChange} />
+                <CompoundEditor value={child} path={childPath} session={session} onChange={onChange} />
               </div>
             );
           }
 
-          return <PrimitiveField key={key} label={labelFor(key)} value={child} path={childPath} onChange={onChange} />;
+          return <PrimitiveField key={key} label={labelFor(key)} value={child} path={childPath} session={session} onChange={onChange} />;
         })}
       </div>
     );
   }
 
   // Rzadki brzegowy przypadek (np. tablica mieszająca prymitywy z obiektami) — pojedyncza wartość bez własnej etykiety z kontekstu.
-  return <PrimitiveField label="Wartość" value={value} path={path} onChange={onChange} />;
+  return <PrimitiveField label="Wartość" value={value} path={path} session={session} onChange={onChange} />;
 }
 
 function EditableControl({
   label,
   node,
   path,
+  session,
   onChange,
 }: {
   label: string;
   node: EditableValue;
   path: Path;
+  session: Session | null;
   onChange: OnChange;
 }) {
   const valuePath = [...path, "value"];
@@ -295,11 +418,15 @@ function EditableControl({
     );
   }
 
+  if (isAssetField(label, node.value)) {
+    return <AssetField label={label} value={node.value} path={valuePath} session={session} onChange={onChange} />;
+  }
+
   if (isPlainObject(node.value) || Array.isArray(node.value)) {
     return (
       <div>
         <div className="mb-1 block text-sm font-medium">{label}</div>
-        <CompoundEditor value={node.value} path={valuePath} onChange={onChange} />
+        <CompoundEditor value={node.value} path={valuePath} session={session} onChange={onChange} />
       </div>
     );
   }

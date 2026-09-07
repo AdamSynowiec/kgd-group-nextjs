@@ -7,6 +7,7 @@ define('APP_ENTRY', true);
 use App\Controller\AdminController;
 use App\Controller\AuthController;
 use App\Controller\BuildController;
+use App\Controller\UploadController;
 use App\Controller\UsersController;
 use App\Database\Connection;
 use App\Http\Cors;
@@ -60,11 +61,16 @@ $buildController = new BuildController(new GithubDispatcher(
     $config->get('GITHUB_REF', 'main')
 ));
 
+$uploadController = new UploadController();
+
 $router = new Router();
 $router->post('/login', static fn (Request $req) => $authController()->login($req));
 $router->get('/pages', static fn (Request $req) => $adminController()->listPages());
 $router->get('/page', static fn (Request $req) => $adminController()->getPage($req));
 $router->post('/page', static fn (Request $req) => $adminController()->savePage($req));
+// Pola typu "asset" w panelu (zdjęcia/ikony) — każdy zalogowany redaktor, bez
+// wymogu roli "admin" (to edycja treści, jak savePage, nie operacja na koncie/deployu).
+$router->post('/upload', static fn (Request $req) => $uploadController->upload($req));
 // "Zbuduj stronę" wymaga roli "admin" — edytorzy mogą zmieniać treść,
 // ale nie wyzwalać deployu na produkcję.
 $router->post('/build', static function (Request $req) use ($buildController, $currentSession) {

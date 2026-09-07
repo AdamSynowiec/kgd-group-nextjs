@@ -26,6 +26,8 @@ final class Request
         public readonly string $path,
         /** @var array<string, string> */
         public readonly array $query,
+        /** @var array<string, array{name: string, type: string, tmp_name: string, error: int, size: int}> Surowe $_FILES — jeden plik na pole (bez pól typu file[]). */
+        public readonly array $files = [],
     ) {
     }
 
@@ -36,7 +38,7 @@ final class Request
 
         $normalized = rtrim((string) $route, '/');
 
-        return new self($method, $normalized === '' ? '/' : $normalized, $_GET);
+        return new self($method, $normalized === '' ? '/' : $normalized, $_GET, $_FILES);
     }
 
     /** Segmenty ścieżki żądania po odcięciu podanego prefiksu, np. "/page". */
