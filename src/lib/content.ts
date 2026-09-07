@@ -153,6 +153,15 @@ function apiBaseUrl(): string {
  * Zwraca null na 404 (to prawidłowy, oczekiwany wynik — "takiej strony nie
  * ma"), rzuca błąd na każdą inną nieudaną odpowiedź, żeby `next build`
  * wyraźnie się wywalił zamiast po cichu wygenerować pustą stronę.
+ *
+ * UWAGA o świeżości danych: `output: "export"` nie pozwala oznaczyć tego
+ * fetch()a jako `cache: "no-store"` / `revalidate: 0` — to wymusza dynamiczne
+ * renderowanie, niekompatybilne z pełnym eksportem statycznym (próbowane,
+ * build się wywala: "couldn't be rendered statically because it used
+ * revalidate: 0 fetch..."). Świeżość danych między osobnymi uruchomieniami
+ * `next build` zależy więc od tego, żeby .next/cache (Next.js Data Cache)
+ * NIE przetrwało między buildami w CI — patrz komentarz przy kroku
+ * "Cache Next.js build cache" w .github/workflows/deploy.yml.
  */
 async function apiGet<T>(route: string): Promise<T | null> {
   const url = `${apiBaseUrl()}/index.php?route=${encodeURIComponent(route)}`;

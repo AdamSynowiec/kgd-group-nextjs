@@ -42,6 +42,18 @@ jobs:
           restore-keys: |
             nextjs-${{ hashFiles('package-lock.json') }}-
 
+      # .next/cache miesza dwie rzeczy: cache kompilacji (bezpieczny do
+      # trzymania między buildami) i Next.js Data Cache pod fetch-cache/
+      # (odpowiedzi z fetch() w src/lib/content.ts — treść stron z bazy).
+      # Ten drugi, przywrócony z poprzedniego builda, sprawiał że `next build`
+      # potrafił oddać dokładnie tę samą, NIEAKTUALNĄ treść mimo zmian w
+      # adminie — build "udany", zero różnic, zero deployu na FTP, choć baza
+      # już dawno miała nową treść. Kasujemy tylko fetch-cache/, więc każdy
+      # build i tak odpytuje bazę na świeżo, a reszta cache'u (szybsza
+      # kompilacja) zostaje.
+      - name: Clear stale Next.js data cache
+        run: rm -rf .next/cache/fetch-cache
+
       - name: Build
         run: npm run build
 
