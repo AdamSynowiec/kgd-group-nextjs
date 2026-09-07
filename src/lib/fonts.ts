@@ -1,5 +1,5 @@
 import localFont from "next/font/local";
-import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto, Montserrat } from "next/font/google";
+import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto, Montserrat, Cormorant_Garamond } from "next/font/google";
 
 /**
  * Loader fontów współdzielony przez strony inwestycji i stronę główną (nie
@@ -15,6 +15,12 @@ import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto
 export const ranadeVariable = localFont({
   src: "../assets/fonts/Ranade-Variable.woff2",
   variable: "--ranade-variable-src",
+  display: "swap",
+});
+
+export const melodramaVariable = localFont({
+  src: "../assets/fonts/Melodrama-Variable.woff2",
+  variable: "--melodrama-src",
   display: "swap",
 });
 
@@ -67,6 +73,13 @@ export const montserrat = Montserrat({
   display: "swap",
 });
 
-export const investmentFontVariables = `${ranadeVariable.variable} ${poppins.variable} ${ebGaramond.variable} ${playfairDisplay.variable} ${lato.variable} ${libreCaslonText.variable} ${roboto.variable}`;
+export const cormorantGaramond = Cormorant_Garamond({
+  subsets: ["latin", "latin-ext"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--cormorant-src",
+  display: "swap",
+});
+
+export const investmentFontVariables = `${ranadeVariable.variable} ${melodramaVariable.variable} ${poppins.variable} ${ebGaramond.variable} ${playfairDisplay.variable} ${lato.variable} ${libreCaslonText.variable} ${roboto.variable} ${cormorantGaramond.variable}`;
 
 export const homeFontVariables = `${poppins.variable} ${montserrat.variable}`;

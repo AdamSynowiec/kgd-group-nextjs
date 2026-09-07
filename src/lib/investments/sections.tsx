@@ -5,6 +5,7 @@ import rudavaParkTemplate from "@/components/investments/rudava-park/template";
 import morelifeApartmentsTemplate from "@/components/investments/morelife-apartments/template";
 import podStokiemWillaTemplate from "@/components/investments/pod-stokiem-willa/template";
 import podStokiemApartamentyTemplate from "@/components/investments/pod-stokiem-apartamenty/template";
+import pylnaResidenceTemplate from "@/components/investments/pylna-residence/template";
 
 type SectionProps = { fields: Record<string, unknown>; id?: string };
 type Template = Record<string, ComponentType<SectionProps>>;
@@ -28,6 +29,7 @@ const TEMPLATES: Record<string, Template> = {
   "morelife-apartments": morelifeApartmentsTemplate,
   "pod-stokiem-willa": podStokiemWillaTemplate,
   "pod-stokiem-apartamenty": podStokiemApartamentyTemplate,
+  "pylna-residence": pylnaResidenceTemplate,
 };
 
 export function getInvestmentSectionComponent(templateName: string, componentName: string) {

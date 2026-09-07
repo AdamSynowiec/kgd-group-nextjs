@@ -13,6 +13,7 @@
 
   /* Fonty stron inwestycji i strony głównej (ładowane w src/app/inwestycja/layout.tsx / src/app/page.tsx) */
   --font-ranade-variable: var(--ranade-variable-src), serif;
+  --font-melodrama: var(--melodrama-src), serif;
   --font-poppins: var(--poppins-src), sans-serif;
   --font-ebgaramond-regular: var(--ebgaramond-src), serif;
   --font-playfairdisplay: var(--playfairdisplay-src), serif;
@@ -20,6 +21,7 @@
   --font-libre-caslon: var(--librecaslon-src), serif;
   --font-roboto: var(--roboto-src), sans-serif;
   --font-montserrat: var(--montserrat-src), sans-serif;
+  --font-cormorant-regular: var(--cormorant-src), serif;
 }
 
 body {
