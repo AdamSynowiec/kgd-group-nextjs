@@ -305,6 +305,128 @@ function AssetField({
   );
 }
 
+/** Wartość pojedynczej komórki tabeli — jedyne typy, jakie TableEditor umie wyświetlić i edytować. */
+type CellValue = string | number | boolean;
+
+function isCellValue(value: unknown): value is CellValue {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
+/**
+ * Rozpoznaje "tablicę tabelaryczną" — listę obiektów o tych samych kluczach i
+ * wyłącznie prostych wartościach (np. wiersze rejestru cen: jeden obiekt =
+ * jeden lokal, kolumny = klucze). Taki kształt renderuje się jako prawdziwa
+ * tabela HTML zamiast stosu osobnych kart — dużo szybciej się to skanuje i
+ * edytuje, gdy wierszy są dziesiątki. Każdy obiekt z zagnieżdżonym
+ * obiektem/tablicą (np. apartamenty z "images": []) odpada z tego trybu.
+ */
+function isTabularArray(value: unknown[]): value is Array<Record<string, CellValue>> {
+  if (value.length === 0) return false;
+
+  return value.every((item) => {
+    if (!isPlainObject(item) || isEditableValue(item)) return false;
+    return Object.values(item).every(isCellValue);
+  });
+}
+
+/** Kolejność kolumn = kolejność kluczy w pierwszym wierszu, dopełniona kluczami, które pojawiają się dopiero w kolejnych (rzadka niespójność danych). */
+function collectColumns(rows: Array<Record<string, CellValue>>): string[] {
+  const columns: string[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      if (!seen.has(key)) {
+        seen.add(key);
+        columns.push(key);
+      }
+    }
+  }
+  return columns;
+}
+
+function TableEditor({
+  rows,
+  path,
+  onChange,
+}: {
+  rows: Array<Record<string, CellValue>>;
+  path: Path;
+  onChange: OnChange;
+}) {
+  const columns = collectColumns(rows);
+
+  function handleCellChange(rowIndex: number, key: string, raw: string, wasNumber: boolean) {
+    const value: CellValue = wasNumber ? (Number(raw) || 0) : raw;
+    onChange([...path, rowIndex, key], value);
+  }
+
+  function handleRemoveRow(rowIndex: number) {
+    onChange(path, rows.filter((_, index) => index !== rowIndex));
+  }
+
+  function handleAddRow() {
+    const blankRow = Object.fromEntries(
+      columns.map((key) => [key, typeof rows[0][key] === "number" ? 0 : ""])
+    ) as Record<string, CellValue>;
+    onChange(path, [...rows, blankRow]);
+  }
+
+  return (
+    <div>
+      <div className="overflow-x-auto rounded-md border border-zinc-200">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-zinc-50">
+              {columns.map((key) => (
+                <th key={key} className="border-b border-zinc-200 px-2 py-2 text-left text-xs font-semibold text-zinc-600 whitespace-nowrap">
+                  {labelFor(key)}
+                </th>
+              ))}
+              <th className="border-b border-zinc-200 px-2 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={rowIndex} className="border-b border-zinc-100 last:border-b-0">
+                {columns.map((key) => {
+                  const cellValue = row[key];
+                  const wasNumber = typeof cellValue === "number";
+                  return (
+                    <td key={key} className="px-2 py-1.5">
+                      <input
+                        type={wasNumber ? "number" : "text"}
+                        value={String(cellValue ?? "")}
+                        onChange={(event) => handleCellChange(rowIndex, key, event.target.value, wasNumber)}
+                        className={`${inputClass} min-w-[8rem]`}
+                      />
+                    </td>
+                  );
+                })}
+                <td className="px-2 py-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRow(rowIndex)}
+                    className="rounded-md border border-zinc-200 px-2 py-1.5 text-xs text-zinc-500 hover:border-red-300 hover:text-red-600"
+                  >
+                    Usuń
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        onClick={handleAddRow}
+        className="mt-2 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50"
+      >
+        + Dodaj wiersz
+      </button>
+    </div>
+  );
+}
+
 /**
  * Edytor dla wartości ZŁOŻONEJ (obiekt albo tablica) gdzieś pod EditableValue —
  * np. "cooperationLinks": {value: {investor, land}, editable, label}. Zamiast
@@ -327,6 +449,10 @@ function CompoundEditor({
   if (Array.isArray(value)) {
     if (value.length === 0) {
       return <p className="text-xs italic text-zinc-400">Pusta lista.</p>;
+    }
+
+    if (isTabularArray(value)) {
+      return <TableEditor rows={value} path={path} onChange={onChange} />;
     }
 
     const allPrimitive = value.every((item) => typeof item === "string" || typeof item === "number");
