@@ -1,10 +1,17 @@
 "use client";
 
+import { useMemo } from "react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import DOMPurify from "dompurify";
 import { RICH_TEXT_CONTENT_CLASS } from "@/lib/richTextStyles";
 import type { FieldEditorProps } from "./types";
+
+// Referencja modułowa, nie [StarterKit] tworzone na nowo w ciele komponentu —
+// patrz komentarz przy editorProps niżej, dotyczy tego samego mechanizmu.
+const EXTENSIONS = [StarterKit];
+
+const EDITOR_CONTENT_CLASS = `${RICH_TEXT_CONTENT_CLASS} min-h-[220px] rounded-b-md px-3 py-2 text-sm focus:outline-none`;
 
 type BlockType = "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
@@ -40,20 +47,26 @@ const toolbarButtonClass = (active: boolean) =>
 export default function RichTextEditor({ label, value, path, onChange }: FieldEditorProps) {
   const initialContent = typeof value === "string" ? value : "";
 
+  // KRYTYCZNE, żeby ten obiekt miał STABILNĄ referencję między renderami.
+  // Tiptap (EditorInstanceManager.compareOptions w @tiptap/react) porównuje
+  // "editorProps" przez === (nie głęboko) w efekcie odpalanym PO KAŻDYM
+  // renderze — nowy obiekt przy każdym wywołaniu useEditor() wygląda więc
+  // jak realna zmiana i wywołuje editor.setOptions({editorProps: ...}) na
+  // każde naciśnięcie klawisza (onUpdate -> onChange -> re-render rodzica ->
+  // nowy `value` prop -> re-render tego komponentu). To setOptions() gmerało
+  // w tym samym węźle DOM, którym w tej samej chwili zarządza ProseMirror,
+  // i to właśnie powodowało "Minified React error #418" w produkcji.
+  const editorProps = useMemo(() => ({ attributes: { "aria-label": label, class: EDITOR_CONTENT_CLASS } }), [label]);
+
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: EXTENSIONS,
     content: initialContent,
     // SSR (Next.js) — bez tego Tiptap próbuje renderować na serwerze i psuje hydrację.
     immediatelyRender: false,
     onUpdate: ({ editor: instance }) => {
       onChange(path, DOMPurify.sanitize(instance.getHTML()));
     },
-    editorProps: {
-      attributes: {
-        "aria-label": label,
-        class: `${RICH_TEXT_CONTENT_CLASS} min-h-[220px] rounded-b-md px-3 py-2 text-sm focus:outline-none`,
-      },
-    },
+    editorProps,
   });
 
   const toolbarState = useEditorState({
