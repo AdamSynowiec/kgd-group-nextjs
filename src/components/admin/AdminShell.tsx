@@ -23,7 +23,7 @@ export default function AdminShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar title={title} session={session} onLogout={onLogout} />
         <main className="flex-1 overflow-y-auto p-6">
-          <div className="mx-auto max-w-3xl">{children}</div>
+          <div className="mx-auto">{children}</div>
         </main>
       </div>
     </div>
