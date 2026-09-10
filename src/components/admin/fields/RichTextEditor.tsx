@@ -12,7 +12,6 @@ import { sanitizeHtml } from "@/lib/richText/sanitizeHtml";
 import { createHistory } from "@/lib/richText/history";
 import {
   applyLink,
-  canMoveImage,
   findAncestorTag,
   getActiveBlockType,
   getActiveListTag,
@@ -20,7 +19,6 @@ import {
   insertColumns,
   insertImage,
   isMarkActive,
-  moveImage,
   removeLink,
   restoreSelection,
   saveSelection,
@@ -87,8 +85,6 @@ export default function RichTextEditor({ label, value, path, session, onChange }
   const [popover, setPopover] = useState<PopoverKind>("none");
   /** Obrazek klikany w treści do edycji (patrz handleImageClick) — null, gdy popover wstawia NOWY obrazek zamiast edytować istniejący. */
   const [editingImage, setEditingImage] = useState<HTMLImageElement | null>(null);
-  /** Czy editingImage ma sąsiedni blok w danym kierunku — wyliczane W HANDLERACH (handleImageClick/handleImageMove), NIE podczas renderu: odczyt editorRef.current w JSX łamie regułę react-hooks/refs. */
-  const [imageMoveAvailability, setImageMoveAvailability] = useState({ up: false, down: false });
   const [html, setHtml] = useState(initialHtml);
   const [historyButtons, setHistoryButtons] = useState({ canUndo: false, canRedo: false });
   const [selection, setSelection] = useState<SelectionSnapshot>(DEFAULT_SELECTION);
@@ -191,6 +187,11 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     syncFromDom(true);
   }
 
+  /** Obrazek faktycznie przeniesiony (patrz EditableSurface.tsx::handleImageMouseUp -> commands.ts::repositionImage) — ta mutacja DOM dzieje się POZA natywnym wpisywaniem, więc nie przechodzi przez onInput/handleTypingChange; trzeba ją zsynchronizować jawnie, tak jak każdą komendę z paska. */
+  function handleImageRepositioned() {
+    syncFromDom(true);
+  }
+
   function runCommand(command: (root: HTMLElement) => void) {
     const root = editorRef.current;
     if (!root) return;
@@ -262,8 +263,6 @@ export default function RichTextEditor({ label, value, path, session, onChange }
   /** Kliknięcie ISTNIEJĄCEGO obrazka w treści (patrz EditableSurface.tsx::onImageClick) — ten sam popover, w trybie edycji tego konkretnego węzła zamiast wstawiania nowego. */
   function handleImageClick(img: HTMLImageElement) {
     setEditingImage(img);
-    const root = editorRef.current;
-    setImageMoveAvailability(root ? { up: canMoveImage(root, img, "up"), down: canMoveImage(root, img, "down") } : { up: false, down: false });
     setPopover("image");
   }
 
@@ -278,7 +277,6 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     setPopover("none");
     savedRangeRef.current = null;
     setEditingImage(null);
-    setImageMoveAvailability({ up: false, down: false });
   }
 
   function handleLinkConfirm(url: string, openInNewTab: boolean) {
@@ -320,38 +318,6 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     insertImage(range, src, alt, width);
     closePopover();
     syncFromDom(true);
-  }
-
-  /**
-   * Deterministyczna alternatywa dla natywnego przeciągania obrazka (patrz
-   * commands.ts::insertImage, dlaczego drag&drop jest wyłączone) — przenosi
-   * NATYCHMIAST, popover zostaje otwarty (można kliknąć "wyżej/niżej"
-   * wielokrotnie pod rząd).
-   *
-   * syncFromDom() PODMIENIA root.innerHTML (sanitize-on-write) — stary węzeł
-   * `editingImage` staje się odłączony od żywego DOM-u, więc kolejne
-   * kliknięcie działałoby na duchu, nie na czymś realnym. Po synchronizacji
-   * odnajdujemy TEN SAM obrazek na nowo po src+alt (jedyne stabilne
-   * identyfikatory, jakie ma — wystarczające, dopóki artykuł nie ma dwóch
-   * identycznych obrazków z tym samym alt).
-   */
-  function handleImageMove(direction: "up" | "down") {
-    const root = editorRef.current;
-    if (!root || !editingImage) return;
-
-    const src = editingImage.getAttribute("src");
-    const alt = editingImage.getAttribute("alt");
-
-    moveImage(root, editingImage, direction);
-    syncFromDom(true);
-
-    const refreshedImage = Array.from(root.querySelectorAll("img")).find(
-      (candidate) => candidate.getAttribute("src") === src && candidate.getAttribute("alt") === alt
-    );
-    if (refreshedImage) {
-      setEditingImage(refreshedImage);
-      setImageMoveAvailability({ up: canMoveImage(root, refreshedImage, "up"), down: canMoveImage(root, refreshedImage, "down") });
-    }
   }
 
   function handleColumnsConfirm(count: number) {
@@ -438,9 +404,6 @@ export default function RichTextEditor({ label, value, path, session, onChange }
           initialAlt={editingImage?.getAttribute("alt") ?? ""}
           initialWidth={editingImage?.style.width || null}
           isEditing={editingImage !== null}
-          canMoveUp={imageMoveAvailability.up}
-          canMoveDown={imageMoveAvailability.down}
-          onMove={handleImageMove}
           onConfirm={handleImageConfirm}
           onCancel={closePopover}
         />
@@ -457,6 +420,7 @@ export default function RichTextEditor({ label, value, path, session, onChange }
           onChange={handleTypingChange}
           onKeyDown={handleKeyDown}
           onImageClick={handleImageClick}
+          onImageRepositioned={handleImageRepositioned}
           onDragStart={handleEditorDragStart}
           onDragEnd={handleEditorDragEnd}
         />

@@ -361,13 +361,17 @@ function applyImageWidth(img: HTMLImageElement, width: ImageWidth): void {
  * — patrz saveSelection. Otwarcie panelu obrazka samo kradnie fokus/zaznaczenie,
  * więc trzeba je przywrócić PRZED wywołaniem tej funkcji.
  *
- * draggable="false" jest CELOWE: natywne przeciąganie obrazka w obrębie
+ * draggable="false" jest CELOWE: NATYWNE przeciąganie obrazka w obrębie
  * contenteditable (bez żadnego własnego kodu obsługującego sam drag) okazało
- * się realnie zawieszać kartę w niektórych przeglądarkach/sytuacjach —
- * przeciąganie w górę poza wąski obszar edycji (nad pasek narzędzi) zostawiało
- * przeglądarkę bez poprawnego celu upuszczenia i przeciąganie wisiało w
- * zawieszeniu. Zamiast tego przenoszenie obrazka idzie przez deterministyczne
- * przyciski "Przenieś wyżej/niżej" w ImagePopover.tsx (patrz moveImage niżej).
+ * się realnie zawieszać kartę — przeciąganie poza wąski obszar edycji (nad
+ * pasek narzędzi) zostawiało przeglądarkę bez poprawnego celu upuszczenia i
+ * przeciąganie wisiało w zawieszeniu. Przenoszenie idzie zamiast tego przez
+ * WŁASNĄ implementację na zwykłych zdarzeniach myszy (mousedown/mousemove/
+ * mouseup w EditableSurface.tsx), nie przez natywne API drag&drop — patrz
+ * repositionImage niżej. Różnica jest fundamentalna: przy zwykłych zdarzeniach
+ * myszy TO NASZ kod decyduje, kiedy faktycznie zmienić DOM (dopiero na
+ * mouseup) — nie ma okna czasowego, w którym przeglądarka "czeka" na
+ * potwierdzenie celu upuszczenia i może utknąć.
  */
 export function insertImage(range: Range, src: string, alt: string, width: ImageWidth = null): void {
   const img = document.createElement("img");
@@ -387,12 +391,15 @@ export function updateImageAttributes(img: HTMLImageElement, src: string, alt: s
 }
 
 /**
- * Blok zawierający dany węzeł (obrazek) — ten sam "bezpośrednie dziecko
- * kontenera bloków" co getCurrentBlock(), tylko wyprowadzony z KONKRETNEGO
- * węzła zamiast z bieżącego zaznaczenia (obrazek nie musi być zaznaczony,
- * żeby go przenieść przyciskiem w popoverze).
+ * Blok będący BEZPOŚREDNIM dzieckiem "kontenera bloków" obejmującego dany
+ * węzeł — ten sam "bezpośrednie dziecko root/kolumny" co getCurrentBlock(),
+ * tylko wyprowadzony z KONKRETNEGO węzła (np. obrazka pod kursorem podczas
+ * przeciągania, patrz EditableSurface.tsx) zamiast z bieżącego zaznaczenia.
+ * Eksportowana też pod wyszukiwanie celu upuszczenia z punktu (x,y) —
+ * document.elementFromPoint() zwraca Node, ten sam kod odpowiada na pytanie
+ * "który blok akapitu/nagłówka to obejmuje".
  */
-function getBlockContainerOf(root: HTMLElement, node: Node): HTMLElement | null {
+export function getBlockContainerOf(root: HTMLElement, node: Node): HTMLElement | null {
   let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
   const container = (el?.closest("[data-column]") as HTMLElement | null) ?? root;
 
@@ -403,32 +410,38 @@ function getBlockContainerOf(root: HTMLElement, node: Node): HTMLElement | null 
   return el && el !== container ? (el as HTMLElement) : null;
 }
 
+export type ImageDropTarget = { block: HTMLElement; position: "before" | "after" };
+
 /**
- * Przenosi CAŁY blok zawierający obrazek (zwykle pojedynczy akapit z samym
- * obrazkiem) o jedną pozycję wcześniej/później wśród rodzeństwa — deterministyczna
- * alternatywa dla natywnego przeciągania (patrz komentarz przy insertImage).
- * Jeśli obrazek dzieli akapit z tekstem, przenosi się CAŁY ten akapit — to
- * świadome uproszczenie, typowy przypadek to obrazek sam w swoim akapicie.
+ * Przenosi obrazek DOWOLNIE w dokumencie — wyciąga go z bieżącego miejsca i
+ * wstawia jako nowy, samodzielny akapit bezpośrednio przed/po wskazanym
+ * bloku docelowym (patrz EditableSurface.tsx — target wyznaczony myszą, nie
+ * ograniczony do sąsiadów). Jeśli akapit, z którego obrazek został wyjęty,
+ * został przez to całkiem pusty (typowy przypadek — obrazek sam w swoim
+ * akapicie), ten pusty akapit jest usuwany, żeby nie zostawiać martwej,
+ * pustej linii; jeśli obrazek dzielił akapit z tekstem, reszta tekstu
+ * zostaje na miejscu.
  */
-export function moveImage(root: HTMLElement, img: HTMLImageElement, direction: "up" | "down"): void {
-  const block = getBlockContainerOf(root, img);
-  if (!block?.parentElement) return;
+export function repositionImage(root: HTMLElement, img: HTMLImageElement, target: ImageDropTarget): void {
+  const oldParagraph = img.parentElement;
 
-  const sibling = direction === "up" ? block.previousElementSibling : block.nextElementSibling;
-  if (!sibling) return;
+  const wrapper = document.createElement("p");
+  wrapper.appendChild(img); // appendChild PRZENOSI istniejący węzeł — usuwa go z oldParagraph automatycznie.
 
-  if (direction === "up") {
-    block.parentElement.insertBefore(block, sibling);
+  if (oldParagraph && oldParagraph.tagName === "P" && oldParagraph.parentElement && isEffectivelyEmptyParagraph(oldParagraph)) {
+    oldParagraph.remove();
+  }
+
+  const { block, position } = target;
+  if (position === "before") {
+    block.parentElement?.insertBefore(wrapper, block);
   } else {
-    block.parentElement.insertBefore(sibling, block);
+    block.parentElement?.insertBefore(wrapper, block.nextSibling);
   }
 }
 
-/** Czy obrazek ma sąsiada w danym kierunku — pod (de)aktywację przycisków "Przenieś wyżej/niżej". */
-export function canMoveImage(root: HTMLElement, img: HTMLImageElement, direction: "up" | "down"): boolean {
-  const block = getBlockContainerOf(root, img);
-  if (!block) return false;
-  return (direction === "up" ? block.previousElementSibling : block.nextElementSibling) !== null;
+function isEffectivelyEmptyParagraph(el: HTMLElement): boolean {
+  return (el.textContent ?? "").trim() === "" && el.querySelector("img") === null;
 }
 
 /** Wstawia węzeł (np. <img>) w miejscu zapisanego wcześniej zaznaczenia — patrz saveSelection/restoreSelection. */

@@ -37,9 +37,6 @@ export default function ImagePopover({
   initialAlt = "",
   initialWidth = null,
   isEditing = false,
-  canMoveUp = false,
-  canMoveDown = false,
-  onMove,
   onConfirm,
   onCancel,
 }: {
@@ -48,11 +45,6 @@ export default function ImagePopover({
   initialAlt?: string;
   initialWidth?: ImageWidth;
   isEditing?: boolean;
-  /** Tylko gdy isEditing — czy jest sąsiedni blok, do którego da się przenieść obrazek (patrz commands.ts::canMoveImage). */
-  canMoveUp?: boolean;
-  canMoveDown?: boolean;
-  /** Przenosi NATYCHMIAST (nie czeka na "Zapisz zdjęcie") — patrz RichTextEditor.tsx::handleImageMove. */
-  onMove?: (direction: "up" | "down") => void;
   onConfirm: (src: string, alt: string, width: ImageWidth) => void;
   onCancel: () => void;
 }) {
@@ -206,18 +198,8 @@ export default function ImagePopover({
         </div>
       </div>
 
-      {isEditing && onMove && (
-        <div className="mt-2">
-          <label className="mb-1 block text-xs font-medium text-zinc-600">Pozycja w tekście</label>
-          <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => onMove("up")} disabled={!canMoveUp} className={buttonClass}>
-              ↑ Przenieś wyżej
-            </button>
-            <button type="button" onClick={() => onMove("down")} disabled={!canMoveDown} className={buttonClass}>
-              ↓ Przenieś niżej
-            </button>
-          </div>
-        </div>
+      {isEditing && (
+        <p className="mt-2 text-xs text-zinc-500">Wskazówka: przeciągnij zdjęcie w treści myszką, żeby zmienić jego pozycję.</p>
       )}
 
       {error && (

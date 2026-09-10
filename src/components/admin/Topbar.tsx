@@ -27,8 +27,13 @@ export default function Topbar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Brak sesji = logowanie wyłączone (tryb developerski) — pokazuj wszystko,
-  // tak jak backend, który w tym trybie też nic nie blokuje (patrz SessionAuth::requireRole()).
+  // UWAGA: brak sesji NIE zawsze znaczy "logowanie wyłączone" — to samo
+  // (session === null) daje też zwykłe "jeszcze się nie zalogowałeś na tym
+  // originie" (sesja w localStorage jest per-origin: zalogowanie na
+  // produkcji nie przenosi się na localhost i odwrotnie), niezależnie od
+  // tego, czy backend (ADMIN_AUTH_ENABLED) faktycznie wymaga logowania.
+  // Jeśli backend RZECZYWIŚCIE ma auth wyłączone, i tak nic tu nie blokuje —
+  // pokazuj wszystko tak jak backend (patrz SessionAuth::requireRole()).
   const canBuild = session === null || session.role === "admin";
   const displayName = session?.login || "Gość";
   const initial = displayName.charAt(0).toUpperCase();
@@ -71,7 +76,7 @@ export default function Topbar({
                   Wyloguj
                 </button>
               ) : (
-                <p className="px-4 py-2 text-sm text-zinc-400">Logowanie wyłączone</p>
+                <p className="px-4 py-2 text-sm text-zinc-400">Niezalogowany</p>
               )}
             </div>
           )}
