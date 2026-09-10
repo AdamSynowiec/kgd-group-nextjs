@@ -31,6 +31,7 @@ export default function EditableSurface({
   placeholder,
   onChange,
   onKeyDown,
+  onImageClick,
 }: {
   editorRef: RefObject<HTMLDivElement | null>;
   initialHtml: string;
@@ -38,6 +39,8 @@ export default function EditableSurface({
   placeholder: string;
   onChange: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
+  /** Kliknięcie istniejącego <img> w treści — otwiera panel wstawiania zdjęcia w trybie edycji tego węzła (patrz RichTextEditor.tsx). */
+  onImageClick: (img: HTMLImageElement) => void;
 }) {
   const [mountHtml] = useState(() => initialHtml);
   const [isEmpty, setIsEmpty] = useState(() => !/<img\b/i.test(initialHtml) && initialHtml.replace(/<[^>]*>/g, "").trim() === "");
@@ -73,6 +76,12 @@ export default function EditableSurface({
     onChange();
   }
 
+  function handleClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target instanceof HTMLImageElement) {
+      onImageClick(event.target);
+    }
+  }
+
   return (
     <div className="relative">
       {isEmpty && (
@@ -91,7 +100,8 @@ export default function EditableSurface({
         onInput={handleInput}
         onPaste={handlePaste}
         onKeyDown={onKeyDown}
-        className={`${RICH_TEXT_CONTENT_CLASS} min-h-[220px] rounded-b-md px-3 py-2 text-sm leading-relaxed focus:outline-none`}
+        onClick={handleClick}
+        className={`${RICH_TEXT_CONTENT_CLASS} min-h-[220px] rounded-b-md px-3 py-2 text-sm leading-relaxed focus:outline-none [&_img]:cursor-pointer [&_img:hover]:outline [&_img:hover]:outline-2 [&_img:hover]:outline-offset-2 [&_img:hover]:outline-blue-400`}
       />
     </div>
   );

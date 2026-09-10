@@ -24,8 +24,10 @@ import {
   setTextAlign as applyTextAlign,
   toggleInlineMark,
   toggleList as applyToggleList,
+  updateImageAttributes,
   updateLinkAttributes,
   type BlockType,
+  type ImageWidth,
   type InlineMark,
   type TextAlign,
 } from "@/lib/richText/commands";
@@ -79,6 +81,8 @@ export default function RichTextEditor({ label, value, path, session, onChange }
 
   const [view, setView] = useState<ViewMode>("edit");
   const [popover, setPopover] = useState<PopoverKind>("none");
+  /** Obrazek klikany w treści do edycji (patrz handleImageClick) — null, gdy popover wstawia NOWY obrazek zamiast edytować istniejący. */
+  const [editingImage, setEditingImage] = useState<HTMLImageElement | null>(null);
   const [html, setHtml] = useState(initialHtml);
   const [historyButtons, setHistoryButtons] = useState({ canUndo: false, canRedo: false });
   const [selection, setSelection] = useState<SelectionSnapshot>(DEFAULT_SELECTION);
@@ -224,12 +228,20 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     const root = editorRef.current;
     if (!root) return;
     savedRangeRef.current = saveSelection(root);
+    setEditingImage(null);
+    setPopover("image");
+  }
+
+  /** Kliknięcie ISTNIEJĄCEGO obrazka w treści (patrz EditableSurface.tsx::onImageClick) — ten sam popover, w trybie edycji tego konkretnego węzła zamiast wstawiania nowego. */
+  function handleImageClick(img: HTMLImageElement) {
+    setEditingImage(img);
     setPopover("image");
   }
 
   function closePopover() {
     setPopover("none");
     savedRangeRef.current = null;
+    setEditingImage(null);
   }
 
   function handleLinkConfirm(url: string, openInNewTab: boolean) {
@@ -255,13 +267,20 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     syncFromDom(true);
   }
 
-  function handleImageConfirm(src: string, alt: string) {
+  function handleImageConfirm(src: string, alt: string, width: ImageWidth) {
+    if (editingImage) {
+      updateImageAttributes(editingImage, src, alt, width);
+      closePopover();
+      syncFromDom(true);
+      return;
+    }
+
     const range = savedRangeRef.current;
     if (!range) {
       closePopover();
       return;
     }
-    insertImage(range, src, alt);
+    insertImage(range, src, alt, width);
     closePopover();
     syncFromDom(true);
   }
@@ -329,7 +348,17 @@ export default function RichTextEditor({ label, value, path, session, onChange }
         />
       )}
 
-      {popover === "image" && <ImagePopover session={session} onConfirm={handleImageConfirm} onCancel={closePopover} />}
+      {popover === "image" && (
+        <ImagePopover
+          session={session}
+          initialUrl={editingImage?.getAttribute("src") ?? ""}
+          initialAlt={editingImage?.getAttribute("alt") ?? ""}
+          initialWidth={editingImage?.style.width || null}
+          isEditing={editingImage !== null}
+          onConfirm={handleImageConfirm}
+          onCancel={closePopover}
+        />
+      )}
 
       {view === "edit" ? (
         <EditableSurface
@@ -339,6 +368,7 @@ export default function RichTextEditor({ label, value, path, session, onChange }
           placeholder="Zacznij pisać artykuł…"
           onChange={handleTypingChange}
           onKeyDown={handleKeyDown}
+          onImageClick={handleImageClick}
         />
       ) : (
         <HtmlPreview html={html} />

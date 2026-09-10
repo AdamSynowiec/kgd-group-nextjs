@@ -282,12 +282,32 @@ export function removeLink(root: HTMLElement, anchor: HTMLAnchorElement): void {
   unwrapTag(root, anchor);
 }
 
+/** "100px", "50%" — patrz ImagePopover.tsx; null = bez jawnej szerokości (naturalny rozmiar obrazka, ograniczony tylko przez max-w-full w RICH_TEXT_CONTENT_CLASS). */
+export type ImageWidth = string | null;
+
+function applyImageWidth(img: HTMLImageElement, width: ImageWidth): void {
+  if (width) {
+    img.style.width = width;
+  } else {
+    img.style.removeProperty("width");
+    if (img.getAttribute("style") === "") img.removeAttribute("style");
+  }
+}
+
 /** Wstawia <img alt="…"> w miejscu podanego (wcześniej zapisanego) zaznaczenia — patrz saveSelection. Otwarcie panelu obrazka samo kradnie fokus/zaznaczenie, więc trzeba je przywrócić PRZED wywołaniem tej funkcji. */
-export function insertImage(range: Range, src: string, alt: string): void {
+export function insertImage(range: Range, src: string, alt: string, width: ImageWidth = null): void {
   const img = document.createElement("img");
   img.setAttribute("src", src);
   img.setAttribute("alt", alt);
+  applyImageWidth(img, width);
   insertNodeAtRange(range, img);
+}
+
+/** Zmienia src/alt/szerokość ISTNIEJĄCEGO obrazka — kliknięcie obrazka w edytorze (patrz EditableSurface.tsx::onImageClick) otwiera ten sam popover co wstawianie, ale w trybie edycji tego konkretnego węzła zamiast tworzenia nowego. */
+export function updateImageAttributes(img: HTMLImageElement, src: string, alt: string, width: ImageWidth): void {
+  img.setAttribute("src", src);
+  img.setAttribute("alt", alt);
+  applyImageWidth(img, width);
 }
 
 /** Wstawia węzeł (np. <img>) w miejscu zapisanego wcześniej zaznaczenia — patrz saveSelection/restoreSelection. */

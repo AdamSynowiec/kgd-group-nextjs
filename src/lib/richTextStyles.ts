@@ -20,4 +20,10 @@ export const RICH_TEXT_CONTENT_CLASS =
   "[&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-zinc-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-zinc-600 " +
   "[&_strong]:font-semibold " +
   "[&_code]:rounded [&_code]:bg-zinc-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.9em] " +
-  "[&_a]:text-blue-600 [&_a]:underline";
+  "[&_a]:text-blue-600 [&_a]:underline " +
+  // max-w-full/h-auto to zabezpieczenie, nie sprzeczność z inline width ze
+  // stylu (patrz commands.ts::insertImage) — width w px/% ustawia rozmiar
+  // docelowy, max-w-full tylko pilnuje, żeby nigdy nie przelał się poza
+  // wąski kontener (np. duże px na telefonie); bez jawnego width obrazek
+  // zachowuje się jak dziś (naturalny rozmiar, capped do szerokości kontenera).
+  "[&_img]:my-4 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md";

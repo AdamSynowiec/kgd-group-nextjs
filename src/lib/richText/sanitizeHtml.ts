@@ -24,10 +24,13 @@ const ALLOWED_TAGS = new Set([
 const ALIGNABLE_TAGS = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li"]);
 const ALLOWED_TEXT_ALIGN = new Set(["center", "right"]);
 
-/** Atrybuty dozwolone per-tag — wszystko inne (w tym "class", "on*") jest odrzucane. "style" jest dozwolony tylko na ALIGNABLE_TAGS, a jego wartość jest osobno dokładnie sprawdzana (patrz sanitizeStyleAttribute niżej) — nie ufamy tu żadnej wartości wprost. */
+/** Szerokość obrazka — wyłącznie liczba z jednostką px albo % (patrz commands.ts::insertImage/updateImageAttributes). */
+const WIDTH_PATTERN = /^\d+(\.\d+)?(px|%)$/;
+
+/** Atrybuty dozwolone per-tag — wszystko inne (w tym "class", "on*") jest odrzucane. "style" jest dozwolony tylko tam, gdzie ten edytor faktycznie go wytwarza, a jego wartość jest osobno dokładnie sprawdzana (patrz sanitizeStyleAttribute niżej) — nie ufamy tu żadnej wartości wprost. */
 const ALLOWED_ATTRIBUTES: Record<string, readonly string[]> = {
   a: ["href", "rel", "target"],
-  img: ["src", "alt"],
+  img: ["src", "alt", "style"],
   h1: ["style"], h2: ["style"], h3: ["style"], h4: ["style"], h5: ["style"], h6: ["style"],
   p: ["style"],
   li: ["style"],
@@ -35,17 +38,30 @@ const ALLOWED_ATTRIBUTES: Record<string, readonly string[]> = {
 
 /**
  * "style" przechodzi allowlistę atrybutów wyżej jako nazwa, ale jego WARTOŚĆ
- * nigdy nie jest ufana wprost — jedyna dozwolona treść to text-align:
- * center|right (left/justify/cokolwiek innego -> atrybut usunięty w całości).
- * To jedyny atrybut CSS, jaki ten edytor w ogóle potrafi wytworzyć (patrz
- * commands.ts::setTextAlign) — nie ma tu ryzyka przemycenia dowolnego CSS-u,
- * bo wartość jest odczytywana przez computed `el.style.textAlign`, nie
- * kopiowana z surowego stringa atrybutu.
+ * nigdy nie jest ufana wprost — dozwolona treść to WYŁĄCZNIE text-align:
+ * center|right (bloki tekstowe) albo width: <liczba>px|% (obrazki), czytane
+ * przez computed `el.style.*`, nigdy kopiowane z surowego stringa atrybutu —
+ * to jedyne dwie właściwości CSS, jakie ten edytor w ogóle potrafi wytworzyć
+ * (patrz commands.ts::setTextAlign/insertImage/updateImageAttributes), więc
+ * nie ma tu ryzyka przemycenia dowolnego CSS-u. Wszystko inne w tym atrybucie
+ * jest kasowane w całości.
  */
 function sanitizeStyleAttribute(el: Element): void {
   if (!el.hasAttribute("style")) return;
 
-  const align = ALIGNABLE_TAGS.has(el.tagName.toLowerCase()) ? (el as HTMLElement).style.textAlign : "";
+  const tag = el.tagName.toLowerCase();
+  const style = (el as HTMLElement).style;
+
+  if (tag === "img") {
+    const width = style.width;
+    el.removeAttribute("style");
+    if (WIDTH_PATTERN.test(width)) {
+      (el as HTMLElement).style.width = width;
+    }
+    return;
+  }
+
+  const align = ALIGNABLE_TAGS.has(tag) ? style.textAlign : "";
   el.removeAttribute("style");
 
   if (ALLOWED_TEXT_ALIGN.has(align)) {

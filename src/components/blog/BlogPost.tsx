@@ -42,7 +42,9 @@ export default function BlogPost({
           // eslint-disable-next-line @next/next/no-img-element -- output:"export"/images.unoptimized, jak wszędzie indziej w projekcie
           <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+        {/* Cień od dołu (czytelność tytułu) + osobny cień od góry (czytelność transparentnego NavBar, patrz src/components/home/NavBar.tsx, dopóki się nie przescrolluje) — dwie warstwy, bo jeden gradient przez całą wysokość zawsze robił kompromis na którymś końcu. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-[160px] bg-gradient-to-b from-black/65 to-transparent md:h-[240px]" />
 
         <div className="absolute inset-0 flex flex-col items-center justify-end px-6 pb-10 text-center md:pb-16">
           {meta && <span className="font-poppins text-[13px] uppercase tracking-[0.08em] text-white/70">{meta}</span>}
