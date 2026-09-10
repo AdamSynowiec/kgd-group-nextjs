@@ -1,31 +1,24 @@
 import type { MetadataRoute } from "next";
 import { getAllPages, getSite, toUrlPath } from "@/lib/content";
-import { getAllCollectionSlugs } from "@/lib/collections";
-import { getCollectionDefinition } from "@/lib/collections/registry";
 
 export const dynamic = "force-static";
-
-const BLOG = getCollectionDefinition("blog");
 
 /**
  * Generowane przy buildzie z tej samej listy stron co router (getAllPages()),
  * więc nowa podstrona w bazie trafia do sitemapy automatycznie — bez ręcznego
- * dopisywania jej gdziekolwiek. Wpisy bloga dochodzą tym samym mechanizmem
- * (getAllCollectionSlugs) — bez stron paginacji /blog/page/N, indeksuje się
- * tylko kanoniczne /blog i pojedyncze wpisy (standardowa praktyka SEO).
+ * dopisywania jej gdziekolwiek. Wpisy bloga to od refaktoru zwykłe strony w
+ * `pages` (parent:"/blog"), więc dochodzą tym samym mechanizmem, bez
+ * osobnego zapytania — jedyny wyjątek to strony paginacji /blog/page/N,
+ * których getAllPages() w ogóle nie zna (nie są wierszami w bazie), więc i
+ * tak nigdy nie trafiają do sitemapy (standardowa praktyka SEO — indeksuje
+ * się tylko kanoniczne /blog i pojedyncze wpisy).
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = getSite().seoDefaults.metadataBase.replace(/\/+$/, "");
-  const [pages, blogSlugs] = await Promise.all([getAllPages(), getAllCollectionSlugs(BLOG.key, BLOG.pageSize)]);
+  const pages = await getAllPages();
 
-  const pageEntries = pages.map((page) => ({
+  return pages.map((page) => ({
     url: new URL(toUrlPath(page.slug), base).toString(),
     lastModified: page.updatedAt,
   }));
-
-  const blogEntries = blogSlugs.map((slug) => ({
-    url: new URL(toUrlPath(`/blog/${slug}`), base).toString(),
-  }));
-
-  return [...pageEntries, ...blogEntries];
 }

@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 define('APP_ENTRY', true);
 
-use App\Controller\CollectionController;
 use App\Controller\PageController;
 use App\Database\Connection;
 use App\Http\Cors;
 use App\Http\Request;
 use App\Http\Router;
-use App\Repository\MysqlCollectionItemRepository;
 use App\Repository\MysqlPageRepository;
 
 /**
@@ -29,12 +27,9 @@ Cors::handle($config);
 
 $pdo = Connection::get($config);
 $controller = new PageController(new MysqlPageRepository($pdo));
-$collectionController = new CollectionController(new MysqlCollectionItemRepository($pdo));
 
 $router = new Router();
 $router->get('/pages', [$controller, 'index']);
 $router->get('/page', [$controller, 'show']);
-// /collection/<nazwa>[/<slug>] — patrz CollectionController (lista stronicowana vs. pojedynczy element).
-$router->get('/collection', [$collectionController, 'show']);
 
 $router->dispatch(Request::fromGlobals());

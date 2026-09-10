@@ -46,19 +46,14 @@ final class MysqlPageRepository implements PageRepositoryInterface
         // Zapytanie w pojedynczych cudzysłowach celowo — PHP nigdy nie interpretuje
         // w nich zmiennych, więc "$.status" (ścieżka JSON dla MySQL) zostaje literałem.
         $statement = $this->pdo->query(
-            'SELECT slug, content, updated_at FROM pages '
+            'SELECT slug, content, created_at, updated_at FROM pages '
             . 'WHERE JSON_UNQUOTE(JSON_EXTRACT(content, \'$.status\')) = \'published\' '
             . 'ORDER BY slug'
         );
 
         $pages = [];
         foreach ($statement as $row) {
-            $content = $this->decode($row['content']);
-            $pages[] = [
-                'slug' => $row['slug'],
-                'title' => (string) (Editable::unwrap($content['title'] ?? null) ?? $row['slug']),
-                'updatedAt' => $row['updated_at'],
-            ];
+            $pages[] = $this->mapSummaryRow($row);
         }
 
         return $pages;
@@ -66,16 +61,13 @@ final class MysqlPageRepository implements PageRepositoryInterface
 
     public function listAll(): array
     {
-        $statement = $this->pdo->query('SELECT slug, content, updated_at FROM pages ORDER BY slug');
+        $statement = $this->pdo->query('SELECT slug, content, created_at, updated_at FROM pages ORDER BY slug');
 
         $pages = [];
         foreach ($statement as $row) {
-            $content = $this->decode($row['content']);
             $pages[] = [
-                'slug' => $row['slug'],
-                'title' => (string) (Editable::unwrap($content['title'] ?? null) ?? $row['slug']),
-                'status' => (string) ($content['status'] ?? 'published'),
-                'updatedAt' => $row['updated_at'],
+                ...$this->mapSummaryRow($row),
+                'status' => (string) ($this->decode($row['content'])['status'] ?? 'published'),
             ];
         }
 
@@ -93,6 +85,46 @@ final class MysqlPageRepository implements PageRepositoryInterface
         if ($statement->rowCount() === 0) {
             throw new NotFoundException("Nie znaleziono strony do zapisania: {$slug}");
         }
+    }
+
+    public function create(string $slug, array $content): array
+    {
+        $statement = $this->pdo->prepare('INSERT INTO pages (slug, content) VALUES (:slug, :content)');
+        $statement->execute([
+            'slug' => $slug,
+            'content' => $this->encode($content),
+        ]);
+
+        return [
+            'slug' => $slug,
+            'content' => $content,
+            'updatedAt' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+        ];
+    }
+
+    public function delete(string $slug): void
+    {
+        $statement = $this->pdo->prepare('DELETE FROM pages WHERE slug = :slug');
+        $statement->execute(['slug' => $slug]);
+
+        if ($statement->rowCount() === 0) {
+            throw new NotFoundException("Nie znaleziono strony do usunięcia: {$slug}");
+        }
+    }
+
+    /** @return array{slug: string, title: string, parent: ?string, updatedAt: string, createdAt: string} */
+    private function mapSummaryRow(array $row): array
+    {
+        $content = $this->decode($row['content']);
+        $parent = $content['parent'] ?? null;
+
+        return [
+            'slug' => $row['slug'],
+            'title' => (string) (Editable::unwrap($content['title'] ?? null) ?? $row['slug']),
+            'parent' => is_string($parent) ? $parent : null,
+            'updatedAt' => $row['updated_at'],
+            'createdAt' => $row['created_at'],
+        ];
     }
 
     private function encode(array $content): string

@@ -1,23 +1,20 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import BlogIndexTemplate from "@/components/blog/BlogIndexTemplate";
-import type { BlogPostContent } from "@/components/blog/types";
-import { getCollectionItems, getCollectionPageCount } from "@/lib/collections";
-import { getCollectionDefinition } from "@/lib/collections/registry";
+import { getPageBySlug } from "@/lib/content";
+import BlogHero from "@/components/blog/BlogHero";
+import BlogPostGrid, { getBlogPageCount } from "@/components/blog/BlogPostGrid";
 
 /**
  * /blog/page/2, /blog/page/3, ... — strona 1 to /blog (osobny plik, nie tu),
  * żeby uniknąć niejednoznacznego /blog/2 kolidującego z ewentualnym slugiem
- * wpisu "2" (patrz src/app/blog/[slug]/page.tsx i rezerwację slugu "page" w
- * CollectionAdminController::createItem).
+ * wpisu "2" (patrz src/app/blog/[slug]/page.tsx i rezerwację adresu
+ * "/blog/page" w AdminController::createPage).
  */
-
-const COLLECTION = getCollectionDefinition("blog");
 
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
-  const totalPages = await getCollectionPageCount(COLLECTION.key, COLLECTION.pageSize);
+  const totalPages = await getBlogPageCount();
 
   // "output: export" nie pozwala na PUSTĄ listę parametrów dla trasy
   // dynamicznej (przynajmniej jeden plik musi powstać) — gdy realnie nie ma
@@ -39,8 +36,18 @@ export default async function BlogIndexPagedPage({ params }: { params: Promise<P
 
   if (!Number.isInteger(page) || page < 2) notFound();
 
-  const { items, totalPages } = await getCollectionItems(COLLECTION.key, page, COLLECTION.pageSize);
+  const blogPage = await getPageBySlug("/blog");
+  if (!blogPage) notFound();
+
+  const totalPages = await getBlogPageCount();
   if (page > totalPages) notFound();
 
-  return <BlogIndexTemplate items={items as BlogPostContent[]} page={page} totalPages={totalPages} />;
+  const hero = blogPage.sections.find((section) => section.component === "BlogHero");
+
+  return (
+    <>
+      <BlogHero fields={hero?.fields ?? {}} />
+      <BlogPostGrid page={page} />
+    </>
+  );
 }

@@ -10,10 +10,10 @@ type SaveState = "idle" | "saving" | "success" | "error";
 /**
  * Rdzeń edycji DOWOLNEJ treści w konwencji {value,editable,label,type}
  * (patrz src/lib/editable.ts) — stan lokalny + EditableField + przycisk
- * zapisu. Nie wie NIC o tym, dokąd zapis trafia (strona w `pages`, element
- * kolekcji, cokolwiek przyszłego) — to `onSave` decyduje, PageEditor.tsx i
- * CollectionItemEditor.tsx to dwa cienkie wrappery wołające inne API tym
- * samym komponentem.
+ * zapisu. Nie wie NIC o tym, dokąd zapis trafia — to `onSave` decyduje;
+ * PageEditor.tsx (jedyny dziś wrapper — strony i wpisy bloga to od refaktoru
+ * ten sam mechanizm, patrz src/lib/pageTemplates.ts) woła przez nią zapis do
+ * `pages`.
  */
 export default function ContentEditor({
   backLabel,
@@ -24,7 +24,7 @@ export default function ContentEditor({
   onSave,
   beforeFields,
 }: {
-  /** Tekst linku powrotu, np. "Wszystkie strony" albo "Wszystkie: Blog". */
+  /** Tekst linku powrotu, np. "Wszystkie strony". */
   backLabel: string;
   /** Podpis nad formularzem — dziś zawsze slug, ale to tylko etykieta. */
   titleLabel: string;
@@ -33,7 +33,7 @@ export default function ContentEditor({
   onBack: () => void;
   /** Rzuca na błąd (np. AdminApiError) — ContentEditor sam zamienia to na komunikat. */
   onSave: (content: Record<string, unknown>) => Promise<unknown>;
-  /** Dodatkowe kontrolki nad polami treści (np. status/data publikacji w CollectionItemEditor). */
+  /** Dodatkowe kontrolki nad polami treści — nieużywane dziś, zostaje jako punkt rozszerzenia dla przyszłego wrappera. */
   beforeFields?: ReactNode;
 }) {
   const [content, setContent] = useState(initialContent);

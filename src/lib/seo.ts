@@ -7,9 +7,9 @@ import { unwrap } from "@/lib/editable";
  * gdy strona nie poda własnej wartości. Ścieżki (canonical, obrazy) są względne —
  * Next rozwiązuje je względem metadataBase automatycznie.
  *
- * Typ parametru to CELOWO tylko { slug, seo }, nie cały Page — dzięki temu ta
- * sama funkcja buduje metadata też dla elementów kolekcji (patrz
- * src/lib/collections.ts), które nie mają "sections"/"nav" jak strona.
+ * Typ parametru to CELOWO tylko { slug, seo }, nie cały Page — przyjmuje więc
+ * też strony wywoływane z niepełnym kontekstem (patrz src/app/blog/[slug]/page.tsx::generateMetadata,
+ * gdzie strona i tak jest w tym momencie pełnym Page, ale funkcja tego nie wymaga).
  */
 export function buildMetadata(page: Pick<Page, "slug" | "seo">): Metadata {
   const { seoDefaults } = getSite();

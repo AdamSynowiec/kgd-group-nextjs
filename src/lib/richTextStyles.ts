@@ -1,10 +1,10 @@
 /**
  * Wygląd wewnątrz treści "richtext" — współdzielone między powierzchnią
- * edycji (RichTextEditor.tsx, kontenteditable Tiptap) a publicznym
- * renderowaniem (BlogPostTemplate.tsx, dangerouslySetInnerHTML), żeby to, co
- * redaktor widzi w panelu, wyglądało tak samo jak na stronie. Zwykłe klasy
- * Tailwind (arbitrary variants) zamiast pluginu @tailwindcss/typography,
- * którego projekt nie ma zainstalowanego.
+ * edycji (RichTextEditor.tsx, własny edytor bez zależności) a publicznym
+ * renderowaniem (src/components/blog/BlogPost.tsx, dangerouslySetInnerHTML),
+ * żeby to, co redaktor widzi w panelu, wyglądało tak samo jak na stronie.
+ * Zwykłe klasy Tailwind (arbitrary variants) zamiast pluginu
+ * @tailwindcss/typography, którego projekt nie ma zainstalowanego.
  */
 export const RICH_TEXT_CONTENT_CLASS =
   "[&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:text-zinc-900 " +

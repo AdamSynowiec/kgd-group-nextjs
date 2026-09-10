@@ -1,4 +1,11 @@
 -- =============================================================================
+-- WYCOFANE — blog (jedyny użytkownik tej tabeli) przeniósł się do `pages`
+-- (ten sam schemat co inne podstrony). Patrz db/008_drop_collection_items.sql
+-- i backend/scripts/migrate-blog-to-pages.php. Ten plik zostaje wyłącznie
+-- jako historia migracji — nie twórz w tej tabeli nowych kolekcji.
+-- =============================================================================
+
+-- =============================================================================
 -- Migracja 007 — tabela `collection_items`: uniwersalny magazyn "kolekcji"
 -- (treści powtarzalnej, jak blog), OSOBNY od `pages` (patrz db/schema.sql).
 --

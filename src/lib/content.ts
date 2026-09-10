@@ -104,7 +104,7 @@ export type Page = {
 };
 
 /** Lekki wpis z listy `GET /api/pages` — tyle, ile backend zwraca bez wczytywania pełnej treści. */
-export type PageSummary = { slug: string; title: string; updatedAt: string };
+export type PageSummary = { slug: string; title: string; parent: string | null; updatedAt: string; createdAt: string };
 
 const ROOT = process.cwd();
 const SITE_FILE = path.join(ROOT, "src", "data", "site.json");
@@ -187,15 +187,6 @@ export async function apiGet<T>(route: string, params?: Record<string, string>):
   return (await apiFetch<T>(route, params)).data;
 }
 
-/** Jak apiGet, ale zwraca też "meta" z odpowiedzi — pod src/lib/collections.ts (paginacja: page/pageSize/total/totalPages). */
-export async function apiGetWithMeta<T, M = Record<string, unknown>>(
-  route: string,
-  params?: Record<string, string>
-): Promise<{ data: T | null; meta: M }> {
-  const result = await apiFetch<T>(route, params);
-  return { data: result.data, meta: result.meta as M };
-}
-
 /** route=/pages — lista opublikowanych stron pod generateStaticParams(). */
 export const getAllPages = cache(async (): Promise<PageSummary[]> => {
   const pages = await apiGet<PageSummary[]>("/pages");
@@ -207,6 +198,20 @@ export const getPageBySlug = cache(async (slug: string): Promise<Page | null> =>
   const normalized = normalizeSlug(slug);
   const suffix = normalized === "/" ? "" : normalized;
   return apiGet<Page>(`/page${suffix}`);
+});
+
+/**
+ * Opublikowane strony, których "parent" (pole w content, patrz Page.parent)
+ * to podany slug — np. wpisy bloga pod "/blog". Bez osobnego endpointu:
+ * filtruje wynik getAllPages() (już ma "parent" w podsumowaniu), najnowsze
+ * pierwsze po createdAt. Strony są na tyle nieliczne, że jeden przebieg po
+ * wszystkich jest tani (ten sam kompromis co wcześniej przy kolekcjach).
+ */
+export const getChildPages = cache(async (parentSlug: string): Promise<PageSummary[]> => {
+  const all = await getAllPages();
+  return all
+    .filter((page) => page.parent === parentSlug)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 });
 
 /** Okruszki wyprowadzane z pola "parent", nie z URL-a. */

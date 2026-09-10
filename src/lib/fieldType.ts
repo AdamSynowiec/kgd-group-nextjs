@@ -15,7 +15,7 @@
  * i zwykły string wyglądają identycznie (oba to `typeof value === "string"`),
  * więc classifyFieldType() zawsze spadnie na "string" dla takiej wartości.
  * Pole musi dostać "richtext" jawnie w miejscu, gdzie powstaje (patrz
- * src/lib/collections/registry.ts — pole "body" bloga) — to jest właśnie ta
+ * src/lib/pageTemplates.ts — pole "body" wpisu bloga) — to jest właśnie ta
  * "jawność typu", o którą chodzi w całym tym systemie.
  */
 

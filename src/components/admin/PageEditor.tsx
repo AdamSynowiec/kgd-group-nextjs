@@ -3,7 +3,7 @@
 import ContentEditor from "@/components/admin/ContentEditor";
 import { savePage, type Session } from "@/lib/adminApi";
 
-/** Cienki wrapper ContentEditor dla stron w `pages` — patrz CollectionItemEditor.tsx dla drugiego użycia tego samego rdzenia. */
+/** Cienki wrapper ContentEditor dla stron w `pages` (w tym wpisów bloga — zwykłe strony z parent:"/blog", patrz src/lib/pageTemplates.ts). */
 export default function PageEditor({
   slug,
   initialContent,

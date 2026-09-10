@@ -1,16 +1,22 @@
 import type { Metadata } from "next";
-import BlogIndexTemplate from "@/components/blog/BlogIndexTemplate";
-import type { BlogPostContent } from "@/components/blog/types";
-import { getCollectionItems } from "@/lib/collections";
-import { getCollectionDefinition } from "@/lib/collections/registry";
-
-const COLLECTION = getCollectionDefinition("blog");
+import { notFound } from "next/navigation";
+import { getPageBySlug } from "@/lib/content";
+import BlogHero from "@/components/blog/BlogHero";
+import BlogPostGrid from "@/components/blog/BlogPostGrid";
 
 export const metadata: Metadata = { title: "Blog" };
 
-/** /blog — strona 1. Strony 2+ patrz src/app/blog/page/[n]/page.tsx (ten sam szablon, inny fetch). */
+/** /blog — strona 1. Strony 2+ patrz src/app/blog/page/[n]/page.tsx (ten sam szablon, inny wycinek). */
 export default async function BlogIndexPage() {
-  const { items, totalPages } = await getCollectionItems(COLLECTION.key, 1, COLLECTION.pageSize);
+  const blogPage = await getPageBySlug("/blog");
+  if (!blogPage) notFound();
 
-  return <BlogIndexTemplate items={items as BlogPostContent[]} page={1} totalPages={totalPages} />;
+  const hero = blogPage.sections.find((section) => section.component === "BlogHero");
+
+  return (
+    <>
+      <BlogHero fields={hero?.fields ?? {}} />
+      <BlogPostGrid page={1} />
+    </>
+  );
 }

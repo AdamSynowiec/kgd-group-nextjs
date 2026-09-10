@@ -7,7 +7,6 @@ define('APP_ENTRY', true);
 use App\Controller\AdminController;
 use App\Controller\AuthController;
 use App\Controller\BuildController;
-use App\Controller\CollectionAdminController;
 use App\Controller\UploadController;
 use App\Controller\UsersController;
 use App\Database\Connection;
@@ -17,7 +16,6 @@ use App\Http\Request;
 use App\Http\Router;
 use App\Http\SessionAuth;
 use App\Http\SessionToken;
-use App\Repository\MysqlCollectionItemRepository;
 use App\Repository\MysqlPageRepository;
 use App\Repository\MysqlUserRepository;
 
@@ -47,9 +45,6 @@ $currentSession = $request->path === '/login' ? null : SessionAuth::guard($confi
 $adminController = static fn (): AdminController =>
     new AdminController(new MysqlPageRepository(Connection::get($config)));
 
-$collectionAdminController = static fn (): CollectionAdminController =>
-    new CollectionAdminController(new MysqlCollectionItemRepository(Connection::get($config)));
-
 $authController = static fn (): AuthController => new AuthController(
     new MysqlUserRepository(Connection::get($config)),
     new SessionToken($config->get('SESSION_SECRET'))
@@ -71,15 +66,10 @@ $uploadController = new UploadController();
 $router = new Router();
 $router->post('/login', static fn (Request $req) => $authController()->login($req));
 $router->get('/pages', static fn (Request $req) => $adminController()->listPages());
+$router->post('/pages', static fn (Request $req) => $adminController()->createPage($req));
 $router->get('/page', static fn (Request $req) => $adminController()->getPage($req));
 $router->post('/page', static fn (Request $req) => $adminController()->savePage($req));
-// Kolekcje (np. blog) — patrz CollectionAdminController. "/collection-items" (liczba mnoga,
-// bez ?slug=) listuje/tworzy; "/collection-item" (pojedynczo, z ?slug=) czyta/zapisuje/usuwa jeden element.
-$router->get('/collection-items', static fn (Request $req) => $collectionAdminController()->listItems($req));
-$router->post('/collection-items', static fn (Request $req) => $collectionAdminController()->createItem($req));
-$router->get('/collection-item', static fn (Request $req) => $collectionAdminController()->getItem($req));
-$router->post('/collection-item', static fn (Request $req) => $collectionAdminController()->saveItem($req));
-$router->delete('/collection-item', static fn (Request $req) => $collectionAdminController()->deleteItem($req));
+$router->delete('/page', static fn (Request $req) => $adminController()->deletePage($req));
 // Pola typu "asset" w panelu (zdjęcia/ikony) — każdy zalogowany redaktor, bez
 // wymogu roli "admin" (to edycja treści, jak savePage, nie operacja na koncie/deployu).
 $router->post('/upload', static fn (Request $req) => $uploadController->upload($req));

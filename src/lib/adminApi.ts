@@ -10,7 +10,7 @@
  * logowania nad własnym UI panelu (patrz backend/src/Http/SessionAuth.php).
  */
 
-export type PageSummary = { slug: string; title: string; status: string; updatedAt: string };
+export type PageSummary = { slug: string; title: string; status: string; parent: string | null; updatedAt: string };
 
 export type Session = { token: string; login: string; role: string };
 
@@ -112,69 +112,17 @@ export function savePage(
   return request<{ saved: boolean }>("/page", { method: "POST", params: { slug }, body: content, session });
 }
 
-/**
- * Klient API "kolekcji" (blog i każda przyszła — patrz src/lib/collections/registry.ts)
- * — mirror fetch/save Page powyżej, ale zakresowany przez `collection` i, w
- * odróżnieniu od stron, z prawdziwym tworzeniem/usuwaniem (patrz
- * backend/src/Controller/CollectionAdminController.php).
- */
-export type CollectionItemSummary = {
-  slug: string;
-  title: string;
-  status: string;
-  publishedAt: string | null;
-  updatedAt: string;
-};
-
-export type CollectionItem = {
-  slug: string;
-  content: Record<string, unknown>;
-  status: "draft" | "published" | string;
-  publishedAt: string | null;
-  updatedAt: string;
-};
-
-export function fetchCollectionItems(collection: string, session: Session | null): Promise<CollectionItemSummary[]> {
-  return request<CollectionItemSummary[]>("/collection-items", { params: { collection }, session });
-}
-
-export function fetchCollectionItem(
-  collection: string,
-  slug: string,
-  session: Session | null
-): Promise<CollectionItem> {
-  return request<CollectionItem>("/collection-item", { params: { collection, slug }, session });
-}
-
-export function createCollectionItem(
-  collection: string,
+/** POST /pages, body: {"slug": "/blog/moj-wpis", "content": {...}} — patrz src/lib/pageTemplates.ts dla treści startowej. */
+export function createPage(
   slug: string,
   content: Record<string, unknown>,
   session: Session | null
-): Promise<CollectionItem> {
-  return request<CollectionItem>("/collection-items", {
-    method: "POST",
-    params: { collection },
-    body: { slug, content },
-    session,
-  });
+): Promise<{ slug: string; content: Record<string, unknown>; updatedAt: string }> {
+  return request("/pages", { method: "POST", body: { slug, content }, session });
 }
 
-export function saveCollectionItem(
-  collection: string,
-  slug: string,
-  input: { content: Record<string, unknown>; status: "draft" | "published"; publishedAt: string | null },
-  session: Session | null
-): Promise<{ saved: boolean; slug: string; status: string; publishedAt: string | null }> {
-  return request("/collection-item", { method: "POST", params: { collection, slug }, body: input, session });
-}
-
-export function deleteCollectionItem(
-  collection: string,
-  slug: string,
-  session: Session | null
-): Promise<{ deleted: boolean; slug: string }> {
-  return request("/collection-item", { method: "DELETE", params: { collection, slug }, session });
+export function deletePage(slug: string, session: Session | null): Promise<{ deleted: boolean; slug: string }> {
+  return request("/page", { method: "DELETE", params: { slug }, session });
 }
 
 /**

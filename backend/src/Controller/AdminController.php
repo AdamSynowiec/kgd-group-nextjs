@@ -12,6 +12,7 @@ use App\Repository\PageRepositoryInterface;
 use App\Support\EditableMerge;
 use App\Support\Slug;
 use JsonException;
+use PDOException;
 
 if (!defined('APP_ENTRY')) {
     http_response_code(403);
@@ -78,6 +79,61 @@ final class AdminController
         $this->pages->save($slug, $merged);
 
         JsonResponse::ok(['saved' => true, 'slug' => $slug]);
+    }
+
+    /**
+     * POST /pages, body: {"slug": "/blog/moj-wpis", "content": {...}}
+     * Tworzy nową stronę. "content" to zwykle PageTemplate.blankContent(...)
+     * z src/lib/pageTemplates.ts — backend niczego nie wymusza co do jej
+     * kształtu poza tym, że to obiekt (mirror dawnego
+     * CollectionAdminController::createItem()).
+     */
+    public function createPage(Request $request): void
+    {
+        try {
+            $body = $request->jsonBody();
+        } catch (JsonException) {
+            throw new ApiException('Niepoprawny JSON.', 400);
+        }
+
+        $rawSlug = is_string($body['slug'] ?? null) ? $body['slug'] : '';
+        $slug = Slug::fromSegments(explode('/', trim($rawSlug, '/')));
+
+        if (!Slug::isValid($slug)) {
+            throw new ApiException('Nieprawidłowy adres strony.', 400);
+        }
+
+        // Zarezerwowane pod /blog/page/2, /blog/page/3... (paginacja) — patrz src/app/blog/page/[n]/page.tsx.
+        if ($slug === '/blog/page') {
+            throw new ApiException('Adres "/blog/page" jest zarezerwowany dla paginacji listy.', 400);
+        }
+
+        $content = $body['content'] ?? null;
+        if (!is_array($content)) {
+            throw new ApiException('Brak wymaganego pola "content".', 400);
+        }
+
+        try {
+            $created = $this->pages->create($slug, $content);
+        } catch (PDOException $exception) {
+            if ($exception->getCode() === '23000') {
+                throw new ApiException('Strona o tym adresie już istnieje.', 409);
+            }
+
+            throw $exception;
+        }
+
+        JsonResponse::ok($created);
+    }
+
+    /** DELETE /page?slug=/blog/moj-wpis */
+    public function deletePage(Request $request): void
+    {
+        $slug = $this->slugFromQuery($request);
+
+        $this->pages->delete($slug);
+
+        JsonResponse::ok(['deleted' => true, 'slug' => $slug]);
     }
 
     private function slugFromQuery(Request $request): string

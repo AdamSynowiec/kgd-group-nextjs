@@ -1,25 +1,22 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import BlogPostTemplate from "@/components/blog/BlogPostTemplate";
-import type { BlogPostContent } from "@/components/blog/types";
-import { getAllCollectionSlugs, getCollectionItemBySlug } from "@/lib/collections";
-import { getCollectionDefinition } from "@/lib/collections/registry";
+import { getChildPages, getPageBySlug } from "@/lib/content";
+import { unwrap } from "@/lib/editable";
 import { buildMetadata } from "@/lib/seo";
-import type { PageSeo } from "@/lib/content";
-
-const COLLECTION = getCollectionDefinition("blog");
+import BlogPost from "@/components/blog/BlogPost";
 
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
-  const slugs = await getAllCollectionSlugs(COLLECTION.key, COLLECTION.pageSize);
+  const children = await getChildPages("/blog");
+  const slugs = children.map((child) => child.slug.replace(/^\/blog\//, ""));
 
   if (slugs.length === 0) {
     // "output: export" nie pozwala na pustą listę parametrów dla trasy
-    // dynamicznej. "page" jest zarezerwowanym slugiem (patrz
-    // CollectionAdminController::createItem — nigdy nie kolidowałby z
-    // prawdziwym wpisem), więc ten placeholder bezpiecznie renderuje się
-    // jako notFound() poniżej, dopóki nie powstanie pierwszy prawdziwy wpis.
+    // dynamicznej. "page" jest zarezerwowanym adresem (patrz
+    // AdminController::createPage — nigdy nie kolidowałby z prawdziwym
+    // wpisem), więc ten placeholder bezpiecznie renderuje się jako
+    // notFound() poniżej, dopóki nie powstanie pierwszy prawdziwy wpis.
     return [{ slug: "page" }];
   }
 
@@ -28,24 +25,19 @@ export async function generateStaticParams() {
 
 type Params = { slug: string };
 
-async function loadPost(slug: string): Promise<BlogPostContent | null> {
-  const item = await getCollectionItemBySlug(COLLECTION.key, slug);
-  return item ? (item as unknown as BlogPostContent) : null;
-}
-
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
-  const post = await loadPost(slug);
-  if (!post) return {};
-
-  return buildMetadata({ slug: `/blog/${post.slug}`, seo: post.seo as PageSeo | undefined });
+  const post = await getPageBySlug(`/blog/${slug}`);
+  return post ? buildMetadata(post) : {};
 }
 
 export default async function BlogPostPage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
-  const post = await loadPost(slug);
+  const post = await getPageBySlug(`/blog/${slug}`);
 
   if (!post) notFound();
 
-  return <BlogPostTemplate post={post} />;
+  const section = post.sections.find((s) => s.component === "BlogPost");
+
+  return <BlogPost title={unwrap(post.title) ?? post.slug} updatedAt={post.updatedAt ?? null} fields={section?.fields ?? {}} />;
 }

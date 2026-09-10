@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BlogIcon, PagesIcon, SettingsIcon } from "@/components/admin/icons";
+import { PagesIcon, SettingsIcon } from "@/components/admin/icons";
 import { useBrand } from "@/components/admin/BrandProvider";
 
-// Jedna kolekcja na razie -> jeden wpis na sztywno. Gdy dojdzie druga (patrz
-// src/lib/collections/registry.ts), warto to zamienić na iterację po COLLECTIONS.
+// Blog to zwykłe strony w `pages` (parent:"/blog") — bez osobnej zakładki,
+// widoczne na liście "Strony" jak każda inna podstrona (patrz PageList.tsx).
 const NAV_ITEMS = [
   { label: "Strony", href: "/admin", Icon: PagesIcon },
-  { label: "Blog", href: "/admin/blog", Icon: BlogIcon },
   { label: "Ustawienia", href: "/admin/settings", Icon: SettingsIcon },
 ] as const;
 

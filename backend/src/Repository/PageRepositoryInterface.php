@@ -19,19 +19,30 @@ interface PageRepositoryInterface
     /** @return array{slug: string, content: array<string, mixed>, updatedAt: string}|null */
     public function findBySlug(string $slug): ?array;
 
-    /** @return list<array{slug: string, title: string, updatedAt: string}> */
+    /** @return list<array{slug: string, title: string, parent: ?string, updatedAt: string, createdAt: string}> */
     public function listPublished(): array;
 
     /**
      * Jak listPublished(), ale pokazuje też szkice — pod panel edycji.
-     * @return list<array{slug: string, title: string, status: string, updatedAt: string}>
+     * @return list<array{slug: string, title: string, status: string, parent: ?string, updatedAt: string, createdAt: string}>
      */
     public function listAll(): array;
 
     /**
      * Nadpisuje "content" strony o podanym slugu. Nie tworzy nowego wiersza —
-     * rzuca, jeśli taki slug jeszcze nie istnieje (patrz db/schema.sql, jak
-     * dodać nową stronę).
+     * rzuca, jeśli taki slug jeszcze nie istnieje.
      */
     public function save(string $slug, array $content): void;
+
+    /**
+     * Tworzy nowy wiersz. Rzuca (PDOException kod 23000), jeśli slug już
+     * istnieje — kontroler zamienia to na czytelną odpowiedź 409 (mirror
+     * dawnego CollectionItemRepositoryInterface::create()).
+     * @param array<string, mixed> $content
+     * @return array{slug: string, content: array<string, mixed>, updatedAt: string}
+     */
+    public function create(string $slug, array $content): array;
+
+    /** Rzuca NotFoundException, jeśli slug nie istnieje. */
+    public function delete(string $slug): void;
 }

@@ -110,7 +110,7 @@ export default function AdminPage() {
     <AdminShell title={viewTitle(view)} session={session} onLogout={goToLogin}>
       {view.status === "checking" && <p className="text-sm text-zinc-500">Wczytywanie...</p>}
 
-      {view.status === "list" && <PageList pages={view.pages} onEdit={handleEdit} />}
+      {view.status === "list" && <PageList initialPages={view.pages} session={session} onEdit={handleEdit} />}
 
       {view.status === "editing" && (
         <PageEditor slug={view.slug} initialContent={view.content} session={session} onBack={handleBack} />
