@@ -17,6 +17,12 @@ type BlogHeroFields = {
  * src/lib/sections.tsx — patrz komentarz tam o generycznym silniku (site)).
  * Stylistyka zgodna ze standardami strony głównej KGD (złoty akcent
  * #C9AB8B, Container/Separator/P z src/components/home/).
+ *
+ * pt-[148px]/md:pt-[280px] = wysokość fixed NavBar (100px/200px, patrz
+ * NavBar.tsx) + zwykły odstęp sekcji (48px/80px) — src/app/blog/layout.tsx
+ * NIE dodaje już globalnego odstępu pod NavBar (zdjęcie w BlogPost.tsx ma
+ * sięgać do samej góry), więc jasne tło tej sekcji musi zrobić to samo, ale
+ * lokalnie, tu.
  */
 export default function BlogHero({ fields }: { fields: BlogHeroFields }) {
   const eyebrow = unwrap(fields.eyebrow);
@@ -24,7 +30,7 @@ export default function BlogHero({ fields }: { fields: BlogHeroFields }) {
   const intro = unwrap(fields.intro);
 
   return (
-    <section className="border-b border-gray-100 bg-[#FBFBFB] py-[48px] md:py-[80px]">
+    <section className="border-b border-gray-100 bg-[#FBFBFB] pt-[148px] pb-[48px] md:pt-[280px] md:pb-[80px]">
       <Container className="text-center">
         {eyebrow && <span className="font-poppins text-[13px] uppercase tracking-[0.08em] text-gray-500">{eyebrow}</span>}
         <h1 className="mt-3 font-poppins text-xl font-bold leading-[1.25] text-[#C9AB8B] sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl">

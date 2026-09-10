@@ -1,6 +1,6 @@
 "use client";
 
-import type { BlockType, InlineMark } from "@/lib/richText/commands";
+import type { BlockType, InlineMark, TextAlign } from "@/lib/richText/commands";
 
 export type ViewMode = "edit" | "html";
 
@@ -12,6 +12,12 @@ const BLOCK_OPTIONS: { value: BlockType; label: string }[] = [
   { value: "h4", label: "Nagłówek 4" },
   { value: "h5", label: "Nagłówek 5" },
   { value: "h6", label: "Nagłówek 6" },
+];
+
+const ALIGN_OPTIONS: { value: TextAlign; label: string }[] = [
+  { value: "left", label: "Do lewej" },
+  { value: "center", label: "Do środka" },
+  { value: "right", label: "Do prawej" },
 ];
 
 const buttonClass = (active: boolean) =>
@@ -44,6 +50,8 @@ export default function Toolbar({
   isBulletList,
   isOrderedList,
   onToggleList,
+  align,
+  onSetAlign,
   isLinkActive,
   linkDisabled,
   onOpenLink,
@@ -66,6 +74,8 @@ export default function Toolbar({
   isBulletList: boolean;
   isOrderedList: boolean;
   onToggleList: (tag: "ul" | "ol") => void;
+  align: TextAlign;
+  onSetAlign: (align: TextAlign) => void;
   isLinkActive: boolean;
   linkDisabled: boolean;
   onOpenLink: () => void;
@@ -164,6 +174,24 @@ export default function Toolbar({
 
       <Separator />
 
+      {ALIGN_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onMouseDown={preventFocusLoss}
+          onClick={() => onSetAlign(option.value)}
+          disabled={view === "html"}
+          aria-pressed={align === option.value}
+          aria-label={option.label}
+          title={option.label}
+          className={buttonClass(align === option.value)}
+        >
+          <AlignIcon align={option.value} className="h-4 w-4" />
+        </button>
+      ))}
+
+      <Separator />
+
       <button
         type="button"
         onMouseDown={preventFocusLoss}
@@ -243,4 +271,33 @@ export default function Toolbar({
 
 function Separator() {
   return <div className="mx-1 h-5 w-px shrink-0 bg-zinc-200" aria-hidden />;
+}
+
+/** Trzy poziome kreski w układzie danego wyrównania — prosty SVG bez zależności, jak reszta ikon w panelu (patrz src/components/admin/icons.tsx). */
+function AlignIcon({ align, className }: { align: TextAlign; className?: string }) {
+  const lines: Record<TextAlign, { x1: number; x2: number }[]> = {
+    left: [
+      { x1: 3, x2: 21 },
+      { x1: 3, x2: 15 },
+      { x1: 3, x2: 18 },
+    ],
+    center: [
+      { x1: 3, x2: 21 },
+      { x1: 6, x2: 18 },
+      { x1: 4.5, x2: 19.5 },
+    ],
+    right: [
+      { x1: 3, x2: 21 },
+      { x1: 9, x2: 21 },
+      { x1: 6, x2: 21 },
+    ],
+  };
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={className} aria-hidden>
+      {lines[align].map((line, i) => (
+        <line key={i} x1={line.x1} y1={6 + i * 6} x2={line.x2} y2={6 + i * 6} />
+      ))}
+    </svg>
+  );
 }

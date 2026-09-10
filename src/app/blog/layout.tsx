@@ -32,9 +32,16 @@ export default async function BlogLayout({ children }: { children: ReactNode }) 
   return (
     <div className={homeFontVariables}>
       <NavBar logo={logo} menu={navMenu} phone={navPhone} />
-      {/* Odstęp pod fixed NavBar (h-[100px] md:h-[200px], patrz NavBar.tsx) — na homepage tę rolę pełni pełnoekranowy Hero, blog nie ma odpowiednika. */}
-      <div className="h-[100px] md:h-[200px]" aria-hidden />
 
+      {/*
+        BEZ odstępu pod fixed NavBar tutaj (w odróżnieniu od wcześniejszej
+        wersji) — tak jak na stronie głównej, gdzie NavBar nakłada się
+        (transparentnie) na pełnoekranowy Hero, zdjęcie w BlogPost.tsx ma
+        sięgać do samej góry, żeby NavBar wisiał na nim. Strony, które
+        faktycznie potrzebują odstępu (bo ich nagłówek NIE jest ciemnym
+        zdjęciem pod spodem, tylko jasnym tłem — patrz BlogHero.tsx) dodają
+        go same, lokalnie, zamiast globalnie tutaj dla wszystkich.
+      */}
       <main>{children}</main>
 
       {contactSection && <Contact fields={contactSection.fields ?? {}} />}

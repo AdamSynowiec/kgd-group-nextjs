@@ -20,11 +20,38 @@ const ALLOWED_TAGS = new Set([
   "blockquote",
 ]);
 
-/** Atrybuty dozwolone per-tag — wszystko inne (w tym "style", "class", "on*") jest odrzucane. */
+/** Tagi blokowe, dla których dopuszczony jest atrybut "style" — wyłącznie pod wyrównanie tekstu, patrz sanitizeStyleAttribute(). */
+const ALIGNABLE_TAGS = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li"]);
+const ALLOWED_TEXT_ALIGN = new Set(["center", "right"]);
+
+/** Atrybuty dozwolone per-tag — wszystko inne (w tym "class", "on*") jest odrzucane. "style" jest dozwolony tylko na ALIGNABLE_TAGS, a jego wartość jest osobno dokładnie sprawdzana (patrz sanitizeStyleAttribute niżej) — nie ufamy tu żadnej wartości wprost. */
 const ALLOWED_ATTRIBUTES: Record<string, readonly string[]> = {
   a: ["href", "rel", "target"],
   img: ["src", "alt"],
+  h1: ["style"], h2: ["style"], h3: ["style"], h4: ["style"], h5: ["style"], h6: ["style"],
+  p: ["style"],
+  li: ["style"],
 };
+
+/**
+ * "style" przechodzi allowlistę atrybutów wyżej jako nazwa, ale jego WARTOŚĆ
+ * nigdy nie jest ufana wprost — jedyna dozwolona treść to text-align:
+ * center|right (left/justify/cokolwiek innego -> atrybut usunięty w całości).
+ * To jedyny atrybut CSS, jaki ten edytor w ogóle potrafi wytworzyć (patrz
+ * commands.ts::setTextAlign) — nie ma tu ryzyka przemycenia dowolnego CSS-u,
+ * bo wartość jest odczytywana przez computed `el.style.textAlign`, nie
+ * kopiowana z surowego stringa atrybutu.
+ */
+function sanitizeStyleAttribute(el: Element): void {
+  if (!el.hasAttribute("style")) return;
+
+  const align = ALIGNABLE_TAGS.has(el.tagName.toLowerCase()) ? (el as HTMLElement).style.textAlign : "";
+  el.removeAttribute("style");
+
+  if (ALLOWED_TEXT_ALIGN.has(align)) {
+    (el as HTMLElement).style.textAlign = align;
+  }
+}
 
 /** Tagi, które trzeba usunąć RAZEM z zawartością (nie tylko rozpakować) — realny wektor XSS. */
 const STRIP_WITH_CONTENT = new Set(["script", "style", "iframe", "object", "embed", "noscript"]);
@@ -97,6 +124,8 @@ function sanitizeElement(original: Element): void {
       el.removeAttribute(attr.name);
     }
   }
+
+  sanitizeStyleAttribute(el);
 
   if (tag === "a") {
     const href = el.getAttribute("href");

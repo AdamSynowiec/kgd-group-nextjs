@@ -32,22 +32,26 @@ export default function BlogPost({
   const author = unwrap(fields.author);
   const tags = unwrap(fields.tags) ?? [];
   const body = unwrap(fields.body) ?? "";
+  const meta = [author, formatDate(updatedAt)].filter(Boolean).join(" · ");
 
   return (
-    <article className="py-[48px] md:py-[80px]">
-      <Container className="max-w-3xl">
-        <span className="font-poppins text-[13px] uppercase tracking-[0.08em] text-gray-500">
-          {[author, formatDate(updatedAt)].filter(Boolean).join(" · ")}
-        </span>
-
-        <h1 className="mt-3 font-poppins text-2xl font-bold leading-[1.2] text-[#1D1D1D] sm:text-3xl md:text-4xl">{title}</h1>
-
-        {excerpt && <p className="mt-4 font-montserrat text-lg font-light text-gray-600">{excerpt}</p>}
-
+    <article>
+      {/* Zdjęcie na pełną szerokość z tytułem na nim — bg-[#1D1D1D] jako tło zapasowe, gdy wpis nie ma jeszcze zdjęcia głównego, żeby banner z tytułem zawsze wyglądał spójnie, nie tylko gdy jest cover. */}
+      <div className="relative h-[45vh] min-h-[360px] w-full overflow-hidden bg-[#1D1D1D] md:h-[65vh]">
         {cover && (
           // eslint-disable-next-line @next/next/no-img-element -- output:"export"/images.unoptimized, jak wszędzie indziej w projekcie
-          <img src={cover} alt="" className="mt-8 aspect-[16/9] w-full rounded-lg object-cover" />
+          <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
         )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+
+        <div className="absolute inset-0 flex flex-col items-center justify-end px-6 pb-10 text-center md:pb-16">
+          {meta && <span className="font-poppins text-[13px] uppercase tracking-[0.08em] text-white/70">{meta}</span>}
+          <h1 className="mt-3 max-w-4xl font-poppins text-3xl font-bold leading-[1.15] text-white sm:text-4xl md:text-5xl">{title}</h1>
+        </div>
+      </div>
+
+      <Container className="max-w-3xl py-[48px] md:py-[80px]">
+        {excerpt && <p className="font-montserrat text-lg font-light text-gray-600">{excerpt}</p>}
 
         {/*
           body to type:"richtext" — HTML, nie zwykły tekst (patrz
@@ -59,7 +63,10 @@ export default function BlogPost({
           renderze (build działa w Node bez DOM-u, a sanitizeHtml() wymaga
           DOMParser).
         */}
-        <div className={`mt-8 text-[17px] text-zinc-700 ${RICH_TEXT_CONTENT_CLASS}`} dangerouslySetInnerHTML={{ __html: body }} />
+        <div
+          className={`${excerpt ? "mt-8" : ""} text-[17px] text-zinc-700 ${RICH_TEXT_CONTENT_CLASS}`}
+          dangerouslySetInnerHTML={{ __html: body }}
+        />
 
         {tags.length > 0 && (
           <ul className="mt-10 flex flex-wrap gap-2">

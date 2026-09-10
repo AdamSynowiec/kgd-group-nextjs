@@ -14,17 +14,20 @@ import {
   findAncestorTag,
   getActiveBlockType,
   getActiveListTag,
+  getActiveTextAlign,
   insertImage,
   isMarkActive,
   removeLink,
   restoreSelection,
   saveSelection,
   setBlockType as applyBlockType,
+  setTextAlign as applyTextAlign,
   toggleInlineMark,
   toggleList as applyToggleList,
   updateLinkAttributes,
   type BlockType,
   type InlineMark,
+  type TextAlign,
 } from "@/lib/richText/commands";
 
 /**
@@ -48,6 +51,7 @@ type PopoverKind = "none" | "link" | "image";
 type SelectionSnapshot = {
   blockType: BlockType | null;
   listTag: "ul" | "ol" | null;
+  align: TextAlign;
   marks: Record<InlineMark, boolean>;
   collapsed: boolean;
   link: HTMLAnchorElement | null;
@@ -56,6 +60,7 @@ type SelectionSnapshot = {
 const DEFAULT_SELECTION: SelectionSnapshot = {
   blockType: "p",
   listTag: null,
+  align: "left",
   marks: { strong: false, em: false, u: false },
   collapsed: true,
   link: null,
@@ -95,6 +100,7 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     setSelection({
       blockType: getActiveBlockType(root),
       listTag: getActiveListTag(root),
+      align: getActiveTextAlign(root),
       marks: {
         strong: isMarkActive(root, "strong"),
         em: isMarkActive(root, "em"),
@@ -298,6 +304,8 @@ export default function RichTextEditor({ label, value, path, session, onChange }
         isBulletList={selection.listTag === "ul"}
         isOrderedList={selection.listTag === "ol"}
         onToggleList={(tag) => runCommand((root) => applyToggleList(root, tag))}
+        align={selection.align}
+        onSetAlign={(align) => runCommand((root) => applyTextAlign(root, align))}
         isLinkActive={selection.link !== null}
         linkDisabled={linkDisabled}
         onOpenLink={openLinkPopover}

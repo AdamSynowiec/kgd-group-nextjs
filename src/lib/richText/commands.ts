@@ -15,6 +15,7 @@
 
 export type InlineMark = "strong" | "em" | "u";
 export type BlockType = "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+export type TextAlign = "left" | "center" | "right";
 
 function getSelectionWithin(root: HTMLElement): Selection | null {
   const selection = window.getSelection();
@@ -207,6 +208,41 @@ export function toggleList(root: HTMLElement, listTag: "ul" | "ol"): void {
   list.appendChild(li);
   block.replaceWith(list);
   placeCaretAtEnd(li);
+}
+
+/**
+ * Blok, na który działa wyrównanie tekstu: <li>, gdy zaznaczenie jest wewnątrz
+ * listy (wyrównanie działa na pojedynczym elemencie listy, nie na całej liście
+ * naraz), inaczej zwykły blok bezpośrednio pod root — jak w setBlockType().
+ */
+function getAlignmentTarget(root: HTMLElement): HTMLElement | null {
+  const range = getCurrentRange(root);
+  if (!range) return null;
+
+  const li = closestElement(range.startContainer)?.closest("li") ?? null;
+  if (li && root.contains(li)) return li as HTMLElement;
+
+  return getCurrentBlock(root);
+}
+
+/** Wyrównanie tekstu bieżącego bloku — inline style (nie klasa), bo to jedyny sposób, żeby ta sama wartość przetrwała zarówno w podglądzie edytora, jak i w opublikowanym HTML-u (patrz sanitizeHtml.ts, gdzie "style" jest dopuszczone WYŁĄCZNIE dla text-align). "left" usuwa atrybut zamiast go zapisywać — to domyślne wyrównanie przeglądarki, nie trzeba go trzymać jawnie. */
+export function setTextAlign(root: HTMLElement, align: TextAlign): void {
+  const target = getAlignmentTarget(root);
+  if (!target) return;
+
+  if (align === "left") {
+    target.style.removeProperty("text-align");
+    if (target.getAttribute("style") === "") target.removeAttribute("style");
+  } else {
+    target.style.textAlign = align;
+  }
+}
+
+/** Wyrównanie bieżącego bloku pod podświetlenie przycisków paska — "left", gdy nic nie jest jawnie ustawione (domyślne). */
+export function getActiveTextAlign(root: HTMLElement): TextAlign {
+  const target = getAlignmentTarget(root);
+  const value = target?.style.textAlign;
+  return value === "center" || value === "right" ? value : "left";
 }
 
 /** Zawija NIEPUSTE zaznaczenie w nowy <a>. Wymaga wywołującego, by wcześniej sprawdził, że zaznaczenie nie jest zwinięte (patrz Toolbar: przycisk linku wyłączony, gdy nic nie zaznaczono i kursor nie jest w istniejącym linku). */
