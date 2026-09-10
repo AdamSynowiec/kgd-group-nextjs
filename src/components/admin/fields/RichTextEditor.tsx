@@ -80,6 +80,8 @@ export default function RichTextEditor({ label, value, path, session, onChange }
   const savedRangeRef = useRef<Range | null>(null);
   const blockSelectRangeRef = useRef<Range | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** TYMCZASOWE — licznik selectionchange do debugowania zamrażania przy drag&drop obrazka, do usunięcia razem z resztą console.log w tym pliku. */
+  const selectionChangeCountRef = useRef(0);
 
   const [view, setView] = useState<ViewMode>("edit");
   const [popover, setPopover] = useState<PopoverKind>("none");
@@ -98,6 +100,11 @@ export default function RichTextEditor({ label, value, path, session, onChange }
   // zostaje przy ostatniej znanej wartości (żeby nie migał przy przejściu
   // fokusu do inputu URL-a w popoverze — patrz saveSelection/restoreSelection).
   const refreshSelectionState = useCallback(() => {
+    selectionChangeCountRef.current += 1;
+    if (selectionChangeCountRef.current % 10 === 1) {
+      console.log("[rt-debug] selectionchange x" + selectionChangeCountRef.current, { t: performance.now() });
+    }
+
     const root = editorRef.current;
     if (!root) return;
     const sel = window.getSelection();
@@ -134,9 +141,15 @@ export default function RichTextEditor({ label, value, path, session, onChange }
       const root = editorRef.current;
       if (!root) return;
 
+      console.log("[rt-debug] syncFromDom START", { pushHistory, htmlLength: root.innerHTML.length, t: performance.now() });
+
       const sanitized = sanitizeHtml(root.innerHTML);
+
+      console.log("[rt-debug] sanitizeHtml returned", { changed: sanitized !== root.innerHTML, t: performance.now() });
+
       if (sanitized !== root.innerHTML) {
         root.innerHTML = sanitized;
+        console.log("[rt-debug] root.innerHTML REPLACED", { t: performance.now() });
       }
 
       setHtml(sanitized);
@@ -148,13 +161,19 @@ export default function RichTextEditor({ label, value, path, session, onChange }
       }
 
       refreshSelectionState();
+
+      console.log("[rt-debug] syncFromDom END", { t: performance.now() });
     },
     [onChange, path, refreshHistoryButtons, refreshSelectionState]
   );
 
   function handleTypingChange() {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => syncFromDom(true), TYPING_SYNC_DELAY_MS);
+    console.log("[rt-debug] scheduling debounced sync", { t: performance.now() });
+    typingTimeoutRef.current = setTimeout(() => {
+      console.log("[rt-debug] debounced timer FIRED", { t: performance.now() });
+      syncFromDom(true);
+    }, TYPING_SYNC_DELAY_MS);
   }
 
   /** Zapis natychmiastowy (bez czekania na debounce) przy opuszczeniu pola — żeby "Zapisz zmiany" nigdy nie ominęło ostatnich znaków. */
@@ -176,6 +195,7 @@ export default function RichTextEditor({ label, value, path, session, onChange }
    * realnie zawieszało kartę.
    */
   function handleEditorDragStart() {
+    console.log("[rt-debug] RichTextEditor.handleEditorDragStart", { hadPendingTimer: typingTimeoutRef.current !== undefined, t: performance.now() });
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = undefined;
@@ -184,6 +204,7 @@ export default function RichTextEditor({ label, value, path, session, onChange }
 
   /** Natychmiastowa (nie debounced) synchronizacja PO zakończeniu przeciągania — mirror handleBlur, ten sam powód (nie czekać niepotrzebnie 500ms na coś, co już się skończyło). */
   function handleEditorDragEnd() {
+    console.log("[rt-debug] RichTextEditor.handleEditorDragEnd -> syncFromDom", { t: performance.now() });
     syncFromDom(true);
   }
 

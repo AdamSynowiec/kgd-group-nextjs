@@ -65,27 +65,43 @@ export default function EditableSurface({
    * odczytu w handleInput.
    */
   const isDraggingRef = useRef(false);
+  /** TYMCZASOWE — licznik dragover do debugowania (patrz handleDragOver), do usunięcia razem z resztą console.log w tym pliku. */
+  const dragOverCountRef = useRef(0);
 
   function refreshEmptyState() {
     if (editorRef.current) setIsEmpty(isEditorEmpty(editorRef.current));
   }
 
   function handleInput() {
+    console.log("[rt-debug] input", { dragging: isDraggingRef.current, t: performance.now() });
     refreshEmptyState();
     if (isDraggingRef.current) return;
     onChange();
   }
 
-  function handleDragStart() {
+  function handleDragStart(event: React.DragEvent<HTMLDivElement>) {
+    console.log("[rt-debug] dragstart", { target: event.target instanceof Element ? event.target.tagName : event.target, t: performance.now() });
     isDraggingRef.current = true;
     onDragStart();
   }
 
   /** dragend ZAWSZE odpala się po dragstart (w odróżnieniu od "drop" — nie odpala się np. gdy przeciąganie zostanie anulowane klawiszem Escape), więc to jedyne bezpieczne miejsce na odblokowanie i domknięcie odłożonej synchronizacji. */
-  function handleDragEnd() {
+  function handleDragEnd(event: React.DragEvent<HTMLDivElement>) {
+    console.log("[rt-debug] dragend", { target: event.target instanceof Element ? event.target.tagName : event.target, t: performance.now() });
     isDraggingRef.current = false;
     refreshEmptyState();
     onDragEnd();
+  }
+
+  function handleDragOver() {
+    dragOverCountRef.current += 1;
+    if (dragOverCountRef.current % 25 === 1) {
+      console.log("[rt-debug] dragover x" + dragOverCountRef.current, { t: performance.now() });
+    }
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    console.log("[rt-debug] drop", { defaultPrevented: event.defaultPrevented, t: performance.now() });
   }
 
   function handlePaste(event: React.ClipboardEvent<HTMLDivElement>) {
@@ -137,6 +153,8 @@ export default function EditableSurface({
         onDoubleClick={handleDoubleClick}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
         className={`${RICH_TEXT_CONTENT_CLASS} min-h-[220px] rounded-b-md px-3 py-2 text-sm leading-relaxed focus:outline-none [&_img]:cursor-pointer [&_img:hover]:outline [&_img:hover]:outline-2 [&_img:hover]:outline-offset-2 [&_img:hover]:outline-blue-400 [&_[data-column]]:min-h-[2rem] [&_[data-column]]:rounded [&_[data-column]]:p-2 [&_[data-column]]:outline [&_[data-column]]:outline-1 [&_[data-column]]:outline-dashed [&_[data-column]]:outline-zinc-300`}
       />
     </div>

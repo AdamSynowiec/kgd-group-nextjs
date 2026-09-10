@@ -159,7 +159,20 @@ export function isSafeUrl(url: string): boolean {
  */
 const BLOCK_ALIASES: Record<string, string> = { div: "p" };
 
+/** TYMCZASOWE — licznik wywołań sanitizeElement na jedno sanitizeHtml(), do wykrycia ewentualnej nieskończonej rekurencji (zamiast cichego zawieszenia karty, rzuca czytelny błąd w konsoli). Do usunięcia razem z resztą console.log w tym pliku. */
+let debugSanitizeCallCount = 0;
+const DEBUG_SANITIZE_CALL_LIMIT = 20000;
+
 function sanitizeElement(original: Element): void {
+  debugSanitizeCallCount += 1;
+  if (debugSanitizeCallCount > DEBUG_SANITIZE_CALL_LIMIT) {
+    console.error("[rt-debug] sanitizeElement PRZEKROCZYŁ limit wywołań — możliwa nieskończona rekurencja", {
+      tag: original.tagName,
+      outerHTML: original.outerHTML.slice(0, 300),
+    });
+    throw new Error("[rt-debug] sanitizeElement recursion limit exceeded");
+  }
+
   let el = original;
   const originalTag = el.tagName.toLowerCase();
 
@@ -249,6 +262,7 @@ function sanitizeElement(original: Element): void {
 
 /** Czyści HTML z edytora do bezpiecznego, semantycznego podzbioru — patrz ALLOWED_TAGS/ALLOWED_ATTRIBUTES. */
 export function sanitizeHtml(html: string): string {
+  debugSanitizeCallCount = 0;
   const doc = new DOMParser().parseFromString(html, "text/html");
 
   for (const child of Array.from(doc.body.children)) {
