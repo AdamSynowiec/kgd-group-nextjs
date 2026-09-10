@@ -69,6 +69,7 @@ export default function RichTextEditor({ label, value, path, session, onChange }
   const editorRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef(createHistory(initialHtml));
   const savedRangeRef = useRef<Range | null>(null);
+  const blockSelectRangeRef = useRef<Range | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const [view, setView] = useState<ViewMode>("edit");
@@ -259,6 +260,27 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     syncFromDom(true);
   }
 
+  /**
+   * <select> typu bloku kradnie fokus przeglądarce, w odróżnieniu od
+   * przycisków paska (te blokują to przez preventDefault na mousedown — dla
+   * <select> to zablokowałoby też otwieranie listy, patrz Toolbar.tsx).
+   * Zamiast tego: zapisz zaznaczenie, zanim fokus przejdzie na <select>
+   * (mousedown), przywróć je tuż przed wykonaniem komendy (onChange).
+   */
+  function handleBlockSelectMouseDown() {
+    const root = editorRef.current;
+    if (root) blockSelectRangeRef.current = saveSelection(root);
+  }
+
+  function handleSetBlockType(type: BlockType) {
+    const root = editorRef.current;
+    if (!root) return;
+    root.focus();
+    restoreSelection(blockSelectRangeRef.current);
+    applyBlockType(root, type);
+    syncFromDom(true);
+  }
+
   const markDisabled = selection.collapsed;
   const linkDisabled = selection.collapsed && !selection.link;
   const blockTypeDisabled = selection.listTag !== null;
@@ -267,7 +289,8 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     <div className="overflow-hidden rounded-md border border-zinc-300" onBlur={handleBlur}>
       <Toolbar
         blockType={selection.blockType}
-        onSetBlockType={(type) => runCommand((root) => applyBlockType(root, type))}
+        onSetBlockType={handleSetBlockType}
+        onBlockSelectMouseDown={handleBlockSelectMouseDown}
         blockTypeDisabled={blockTypeDisabled}
         marks={selection.marks}
         onToggleMark={(mark) => runCommand((root) => toggleInlineMark(root, mark))}

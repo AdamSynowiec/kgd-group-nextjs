@@ -22,13 +22,21 @@ const buttonClass = (active: boolean) =>
 /**
  * Wyłącznie prezentacja — cała logika (co jest aktywne, co robi kliknięcie)
  * żyje w RichTextEditor.tsx. `onMouseDown` z preventDefault na KAŻDYM
- * przycisku formatowania: standardowa technika, żeby kliknięcie nie
+ * PRZYCISKU formatowania: standardowa technika, żeby kliknięcie nie
  * przenosiło fokusu z edytora i nie kasowało zaznaczenia, zanim komenda
  * zdąży je odczytać (patrz "zachowanie zaznaczenia" w opisie zadania).
+ *
+ * <select> typu bloku NIE dostaje tego samego preventDefault — dla <select>
+ * (w odróżnieniu od <button>) to WŁAŚNIE domyślna akcja mousedown otwiera
+ * natywną listę (przynajmniej w przeglądarkach opartych na Chromium);
+ * zablokowanie jej sprawiało, że rozwijana lista w ogóle się nie otwierała.
+ * Zamiast tego RichTextEditor.tsx zapisuje zaznaczenie w onMouseDown (fokus
+ * jeszcze nie przeszedł na <select>) i przywraca je w onChange.
  */
 export default function Toolbar({
   blockType,
   onSetBlockType,
+  onBlockSelectMouseDown,
   blockTypeDisabled,
   marks,
   onToggleMark,
@@ -49,6 +57,8 @@ export default function Toolbar({
 }: {
   blockType: BlockType | null;
   onSetBlockType: (type: BlockType) => void;
+  /** Zapisuje bieżące zaznaczenie PRZED oddaniem fokusu <select>-owi — patrz komentarz przy elemencie select niżej. */
+  onBlockSelectMouseDown: () => void;
   blockTypeDisabled: boolean;
   marks: Record<InlineMark, boolean>;
   onToggleMark: (mark: InlineMark) => void;
@@ -74,7 +84,7 @@ export default function Toolbar({
       <select
         value={blockType ?? "p"}
         disabled={blockTypeDisabled || view === "html"}
-        onMouseDown={preventFocusLoss}
+        onMouseDown={onBlockSelectMouseDown}
         onChange={(event) => onSetBlockType(event.target.value as BlockType)}
         className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm disabled:opacity-40"
         aria-label="Typ bloku (akapit lub nagłówek)"
