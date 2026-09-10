@@ -110,6 +110,16 @@ function PrimitiveRowsTable({ rows, path, onChange }: { rows: unknown[]; path: P
 
 type ColumnKind = "asset" | "assetList" | "number" | "text";
 
+/**
+ * Awaryjne źródło kolejności kolumn, gdy nie ma sąsiedniego pola "columns"
+ * (patrz resolveColumnOrder) — kolejność kluczy pierwszego wystąpienia w
+ * wierszach. UWAGA: MySQL nie gwarantuje zachowania kolejności kluczy obiektu
+ * JSON przy zapisie/odczycie (wewnętrznie sortuje je wg długości klucza, potem
+ * leksykograficznie) — Object.keys(row) po przejściu przez bazę może więc
+ * wyjść w innej kolejności niż ta, w jakiej wiersz został zapisany. Tablice
+ * (jak "columns" poniżej) NIE mają tego problemu — dlatego resolveColumnOrder
+ * zawsze woli "columns", jeśli jest dostępne.
+ */
 function collectColumns(rows: Record<string, unknown>[]): string[] {
   const columns: string[] = [];
   const seen = new Set<string>();
@@ -122,6 +132,24 @@ function collectColumns(rows: Record<string, unknown>[]): string[] {
     }
   }
   return columns;
+}
+
+/**
+ * Kolejność kolumn MUSI pochodzić z sąsiedniego pola "columns" (tablicy —
+ * kolejność elementów tablicy MySQL zawsze zachowuje), gdy tylko jest
+ * dostępne — to jedyne odporne na powyższą wadę MySQL-a źródło prawdy o
+ * kolejności. `columnLabels` to Record zbudowany W PRZEGLĄDARCE (patrz
+ * extractColumnLabels w EditableField.tsx) przez iterację TEJ tablicy, więc
+ * Object.keys(columnLabels) wiernie odtwarza jej kolejność. Dowolny klucz
+ * obecny w wierszach, ale nieopisany w "columns" (niespójność danych),
+ * dokleja się na końcu — żeby nic nie znikało po cichu.
+ */
+function resolveColumnOrder(rows: Record<string, unknown>[], columnLabels?: Record<string, string>): string[] {
+  if (!columnLabels) return collectColumns(rows);
+
+  const fromColumnsField = Object.keys(columnLabels);
+  const extra = collectColumns(rows).filter((key) => !fromColumnsField.includes(key));
+  return [...fromColumnsField, ...extra];
 }
 
 /** Wykrywane w locie z aktualnych wartości — nic z tego nie jest zapisywane osobno, patrz komentarz nad TableEditor. */
@@ -207,7 +235,7 @@ function ObjectRowsTable({
   onChange: OnChange;
   columnLabels?: Record<string, string>;
 }) {
-  const columns = collectColumns(rows);
+  const columns = resolveColumnOrder(rows, columnLabels);
   const columnKinds = Object.fromEntries(columns.map((key) => [key, detectColumnKind(rows, key)])) as Record<
     string,
     ColumnKind

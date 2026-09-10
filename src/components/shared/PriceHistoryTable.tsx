@@ -43,7 +43,7 @@ export default function PriceHistoryTable({
   return (
     <div>
       <div className="overflow-auto border border-gray-300 bg-white">
-        <table className="text-sm border-collapse min-w-[1200px]">
+        <table className="text-sm border-collapse min-w-[1400px]">
           <thead className="sticky top-0 z-20 bg-gray-100">
             <tr>
               <th className="sticky left-0 z-30 bg-gray-200 border border-gray-300 px-3 py-2 text-center w-12">#</th>
