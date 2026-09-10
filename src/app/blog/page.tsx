@@ -8,7 +8,7 @@ const COLLECTION = getCollectionDefinition("blog");
 
 export const metadata: Metadata = { title: "Blog" };
 
-/** /blog — strona 1. Strony 2+ patrz src/app/(site)/blog/page/[n]/page.tsx (ten sam szablon, inny fetch). */
+/** /blog — strona 1. Strony 2+ patrz src/app/blog/page/[n]/page.tsx (ten sam szablon, inny fetch). */
 export default async function BlogIndexPage() {
   const { items, totalPages } = await getCollectionItems(COLLECTION.key, 1, COLLECTION.pageSize);
 

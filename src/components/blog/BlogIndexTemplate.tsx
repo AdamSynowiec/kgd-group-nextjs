@@ -7,16 +7,19 @@ import P from "@/components/home/P";
 import type { BlogPostContent } from "./types";
 
 /**
- * Lista wpisów + paginacja — współdzielone przez src/app/(site)/blog/page.tsx
- * i .../blog/page/[n]/page.tsx.
+ * Lista wpisów + paginacja — współdzielone przez src/app/blog/page.tsx i
+ * .../blog/page/[n]/page.tsx.
  *
  * Stylistyka dopasowana do standardów strony głównej KGD (złoty akcent
  * #C9AB8B, ciemny grafit #1D1D1D, Poppins/Montserrat, Container/Separator/P
- * z src/components/home/) — patrz src/components/home/HomePage.tsx. Fonty nie
- * są ładowane w root layout (por. src/lib/fonts.ts), więc zmienne CSS
- * (--poppins-src/--montserrat-src) są dołączane lokalnie na tym poziomie.
- * Same komponenty treści (karta wpisu, nagłówek listy, paginacja) są własne,
- * dopasowane do bloga — nie 1:1 skopiowane z homepage'a.
+ * z src/components/home/) — patrz src/components/home/HomePage.tsx. NavBar/
+ * Contact/Footer (identyczne jak na stronie głównej) renderuje
+ * src/app/blog/layout.tsx, nie ten plik. Fonty nie są ładowane w root layout
+ * (por. src/lib/fonts.ts) — zmienne CSS (--poppins-src/--montserrat-src) są
+ * już dołączone przez ten layout, ale i tak dołączone lokalnie tutaj, żeby
+ * komponent działał samodzielnie (np. w dev-preview). Same komponenty treści
+ * (karta wpisu, nagłówek listy, paginacja) są własne, dopasowane do bloga —
+ * nie 1:1 skopiowane z homepage'a.
  */
 export default function BlogIndexTemplate({
   items,

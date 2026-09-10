@@ -3,7 +3,7 @@ import { unwrap } from "@/lib/editable";
 import { RICH_TEXT_CONTENT_CLASS } from "@/lib/richTextStyles";
 import type { BlogPostContent } from "./types";
 
-/** Pojedynczy wpis — patrz src/app/(site)/blog/[slug]/page.tsx. */
+/** Pojedynczy wpis — patrz src/app/blog/[slug]/page.tsx. NavBar/Contact/Footer (identyczne jak na stronie głównej) renderuje src/app/blog/layout.tsx. */
 export default function BlogPostTemplate({ post }: { post: BlogPostContent }) {
   const title = unwrap(post.title);
   const cover = unwrap(post.coverImage);

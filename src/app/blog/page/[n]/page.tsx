@@ -8,8 +8,8 @@ import { getCollectionDefinition } from "@/lib/collections/registry";
 /**
  * /blog/page/2, /blog/page/3, ... — strona 1 to /blog (osobny plik, nie tu),
  * żeby uniknąć niejednoznacznego /blog/2 kolidującego z ewentualnym slugiem
- * wpisu "2" (patrz src/app/(site)/blog/[slug]/page.tsx i rezerwację slugu
- * "page" w CollectionAdminController::createItem).
+ * wpisu "2" (patrz src/app/blog/[slug]/page.tsx i rezerwację slugu "page" w
+ * CollectionAdminController::createItem).
  */
 
 const COLLECTION = getCollectionDefinition("blog");
