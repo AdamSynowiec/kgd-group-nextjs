@@ -5,7 +5,8 @@ import { uploadAsset, type Session } from "@/lib/adminApi";
 import { isSafeUrl } from "@/lib/richText/sanitizeHtml";
 import type { ImageWidth } from "@/lib/richText/commands";
 
-const buttonClass = "rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-zinc-50";
+const buttonClass =
+  "rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white";
 const inputClass = "w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm focus:border-zinc-500 focus:outline-none";
 
 type WidthMode = "auto" | "percent" | "px";
@@ -36,6 +37,9 @@ export default function ImagePopover({
   initialAlt = "",
   initialWidth = null,
   isEditing = false,
+  canMoveUp = false,
+  canMoveDown = false,
+  onMove,
   onConfirm,
   onCancel,
 }: {
@@ -44,6 +48,11 @@ export default function ImagePopover({
   initialAlt?: string;
   initialWidth?: ImageWidth;
   isEditing?: boolean;
+  /** Tylko gdy isEditing — czy jest sąsiedni blok, do którego da się przenieść obrazek (patrz commands.ts::canMoveImage). */
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  /** Przenosi NATYCHMIAST (nie czeka na "Zapisz zdjęcie") — patrz RichTextEditor.tsx::handleImageMove. */
+  onMove?: (direction: "up" | "down") => void;
   onConfirm: (src: string, alt: string, width: ImageWidth) => void;
   onCancel: () => void;
 }) {
@@ -196,6 +205,20 @@ export default function ImagePopover({
           )}
         </div>
       </div>
+
+      {isEditing && onMove && (
+        <div className="mt-2">
+          <label className="mb-1 block text-xs font-medium text-zinc-600">Pozycja w tekście</label>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={() => onMove("up")} disabled={!canMoveUp} className={buttonClass}>
+              ↑ Przenieś wyżej
+            </button>
+            <button type="button" onClick={() => onMove("down")} disabled={!canMoveDown} className={buttonClass}>
+              ↓ Przenieś niżej
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p id="richtext-image-error" role="alert" className="mt-1 text-xs text-red-600">

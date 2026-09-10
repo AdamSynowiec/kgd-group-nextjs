@@ -356,11 +356,24 @@ function applyImageWidth(img: HTMLImageElement, width: ImageWidth): void {
   }
 }
 
-/** Wstawia <img alt="…"> w miejscu podanego (wcześniej zapisanego) zaznaczenia — patrz saveSelection. Otwarcie panelu obrazka samo kradnie fokus/zaznaczenie, więc trzeba je przywrócić PRZED wywołaniem tej funkcji. */
+/**
+ * Wstawia <img alt="…"> w miejscu podanego (wcześniej zapisanego) zaznaczenia
+ * — patrz saveSelection. Otwarcie panelu obrazka samo kradnie fokus/zaznaczenie,
+ * więc trzeba je przywrócić PRZED wywołaniem tej funkcji.
+ *
+ * draggable="false" jest CELOWE: natywne przeciąganie obrazka w obrębie
+ * contenteditable (bez żadnego własnego kodu obsługującego sam drag) okazało
+ * się realnie zawieszać kartę w niektórych przeglądarkach/sytuacjach —
+ * przeciąganie w górę poza wąski obszar edycji (nad pasek narzędzi) zostawiało
+ * przeglądarkę bez poprawnego celu upuszczenia i przeciąganie wisiało w
+ * zawieszeniu. Zamiast tego przenoszenie obrazka idzie przez deterministyczne
+ * przyciski "Przenieś wyżej/niżej" w ImagePopover.tsx (patrz moveImage niżej).
+ */
 export function insertImage(range: Range, src: string, alt: string, width: ImageWidth = null): void {
   const img = document.createElement("img");
   img.setAttribute("src", src);
   img.setAttribute("alt", alt);
+  img.setAttribute("draggable", "false");
   applyImageWidth(img, width);
   insertNodeAtRange(range, img);
 }
@@ -369,7 +382,53 @@ export function insertImage(range: Range, src: string, alt: string, width: Image
 export function updateImageAttributes(img: HTMLImageElement, src: string, alt: string, width: ImageWidth): void {
   img.setAttribute("src", src);
   img.setAttribute("alt", alt);
+  img.setAttribute("draggable", "false");
   applyImageWidth(img, width);
+}
+
+/**
+ * Blok zawierający dany węzeł (obrazek) — ten sam "bezpośrednie dziecko
+ * kontenera bloków" co getCurrentBlock(), tylko wyprowadzony z KONKRETNEGO
+ * węzła zamiast z bieżącego zaznaczenia (obrazek nie musi być zaznaczony,
+ * żeby go przenieść przyciskiem w popoverze).
+ */
+function getBlockContainerOf(root: HTMLElement, node: Node): HTMLElement | null {
+  let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  const container = (el?.closest("[data-column]") as HTMLElement | null) ?? root;
+
+  while (el && el !== container && el.parentElement !== container) {
+    el = el.parentElement;
+  }
+
+  return el && el !== container ? (el as HTMLElement) : null;
+}
+
+/**
+ * Przenosi CAŁY blok zawierający obrazek (zwykle pojedynczy akapit z samym
+ * obrazkiem) o jedną pozycję wcześniej/później wśród rodzeństwa — deterministyczna
+ * alternatywa dla natywnego przeciągania (patrz komentarz przy insertImage).
+ * Jeśli obrazek dzieli akapit z tekstem, przenosi się CAŁY ten akapit — to
+ * świadome uproszczenie, typowy przypadek to obrazek sam w swoim akapicie.
+ */
+export function moveImage(root: HTMLElement, img: HTMLImageElement, direction: "up" | "down"): void {
+  const block = getBlockContainerOf(root, img);
+  if (!block?.parentElement) return;
+
+  const sibling = direction === "up" ? block.previousElementSibling : block.nextElementSibling;
+  if (!sibling) return;
+
+  if (direction === "up") {
+    block.parentElement.insertBefore(block, sibling);
+  } else {
+    block.parentElement.insertBefore(sibling, block);
+  }
+}
+
+/** Czy obrazek ma sąsiada w danym kierunku — pod (de)aktywację przycisków "Przenieś wyżej/niżej". */
+export function canMoveImage(root: HTMLElement, img: HTMLImageElement, direction: "up" | "down"): boolean {
+  const block = getBlockContainerOf(root, img);
+  if (!block) return false;
+  return (direction === "up" ? block.previousElementSibling : block.nextElementSibling) !== null;
 }
 
 /** Wstawia węzeł (np. <img>) w miejscu zapisanego wcześniej zaznaczenia — patrz saveSelection/restoreSelection. */

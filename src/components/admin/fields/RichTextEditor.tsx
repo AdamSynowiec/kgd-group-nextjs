@@ -12,6 +12,7 @@ import { sanitizeHtml } from "@/lib/richText/sanitizeHtml";
 import { createHistory } from "@/lib/richText/history";
 import {
   applyLink,
+  canMoveImage,
   findAncestorTag,
   getActiveBlockType,
   getActiveListTag,
@@ -19,6 +20,7 @@ import {
   insertColumns,
   insertImage,
   isMarkActive,
+  moveImage,
   removeLink,
   restoreSelection,
   saveSelection,
@@ -80,13 +82,13 @@ export default function RichTextEditor({ label, value, path, session, onChange }
   const savedRangeRef = useRef<Range | null>(null);
   const blockSelectRangeRef = useRef<Range | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  /** TYMCZASOWE — licznik selectionchange do debugowania zamrażania przy drag&drop obrazka, do usunięcia razem z resztą console.log w tym pliku. */
-  const selectionChangeCountRef = useRef(0);
 
   const [view, setView] = useState<ViewMode>("edit");
   const [popover, setPopover] = useState<PopoverKind>("none");
   /** Obrazek klikany w treści do edycji (patrz handleImageClick) — null, gdy popover wstawia NOWY obrazek zamiast edytować istniejący. */
   const [editingImage, setEditingImage] = useState<HTMLImageElement | null>(null);
+  /** Czy editingImage ma sąsiedni blok w danym kierunku — wyliczane W HANDLERACH (handleImageClick/handleImageMove), NIE podczas renderu: odczyt editorRef.current w JSX łamie regułę react-hooks/refs. */
+  const [imageMoveAvailability, setImageMoveAvailability] = useState({ up: false, down: false });
   const [html, setHtml] = useState(initialHtml);
   const [historyButtons, setHistoryButtons] = useState({ canUndo: false, canRedo: false });
   const [selection, setSelection] = useState<SelectionSnapshot>(DEFAULT_SELECTION);
@@ -100,11 +102,6 @@ export default function RichTextEditor({ label, value, path, session, onChange }
   // zostaje przy ostatniej znanej wartości (żeby nie migał przy przejściu
   // fokusu do inputu URL-a w popoverze — patrz saveSelection/restoreSelection).
   const refreshSelectionState = useCallback(() => {
-    selectionChangeCountRef.current += 1;
-    if (selectionChangeCountRef.current % 10 === 1) {
-      console.log("[rt-debug] selectionchange x" + selectionChangeCountRef.current, { t: performance.now() });
-    }
-
     const root = editorRef.current;
     if (!root) return;
     const sel = window.getSelection();
@@ -141,15 +138,9 @@ export default function RichTextEditor({ label, value, path, session, onChange }
       const root = editorRef.current;
       if (!root) return;
 
-      console.log("[rt-debug] syncFromDom START", { pushHistory, htmlLength: root.innerHTML.length, t: performance.now() });
-
       const sanitized = sanitizeHtml(root.innerHTML);
-
-      console.log("[rt-debug] sanitizeHtml returned", { changed: sanitized !== root.innerHTML, t: performance.now() });
-
       if (sanitized !== root.innerHTML) {
         root.innerHTML = sanitized;
-        console.log("[rt-debug] root.innerHTML REPLACED", { t: performance.now() });
       }
 
       setHtml(sanitized);
@@ -161,19 +152,13 @@ export default function RichTextEditor({ label, value, path, session, onChange }
       }
 
       refreshSelectionState();
-
-      console.log("[rt-debug] syncFromDom END", { t: performance.now() });
     },
     [onChange, path, refreshHistoryButtons, refreshSelectionState]
   );
 
   function handleTypingChange() {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    console.log("[rt-debug] scheduling debounced sync", { t: performance.now() });
-    typingTimeoutRef.current = setTimeout(() => {
-      console.log("[rt-debug] debounced timer FIRED", { t: performance.now() });
-      syncFromDom(true);
-    }, TYPING_SYNC_DELAY_MS);
+    typingTimeoutRef.current = setTimeout(() => syncFromDom(true), TYPING_SYNC_DELAY_MS);
   }
 
   /** Zapis natychmiastowy (bez czekania na debounce) przy opuszczeniu pola — żeby "Zapisz zmiany" nigdy nie ominęło ostatnich znaków. */
@@ -195,7 +180,6 @@ export default function RichTextEditor({ label, value, path, session, onChange }
    * realnie zawieszało kartę.
    */
   function handleEditorDragStart() {
-    console.log("[rt-debug] RichTextEditor.handleEditorDragStart", { hadPendingTimer: typingTimeoutRef.current !== undefined, t: performance.now() });
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = undefined;
@@ -204,7 +188,6 @@ export default function RichTextEditor({ label, value, path, session, onChange }
 
   /** Natychmiastowa (nie debounced) synchronizacja PO zakończeniu przeciągania — mirror handleBlur, ten sam powód (nie czekać niepotrzebnie 500ms na coś, co już się skończyło). */
   function handleEditorDragEnd() {
-    console.log("[rt-debug] RichTextEditor.handleEditorDragEnd -> syncFromDom", { t: performance.now() });
     syncFromDom(true);
   }
 
@@ -279,6 +262,8 @@ export default function RichTextEditor({ label, value, path, session, onChange }
   /** Kliknięcie ISTNIEJĄCEGO obrazka w treści (patrz EditableSurface.tsx::onImageClick) — ten sam popover, w trybie edycji tego konkretnego węzła zamiast wstawiania nowego. */
   function handleImageClick(img: HTMLImageElement) {
     setEditingImage(img);
+    const root = editorRef.current;
+    setImageMoveAvailability(root ? { up: canMoveImage(root, img, "up"), down: canMoveImage(root, img, "down") } : { up: false, down: false });
     setPopover("image");
   }
 
@@ -293,6 +278,7 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     setPopover("none");
     savedRangeRef.current = null;
     setEditingImage(null);
+    setImageMoveAvailability({ up: false, down: false });
   }
 
   function handleLinkConfirm(url: string, openInNewTab: boolean) {
@@ -334,6 +320,38 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     insertImage(range, src, alt, width);
     closePopover();
     syncFromDom(true);
+  }
+
+  /**
+   * Deterministyczna alternatywa dla natywnego przeciągania obrazka (patrz
+   * commands.ts::insertImage, dlaczego drag&drop jest wyłączone) — przenosi
+   * NATYCHMIAST, popover zostaje otwarty (można kliknąć "wyżej/niżej"
+   * wielokrotnie pod rząd).
+   *
+   * syncFromDom() PODMIENIA root.innerHTML (sanitize-on-write) — stary węzeł
+   * `editingImage` staje się odłączony od żywego DOM-u, więc kolejne
+   * kliknięcie działałoby na duchu, nie na czymś realnym. Po synchronizacji
+   * odnajdujemy TEN SAM obrazek na nowo po src+alt (jedyne stabilne
+   * identyfikatory, jakie ma — wystarczające, dopóki artykuł nie ma dwóch
+   * identycznych obrazków z tym samym alt).
+   */
+  function handleImageMove(direction: "up" | "down") {
+    const root = editorRef.current;
+    if (!root || !editingImage) return;
+
+    const src = editingImage.getAttribute("src");
+    const alt = editingImage.getAttribute("alt");
+
+    moveImage(root, editingImage, direction);
+    syncFromDom(true);
+
+    const refreshedImage = Array.from(root.querySelectorAll("img")).find(
+      (candidate) => candidate.getAttribute("src") === src && candidate.getAttribute("alt") === alt
+    );
+    if (refreshedImage) {
+      setEditingImage(refreshedImage);
+      setImageMoveAvailability({ up: canMoveImage(root, refreshedImage, "up"), down: canMoveImage(root, refreshedImage, "down") });
+    }
   }
 
   function handleColumnsConfirm(count: number) {
@@ -420,6 +438,9 @@ export default function RichTextEditor({ label, value, path, session, onChange }
           initialAlt={editingImage?.getAttribute("alt") ?? ""}
           initialWidth={editingImage?.style.width || null}
           isEditing={editingImage !== null}
+          canMoveUp={imageMoveAvailability.up}
+          canMoveDown={imageMoveAvailability.down}
+          onMove={handleImageMove}
           onConfirm={handleImageConfirm}
           onCancel={closePopover}
         />
