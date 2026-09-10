@@ -47,12 +47,12 @@ function incoming(mixed $value, ?string $label = null): array
 
 // --- Editable::isValidType --------------------------------------------------
 
-check('isValidType accepts all 5 declared types', array_map(
+check('isValidType accepts every declared type', array_map(
     fn ($t) => Editable::isValidType($t),
     Editable::FIELD_TYPES
-), [true, true, true, true, true]);
+), array_fill(0, count(Editable::FIELD_TYPES), true));
 
-check('isValidType rejects unknown/garbage', Editable::isValidType('richtext'), false);
+check('isValidType rejects unknown/garbage', Editable::isValidType('markdown'), false);
 check('isValidType rejects non-string', Editable::isValidType(null), false);
 
 // --- string field: accepted / rejected by type ------------------------------

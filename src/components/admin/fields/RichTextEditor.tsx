@@ -1,174 +1,317 @@
 "use client";
 
-import { useMemo } from "react";
-import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import DOMPurify from "dompurify";
-import { RICH_TEXT_CONTENT_CLASS } from "@/lib/richTextStyles";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { FieldEditorProps } from "./types";
-
-// Referencja modułowa, nie [StarterKit] tworzone na nowo w ciele komponentu —
-// patrz komentarz przy editorProps niżej, dotyczy tego samego mechanizmu.
-const EXTENSIONS = [StarterKit];
-
-const EDITOR_CONTENT_CLASS = `${RICH_TEXT_CONTENT_CLASS} min-h-[220px] rounded-b-md px-3 py-2 text-sm focus:outline-none`;
-
-type BlockType = "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
-
-const BLOCK_OPTIONS: { value: BlockType; label: string }[] = [
-  { value: "p", label: "Akapit" },
-  { value: "h1", label: "Nagłówek 1" },
-  { value: "h2", label: "Nagłówek 2" },
-  { value: "h3", label: "Nagłówek 3" },
-  { value: "h4", label: "Nagłówek 4" },
-  { value: "h5", label: "Nagłówek 5" },
-  { value: "h6", label: "Nagłówek 6" },
-];
-
-const toolbarButtonClass = (active: boolean) =>
-  `rounded-md border px-2.5 py-1.5 text-sm font-medium transition-colors ${
-    active ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
-  }`;
+import EditableSurface from "./richtext/EditableSurface";
+import Toolbar, { type ViewMode } from "./richtext/Toolbar";
+import LinkPopover from "./richtext/LinkPopover";
+import ImagePopover from "./richtext/ImagePopover";
+import HtmlPreview from "./richtext/HtmlPreview";
+import { sanitizeHtml } from "@/lib/richText/sanitizeHtml";
+import { createHistory } from "@/lib/richText/history";
+import {
+  applyLink,
+  findAncestorTag,
+  getActiveBlockType,
+  getActiveListTag,
+  insertImage,
+  isMarkActive,
+  removeLink,
+  restoreSelection,
+  saveSelection,
+  setBlockType as applyBlockType,
+  toggleInlineMark,
+  toggleList as applyToggleList,
+  updateLinkAttributes,
+  type BlockType,
+  type InlineMark,
+} from "@/lib/richText/commands";
 
 /**
- * Edytor dla type:"richtext" — WYSIWYG (Tiptap/ProseMirror): to, co redaktor
- * widzi podczas edycji (kliknięcie w akapit -> "Nagłówek 2" w pasku -> tekst
- * od razu wygląda jak nagłówek), jest jednocześnie podglądem, dokładnie tak
- * jak wygląda potem na stronie (ten sam RICH_TEXT_CONTENT_CLASS co
- * BlogPostTemplate.tsx). Żadnego osobnego trybu "surowy HTML".
+ * Edytor artykułów bloga — własna implementacja (bez bibliotek/gotowych
+ * edytorów). Architektura i decyzje techniczne opisane w plikach z
+ * src/lib/richText/ (komendy na Selection/Range API zamiast execCommand,
+ * własny stos undo/redo, sanitize-on-write zamiast biblioteki). Ten plik to
+ * WYŁĄCZNIE orkiestracja stanu — sam DOM/komendy żyją w commands.ts, sama
+ * powierzchnia edycji w EditableSurface.tsx, UI paska w Toolbar.tsx.
  *
- * Wartość pola to string z (oczyszczonym) HTML-em — ten sam kształt co
- * type:"string", ale semantycznie sformatowany tekst, nie zwykły tekst.
- * DOMPurify oczyszcza wyjście PRZY KAŻDEJ zmianie (nie dopiero przy
- * zapisie) — edytor kontenteditable renderuje bezpośrednio to, co odda
- * przeglądarka, więc czyszczenie musi nastąpić zanim ta wartość wróci przez
- * onChange do reszty panelu / bazy.
+ * KRYTYCZNE: `value` (prop) jest czytany TYLKO RAZ, do zbudowania stanu
+ * początkowego (historii i EditableSurface) — nigdy nie jest już potem
+ * używany do synchronizowania z powrotem w DOM. Zmiana idzie wyłącznie w
+ * górę (onChange). To bezpośredni wniosek z wcześniejszego buga #418 przy
+ * Tiptap: karmienie kontrolowanej wartości z powrotem do edytora po każdym
+ * renderze powodowało pętlę sprzężenia zwrotnego z biblioteką.
  */
-export default function RichTextEditor({ label, value, path, onChange }: FieldEditorProps) {
-  const initialContent = typeof value === "string" ? value : "";
 
-  // KRYTYCZNE, żeby ten obiekt miał STABILNĄ referencję między renderami.
-  // Tiptap (EditorInstanceManager.compareOptions w @tiptap/react) porównuje
-  // "editorProps" przez === (nie głęboko) w efekcie odpalanym PO KAŻDYM
-  // renderze — nowy obiekt przy każdym wywołaniu useEditor() wygląda więc
-  // jak realna zmiana i wywołuje editor.setOptions({editorProps: ...}) na
-  // każde naciśnięcie klawisza (onUpdate -> onChange -> re-render rodzica ->
-  // nowy `value` prop -> re-render tego komponentu). To setOptions() gmerało
-  // w tym samym węźle DOM, którym w tej samej chwili zarządza ProseMirror,
-  // i to właśnie powodowało "Minified React error #418" w produkcji.
-  const editorProps = useMemo(() => ({ attributes: { "aria-label": label, class: EDITOR_CONTENT_CLASS } }), [label]);
+type PopoverKind = "none" | "link" | "image";
 
-  const editor = useEditor({
-    extensions: EXTENSIONS,
-    content: initialContent,
-    // SSR (Next.js) — bez tego Tiptap próbuje renderować na serwerze i psuje hydrację.
-    immediatelyRender: false,
-    onUpdate: ({ editor: instance }) => {
-      onChange(path, DOMPurify.sanitize(instance.getHTML()));
+type SelectionSnapshot = {
+  blockType: BlockType | null;
+  listTag: "ul" | "ol" | null;
+  marks: Record<InlineMark, boolean>;
+  collapsed: boolean;
+  link: HTMLAnchorElement | null;
+};
+
+const DEFAULT_SELECTION: SelectionSnapshot = {
+  blockType: "p",
+  listTag: null,
+  marks: { strong: false, em: false, u: false },
+  collapsed: true,
+  link: null,
+};
+
+const TYPING_SYNC_DELAY_MS = 500;
+
+export default function RichTextEditor({ label, value, path, session, onChange }: FieldEditorProps) {
+  const initialHtml = typeof value === "string" && value.trim() !== "" ? value : "<p><br></p>";
+
+  const editorRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef(createHistory(initialHtml));
+  const savedRangeRef = useRef<Range | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const [view, setView] = useState<ViewMode>("edit");
+  const [popover, setPopover] = useState<PopoverKind>("none");
+  const [html, setHtml] = useState(initialHtml);
+  const [historyButtons, setHistoryButtons] = useState({ canUndo: false, canRedo: false });
+  const [selection, setSelection] = useState<SelectionSnapshot>(DEFAULT_SELECTION);
+
+  const refreshHistoryButtons = useCallback(() => {
+    setHistoryButtons({ canUndo: historyRef.current.canUndo(), canRedo: historyRef.current.canRedo() });
+  }, []);
+
+  // Aktualizowane na zmianę zaznaczenia w CAŁYM dokumencie — filtrowane do
+  // tego, czy zaznaczenie jest wewnątrz TEGO edytora; poza nim stan paska
+  // zostaje przy ostatniej znanej wartości (żeby nie migał przy przejściu
+  // fokusu do inputu URL-a w popoverze — patrz saveSelection/restoreSelection).
+  const refreshSelectionState = useCallback(() => {
+    const root = editorRef.current;
+    if (!root) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !root.contains(sel.getRangeAt(0).commonAncestorContainer)) return;
+
+    setSelection({
+      blockType: getActiveBlockType(root),
+      listTag: getActiveListTag(root),
+      marks: {
+        strong: isMarkActive(root, "strong"),
+        em: isMarkActive(root, "em"),
+        u: isMarkActive(root, "u"),
+      },
+      collapsed: sel.isCollapsed,
+      link: findAncestorTag(root, "a") as HTMLAnchorElement | null,
+    });
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("selectionchange", refreshSelectionState);
+    return () => document.removeEventListener("selectionchange", refreshSelectionState);
+  }, [refreshSelectionState]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
+
+  /** Jedyne miejsce, które czyta DOM, sanityzuje i puszcza wynik w górę — wywoływane po KAŻDEJ zmianie treści, żeby nie powielać tej logiki w komendach paska/pisania/wklejania. */
+  const syncFromDom = useCallback(
+    (pushHistory: boolean) => {
+      const root = editorRef.current;
+      if (!root) return;
+
+      const sanitized = sanitizeHtml(root.innerHTML);
+      if (sanitized !== root.innerHTML) {
+        root.innerHTML = sanitized;
+      }
+
+      setHtml(sanitized);
+      onChange(path, sanitized);
+
+      if (pushHistory) {
+        historyRef.current.push(sanitized);
+        refreshHistoryButtons();
+      }
+
+      refreshSelectionState();
     },
-    editorProps,
-  });
+    [onChange, path, refreshHistoryButtons, refreshSelectionState]
+  );
 
-  const toolbarState = useEditorState({
-    editor,
-    selector: ({ editor: instance }) => {
-      if (!instance) return null;
-
-      const blockType: BlockType = ([1, 2, 3, 4, 5, 6] as const).reduce<BlockType>(
-        (found, level) => (found !== "p" ? found : instance.isActive("heading", { level }) ? (`h${level}` as BlockType) : "p"),
-        "p"
-      );
-
-      return {
-        blockType,
-        isBulletList: instance.isActive("bulletList"),
-        isOrderedList: instance.isActive("orderedList"),
-        isBold: instance.isActive("bold"),
-        isItalic: instance.isActive("italic"),
-        isBlockquote: instance.isActive("blockquote"),
-      };
-    },
-  });
-
-  if (!editor || !toolbarState) {
-    return <div className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-400">Ładowanie edytora…</div>;
+  function handleTypingChange() {
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => syncFromDom(true), TYPING_SYNC_DELAY_MS);
   }
 
-  function setBlockType(type: BlockType) {
-    if (type === "p") {
-      editor!.chain().focus().setParagraph().run();
-    } else {
-      editor!.chain().focus().setHeading({ level: Number(type.slice(1)) as 1 | 2 | 3 | 4 | 5 | 6 }).run();
+  /** Zapis natychmiastowy (bez czekania na debounce) przy opuszczeniu pola — żeby "Zapisz zmiany" nigdy nie ominęło ostatnich znaków. */
+  function handleBlur() {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = undefined;
+    }
+    syncFromDom(false);
+  }
+
+  function runCommand(command: (root: HTMLElement) => void) {
+    const root = editorRef.current;
+    if (!root) return;
+    root.focus();
+    command(root);
+    syncFromDom(true);
+  }
+
+  function restoreFromSnapshot(snapshot: string) {
+    const root = editorRef.current;
+    if (!root) return;
+    root.innerHTML = snapshot;
+    setHtml(snapshot);
+    onChange(path, snapshot);
+    refreshHistoryButtons();
+    refreshSelectionState();
+  }
+
+  function handleUndo() {
+    const previous = historyRef.current.undo();
+    if (previous !== null) restoreFromSnapshot(previous);
+  }
+
+  function handleRedo() {
+    const next = historyRef.current.redo();
+    if (next !== null) restoreFromSnapshot(next);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!(event.ctrlKey || event.metaKey)) return;
+
+    const key = event.key.toLowerCase();
+    if (key === "z" && event.shiftKey) {
+      event.preventDefault();
+      handleRedo();
+    } else if (key === "z") {
+      event.preventDefault();
+      handleUndo();
+    } else if (key === "y") {
+      event.preventDefault();
+      handleRedo();
+    } else if (key === "b") {
+      event.preventDefault();
+      runCommand((root) => toggleInlineMark(root, "strong"));
+    } else if (key === "i") {
+      event.preventDefault();
+      runCommand((root) => toggleInlineMark(root, "em"));
+    } else if (key === "u") {
+      event.preventDefault();
+      runCommand((root) => toggleInlineMark(root, "u"));
     }
   }
 
+  function openLinkPopover() {
+    const root = editorRef.current;
+    if (!root) return;
+    savedRangeRef.current = saveSelection(root);
+    setPopover("link");
+  }
+
+  function openImagePopover() {
+    const root = editorRef.current;
+    if (!root) return;
+    savedRangeRef.current = saveSelection(root);
+    setPopover("image");
+  }
+
+  function closePopover() {
+    setPopover("none");
+    savedRangeRef.current = null;
+  }
+
+  function handleLinkConfirm(url: string, openInNewTab: boolean) {
+    const root = editorRef.current;
+    if (!root) return;
+
+    if (selection.link) {
+      updateLinkAttributes(selection.link, url, openInNewTab);
+    } else {
+      restoreSelection(savedRangeRef.current);
+      applyLink(root, url, openInNewTab);
+    }
+
+    closePopover();
+    syncFromDom(true);
+  }
+
+  function handleLinkRemove() {
+    const root = editorRef.current;
+    if (!root || !selection.link) return;
+    removeLink(root, selection.link);
+    closePopover();
+    syncFromDom(true);
+  }
+
+  function handleImageConfirm(src: string, alt: string) {
+    const range = savedRangeRef.current;
+    if (!range) {
+      closePopover();
+      return;
+    }
+    insertImage(range, src, alt);
+    closePopover();
+    syncFromDom(true);
+  }
+
+  const markDisabled = selection.collapsed;
+  const linkDisabled = selection.collapsed && !selection.link;
+  const blockTypeDisabled = selection.listTag !== null;
+
   return (
-    <div className="overflow-hidden rounded-md border border-zinc-300">
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-zinc-200 bg-zinc-50 px-2 py-1.5">
-        <select
-          value={toolbarState.blockType}
-          onChange={(event) => setBlockType(event.target.value as BlockType)}
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-          aria-label="Typ bloku (akapit / nagłówek)"
-        >
-          {BLOCK_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+    <div className="overflow-hidden rounded-md border border-zinc-300" onBlur={handleBlur}>
+      <Toolbar
+        blockType={selection.blockType}
+        onSetBlockType={(type) => runCommand((root) => applyBlockType(root, type))}
+        blockTypeDisabled={blockTypeDisabled}
+        marks={selection.marks}
+        onToggleMark={(mark) => runCommand((root) => toggleInlineMark(root, mark))}
+        markDisabled={markDisabled}
+        isBulletList={selection.listTag === "ul"}
+        isOrderedList={selection.listTag === "ol"}
+        onToggleList={(tag) => runCommand((root) => applyToggleList(root, tag))}
+        isLinkActive={selection.link !== null}
+        linkDisabled={linkDisabled}
+        onOpenLink={openLinkPopover}
+        onOpenImage={openImagePopover}
+        canUndo={historyButtons.canUndo}
+        canRedo={historyButtons.canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        view={view}
+        onSetView={setView}
+      />
 
-        <div className="mx-1 h-5 w-px bg-zinc-200" aria-hidden />
+      {popover === "link" && (
+        <LinkPopover
+          initialUrl={selection.link?.getAttribute("href") ?? ""}
+          initialOpenInNewTab={selection.link?.getAttribute("target") === "_blank"}
+          isEditing={selection.link !== null}
+          onConfirm={handleLinkConfirm}
+          onRemove={handleLinkRemove}
+          onCancel={closePopover}
+        />
+      )}
 
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          className={toolbarButtonClass(toolbarState.isBold)}
-          aria-label="Pogrubienie"
-        >
-          <span className="font-bold">B</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={toolbarButtonClass(toolbarState.isItalic)}
-          aria-label="Kursywa"
-        >
-          <span className="italic">I</span>
-        </button>
+      {popover === "image" && <ImagePopover session={session} onConfirm={handleImageConfirm} onCancel={closePopover} />}
 
-        <div className="mx-1 h-5 w-px bg-zinc-200" aria-hidden />
-
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={toolbarButtonClass(toolbarState.isBulletList)}
-          aria-label="Lista punktowana"
-          title="Lista punktowana"
-        >
-          • Lista
-        </button>
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={toolbarButtonClass(toolbarState.isOrderedList)}
-          aria-label="Lista numerowana"
-          title="Lista numerowana"
-        >
-          1. Lista
-        </button>
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          className={toolbarButtonClass(toolbarState.isBlockquote)}
-          aria-label="Cytat"
-          title="Cytat"
-        >
-          &ldquo;Cytat&rdquo;
-        </button>
-      </div>
-
-      <EditorContent editor={editor} />
+      {view === "edit" ? (
+        <EditableSurface
+          editorRef={editorRef}
+          initialHtml={initialHtml}
+          ariaLabel={label}
+          placeholder="Zacznij pisać artykuł…"
+          onChange={handleTypingChange}
+          onKeyDown={handleKeyDown}
+        />
+      ) : (
+        <HtmlPreview html={html} />
+      )}
     </div>
   );
 }

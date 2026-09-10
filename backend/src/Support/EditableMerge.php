@@ -105,8 +105,9 @@ final class EditableMerge
         return match ($type) {
             // "richtext" to na poziomie przechowywania string z HTML-em — tak samo jak "string"/"asset",
             // odróżnia je tylko to, który edytor panel pokazuje (patrz src/components/admin/fields/registry.ts).
-            // Oczyszczanie HTML-a (DOMPurify) dzieje się w przeglądarce przy każdej zmianie w RichTextEditor.tsx,
-            // nie tutaj — backend ufa zalogowanemu redaktorowi tak samo jak przy każdym innym polu treści.
+            // Oczyszczanie HTML-a (własny sanitizeHtml(), src/lib/richText/sanitizeHtml.ts) dzieje się w
+            // przeglądarce przy każdej zmianie w RichTextEditor.tsx, nie tutaj — backend ufa zalogowanemu
+            // redaktorowi tak samo jak przy każdym innym polu treści.
             'string', 'asset', 'richtext' => is_string($value),
             'bool' => is_bool($value),
             'number' => is_int($value) || is_float($value),

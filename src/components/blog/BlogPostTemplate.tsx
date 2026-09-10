@@ -30,11 +30,13 @@ export default function BlogPostTemplate({ post }: { post: BlogPostContent }) {
 
       {/*
         body to type:"richtext" — HTML, nie zwykły tekst (patrz
-        RichTextEditor.tsx). Oczyszczane DOMPurify.sanitize() w przeglądarce
-        PRZY KAŻDEJ zmianie w edytorze (sanitize-on-write) — ta strona ufa
-        już zapisanej treści tak samo, jak ufa wartości każdego innego pola
-        edytowalnego wyłącznie przez zalogowanego redaktora; nie sanityzuje
-        powtórnie przy renderze (build działa w Node bez DOM-u).
+        RichTextEditor.tsx). Oczyszczane własnym sanitizeHtml()
+        (src/lib/richText/sanitizeHtml.ts) w przeglądarce PRZY KAŻDEJ zmianie
+        w edytorze (sanitize-on-write) — ta strona ufa już zapisanej treści
+        tak samo, jak ufa wartości każdego innego pola edytowalnego
+        wyłącznie przez zalogowanego redaktora; nie sanityzuje powtórnie przy
+        renderze (build działa w Node bez DOM-u, a sanitizeHtml() wymaga
+        DOMParser — patrz komentarz w tym pliku).
       */}
       <div className={`mt-8 text-[17px] text-zinc-700 ${RICH_TEXT_CONTENT_CLASS}`} dangerouslySetInnerHTML={{ __html: body }} />
 
