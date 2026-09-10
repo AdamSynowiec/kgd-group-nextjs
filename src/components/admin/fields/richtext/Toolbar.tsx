@@ -56,6 +56,7 @@ export default function Toolbar({
   linkDisabled,
   onOpenLink,
   onOpenImage,
+  onOpenColumns,
   canUndo,
   canRedo,
   onUndo,
@@ -80,6 +81,7 @@ export default function Toolbar({
   linkDisabled: boolean;
   onOpenLink: () => void;
   onOpenImage: () => void;
+  onOpenColumns: () => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -220,6 +222,17 @@ export default function Toolbar({
         className={buttonClass(false)}
       >
         🖼 Zdjęcie
+      </button>
+      <button
+        type="button"
+        onMouseDown={preventFocusLoss}
+        onClick={onOpenColumns}
+        disabled={view === "html"}
+        aria-label="Wstaw kolumny"
+        title="Wstaw kolumny"
+        className={buttonClass(false)}
+      >
+        ▥ Kolumny
       </button>
 
       <Separator />

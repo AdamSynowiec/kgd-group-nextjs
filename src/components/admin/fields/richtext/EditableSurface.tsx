@@ -39,11 +39,13 @@ export default function EditableSurface({
   placeholder: string;
   onChange: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
-  /** Kliknięcie istniejącego <img> w treści — otwiera panel wstawiania zdjęcia w trybie edycji tego węzła (patrz RichTextEditor.tsx). */
+  /** PODWÓJNE kliknięcie istniejącego <img> w treści — otwiera panel wstawiania zdjęcia w trybie edycji tego węzła (patrz RichTextEditor.tsx). Celowo dblclick, nie zwykły click: obrazek jest natywnie przeciągalny (drag&drop w obrębie contenteditable, wbudowane w przeglądarkę, żadnego własnego kodu) — zwykły onClick łapał też mouseup na końcu przeciągania, blokując przenoszenie. */
   onImageClick: (img: HTMLImageElement) => void;
 }) {
   const [mountHtml] = useState(() => initialHtml);
-  const [isEmpty, setIsEmpty] = useState(() => !/<img\b/i.test(initialHtml) && initialHtml.replace(/<[^>]*>/g, "").trim() === "");
+  const [isEmpty, setIsEmpty] = useState(
+    () => !/<img\b/i.test(initialHtml) && !/data-columns/i.test(initialHtml) && initialHtml.replace(/<[^>]*>/g, "").trim() === ""
+  );
 
   function refreshEmptyState() {
     if (editorRef.current) setIsEmpty(isEditorEmpty(editorRef.current));
@@ -76,7 +78,7 @@ export default function EditableSurface({
     onChange();
   }
 
-  function handleClick(event: React.MouseEvent<HTMLDivElement>) {
+  function handleDoubleClick(event: React.MouseEvent<HTMLDivElement>) {
     if (event.target instanceof HTMLImageElement) {
       onImageClick(event.target);
     }
@@ -100,8 +102,8 @@ export default function EditableSurface({
         onInput={handleInput}
         onPaste={handlePaste}
         onKeyDown={onKeyDown}
-        onClick={handleClick}
-        className={`${RICH_TEXT_CONTENT_CLASS} min-h-[220px] rounded-b-md px-3 py-2 text-sm leading-relaxed focus:outline-none [&_img]:cursor-pointer [&_img:hover]:outline [&_img:hover]:outline-2 [&_img:hover]:outline-offset-2 [&_img:hover]:outline-blue-400`}
+        onDoubleClick={handleDoubleClick}
+        className={`${RICH_TEXT_CONTENT_CLASS} min-h-[220px] rounded-b-md px-3 py-2 text-sm leading-relaxed focus:outline-none [&_img]:cursor-pointer [&_img:hover]:outline [&_img:hover]:outline-2 [&_img:hover]:outline-offset-2 [&_img:hover]:outline-blue-400 [&_[data-column]]:min-h-[2rem] [&_[data-column]]:rounded [&_[data-column]]:p-2 [&_[data-column]]:outline [&_[data-column]]:outline-1 [&_[data-column]]:outline-dashed [&_[data-column]]:outline-zinc-300`}
       />
     </div>
   );

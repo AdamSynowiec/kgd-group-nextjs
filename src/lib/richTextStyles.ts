@@ -26,4 +26,11 @@ export const RICH_TEXT_CONTENT_CLASS =
   // docelowy, max-w-full tylko pilnuje, żeby nigdy nie przelał się poza
   // wąski kontener (np. duże px na telefonie); bez jawnego width obrazek
   // zachowuje się jak dziś (naturalny rozmiar, capped do szerokości kontenera).
-  "[&_img]:my-4 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md";
+  "[&_img]:my-4 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md " +
+  // Kolumny (patrz commands.ts::insertColumns/sanitizeHtml.ts) — sam layout
+  // (display:grid + liczba kolumn) idzie inline stylem wyliczonym przez
+  // sanitizeHtml.ts, tu tylko odstęp od reszty treści i responsywność:
+  // poniżej "sm" wymuszamy jedną kolumnę (!important, bo inaczej przegrywa
+  // z inline grid-template-columns) — N wąskich kolumn obok siebie na
+  // telefonie byłoby nieczytelne.
+  "[&_[data-columns]]:my-6 max-sm:[&_[data-columns]]:!grid-cols-1 [&_[data-column]]:min-w-0";

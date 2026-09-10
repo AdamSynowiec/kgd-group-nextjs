@@ -70,7 +70,13 @@ export function isMarkActive(root: HTMLElement, mark: InlineMark): boolean {
   return findAncestorTag(root, mark) !== null;
 }
 
-/** Blok będący BEZPOŚREDNIM dzieckiem root, w którym leży bieżące zaznaczenie — patrz założenie w setBlockType(). */
+/**
+ * Blok będący BEZPOŚREDNIM dzieckiem "kontenera bloków" obejmującego bieżące
+ * zaznaczenie — zwykle root, ale gdy kursor jest wewnątrz kolumny (patrz
+ * insertColumns/[data-column] niżej), kontenerem jest TA kolumna, nie root —
+ * inaczej np. zmiana typu bloku wewnątrz kolumny zastąpiłaby całą siatkę
+ * kolumn pojedynczym nagłówkiem zamiast działać tylko na jej zawartości.
+ */
 function getCurrentBlock(root: HTMLElement): HTMLElement | null {
   const range = getCurrentRange(root);
   if (!range) return null;
@@ -78,11 +84,14 @@ function getCurrentBlock(root: HTMLElement): HTMLElement | null {
   let node: Node | null = range.startContainer;
   if (node.nodeType !== Node.ELEMENT_NODE) node = node.parentElement;
 
-  while (node && node !== root && (node as Element).parentElement !== root) {
+  const startEl = node instanceof Element ? node : null;
+  const container = (startEl?.closest("[data-column]") as HTMLElement | null) ?? root;
+
+  while (node && node !== container && (node as Element).parentElement !== container) {
     node = (node as Element).parentElement;
   }
 
-  return node && node !== root ? (node as HTMLElement) : null;
+  return node && node !== container ? (node as HTMLElement) : null;
 }
 
 export function getActiveBlockType(root: HTMLElement): BlockType | null {
@@ -210,6 +219,59 @@ export function toggleList(root: HTMLElement, listTag: "ul" | "ol"): void {
   placeCaretAtEnd(li);
 }
 
+export const MIN_COLUMNS = 2;
+export const MAX_COLUMNS = 6;
+
+/**
+ * Buduje siatkę kolumn: <div data-columns="N"> z N kolumnami <div data-column>,
+ * każda z jednym pustym akapitem — dokładnie ten kształt, który
+ * sanitizeHtml.ts rozpoznaje i którego jedynego pilnuje (patrz tam:
+ * data-columns/data-column to jedyne dwa atrybuty, jakim ten edytor w ogóle
+ * ufa dla <div>, a layout siatki (grid-template-columns) sanitizeHtml.ts
+ * ZAWSZE wylicza od nowa z samej liczby kolumn, nigdy z przychodzącego stylu).
+ */
+function buildColumnsContainer(count: number): HTMLDivElement {
+  const container = document.createElement("div");
+  container.setAttribute("data-columns", String(count));
+  container.style.cssText = `display:grid;grid-template-columns:repeat(${count},1fr);gap:1.5rem`;
+
+  for (let i = 0; i < count; i++) {
+    const column = document.createElement("div");
+    column.setAttribute("data-column", "");
+    const p = document.createElement("p");
+    p.appendChild(document.createElement("br"));
+    column.appendChild(p);
+    container.appendChild(column);
+  }
+
+  return container;
+}
+
+/**
+ * Wstawia siatkę N kolumn przy bieżącym bloku: zastępuje go, gdy jest pusty
+ * (typowy przypadek — użytkownik stoi na pustej linii i wybiera "Kolumny"),
+ * inaczej dokłada siatkę PO nim, żeby nie skasować istniejącej treści.
+ */
+export function insertColumns(root: HTMLElement, count: number): void {
+  const safeCount = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, Math.round(count)));
+  const container = buildColumnsContainer(safeCount);
+  const block = getCurrentBlock(root);
+
+  if (block) {
+    const isEmptyBlock = (block.textContent ?? "").trim() === "" && !block.querySelector("img");
+    if (isEmptyBlock) {
+      block.replaceWith(container);
+    } else {
+      block.insertAdjacentElement("afterend", container);
+    }
+  } else {
+    root.appendChild(container);
+  }
+
+  const firstColumnParagraph = container.querySelector("p");
+  if (firstColumnParagraph) placeCaretAtEnd(firstColumnParagraph);
+}
+
 /**
  * Blok, na który działa wyrównanie tekstu: <li>, gdy zaznaczenie jest wewnątrz
  * listy (wyrównanie działa na pojedynczym elemencie listy, nie na całej liście
@@ -334,9 +396,9 @@ export function placeCaretAtEnd(el: HTMLElement): void {
   }
 }
 
-/** Pusty stan: brak dzieci albo jeden pusty <p> (to, co zostaje po wyczyszczeniu treści contenteditable). */
+/** Pusty stan: brak dzieci albo jeden pusty <p> (to, co zostaje po wyczyszczeniu treści contenteditable) — ORAZ brak obrazków/kolumn (bez tekstu, ale nie "puste" wizualnie — placeholder nie może się na nie nakładać). */
 export function isEditorEmpty(root: HTMLElement): boolean {
   const text = root.textContent?.replace(/​/g, "").trim() ?? "";
   if (text !== "") return false;
-  return !root.querySelector("img");
+  return !root.querySelector("img") && !root.querySelector("[data-columns]");
 }

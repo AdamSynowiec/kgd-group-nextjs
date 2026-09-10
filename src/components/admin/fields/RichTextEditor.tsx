@@ -6,6 +6,7 @@ import EditableSurface from "./richtext/EditableSurface";
 import Toolbar, { type ViewMode } from "./richtext/Toolbar";
 import LinkPopover from "./richtext/LinkPopover";
 import ImagePopover from "./richtext/ImagePopover";
+import ColumnsPopover from "./richtext/ColumnsPopover";
 import HtmlPreview from "./richtext/HtmlPreview";
 import { sanitizeHtml } from "@/lib/richText/sanitizeHtml";
 import { createHistory } from "@/lib/richText/history";
@@ -15,6 +16,7 @@ import {
   getActiveBlockType,
   getActiveListTag,
   getActiveTextAlign,
+  insertColumns,
   insertImage,
   isMarkActive,
   removeLink,
@@ -48,7 +50,7 @@ import {
  * renderze powodowało pętlę sprzężenia zwrotnego z biblioteką.
  */
 
-type PopoverKind = "none" | "link" | "image";
+type PopoverKind = "none" | "link" | "image" | "columns";
 
 type SelectionSnapshot = {
   blockType: BlockType | null;
@@ -238,6 +240,13 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     setPopover("image");
   }
 
+  function openColumnsPopover() {
+    const root = editorRef.current;
+    if (!root) return;
+    savedRangeRef.current = saveSelection(root);
+    setPopover("columns");
+  }
+
   function closePopover() {
     setPopover("none");
     savedRangeRef.current = null;
@@ -281,6 +290,19 @@ export default function RichTextEditor({ label, value, path, session, onChange }
       return;
     }
     insertImage(range, src, alt, width);
+    closePopover();
+    syncFromDom(true);
+  }
+
+  function handleColumnsConfirm(count: number) {
+    const root = editorRef.current;
+    if (!root) {
+      closePopover();
+      return;
+    }
+    root.focus();
+    restoreSelection(savedRangeRef.current);
+    insertColumns(root, count);
     closePopover();
     syncFromDom(true);
   }
@@ -329,6 +351,7 @@ export default function RichTextEditor({ label, value, path, session, onChange }
         linkDisabled={linkDisabled}
         onOpenLink={openLinkPopover}
         onOpenImage={openImagePopover}
+        onOpenColumns={openColumnsPopover}
         canUndo={historyButtons.canUndo}
         canRedo={historyButtons.canRedo}
         onUndo={handleUndo}
@@ -359,6 +382,8 @@ export default function RichTextEditor({ label, value, path, session, onChange }
           onCancel={closePopover}
         />
       )}
+
+      {popover === "columns" && <ColumnsPopover onConfirm={handleColumnsConfirm} onCancel={closePopover} />}
 
       {view === "edit" ? (
         <EditableSurface
