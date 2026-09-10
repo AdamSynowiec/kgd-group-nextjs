@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PagesIcon, SettingsIcon } from "@/components/admin/icons";
+import { BlogIcon, PagesIcon, SettingsIcon } from "@/components/admin/icons";
 import { useBrand } from "@/components/admin/BrandProvider";
 
+// Jedna kolekcja na razie -> jeden wpis na sztywno. Gdy dojdzie druga (patrz
+// src/lib/collections/registry.ts), warto to zamienić na iterację po COLLECTIONS.
 const NAV_ITEMS = [
   { label: "Strony", href: "/admin", Icon: PagesIcon },
+  { label: "Blog", href: "/admin/blog", Icon: BlogIcon },
   { label: "Ustawienia", href: "/admin/settings", Icon: SettingsIcon },
 ] as const;
 

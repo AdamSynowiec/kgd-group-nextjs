@@ -6,8 +6,12 @@ import { unwrap } from "@/lib/editable";
  * Buduje next/Metadata z bloku "seo" strony, spadając na seoDefaults z site.json,
  * gdy strona nie poda własnej wartości. Ścieżki (canonical, obrazy) są względne —
  * Next rozwiązuje je względem metadataBase automatycznie.
+ *
+ * Typ parametru to CELOWO tylko { slug, seo }, nie cały Page — dzięki temu ta
+ * sama funkcja buduje metadata też dla elementów kolekcji (patrz
+ * src/lib/collections.ts), które nie mają "sections"/"nav" jak strona.
  */
-export function buildMetadata(page: Page): Metadata {
+export function buildMetadata(page: Pick<Page, "slug" | "seo">): Metadata {
   const { seoDefaults } = getSite();
   const seo = page.seo ?? {};
 

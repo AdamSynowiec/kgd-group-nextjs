@@ -163,20 +163,37 @@ function apiBaseUrl(): string {
  * NIE przetrwało między buildami w CI — patrz komentarz przy kroku
  * "Cache Next.js build cache" w .github/workflows/deploy.yml.
  */
-async function apiGet<T>(route: string): Promise<T | null> {
-  const url = `${apiBaseUrl()}/index.php?route=${encodeURIComponent(route)}`;
+async function apiFetch<T>(
+  route: string,
+  params?: Record<string, string>
+): Promise<{ data: T | null; meta: Record<string, unknown> }> {
+  const query = new URLSearchParams({ route, ...(params ?? {}) });
+  const url = `${apiBaseUrl()}/index.php?${query.toString()}`;
   const response = await fetch(url);
 
   if (response.status === 404) {
-    return null;
+    return { data: null, meta: {} };
   }
 
   if (!response.ok) {
     throw new Error(`Backend API zwrócił ${response.status} dla ${route}`);
   }
 
-  const body = (await response.json()) as { data: T };
-  return body.data;
+  const body = (await response.json()) as { data: T; meta?: Record<string, unknown> };
+  return { data: body.data, meta: body.meta ?? {} };
+}
+
+export async function apiGet<T>(route: string, params?: Record<string, string>): Promise<T | null> {
+  return (await apiFetch<T>(route, params)).data;
+}
+
+/** Jak apiGet, ale zwraca też "meta" z odpowiedzi — pod src/lib/collections.ts (paginacja: page/pageSize/total/totalPages). */
+export async function apiGetWithMeta<T, M = Record<string, unknown>>(
+  route: string,
+  params?: Record<string, string>
+): Promise<{ data: T | null; meta: M }> {
+  const result = await apiFetch<T>(route, params);
+  return { data: result.data, meta: result.meta as M };
 }
 
 /** route=/pages — lista opublikowanych stron pod generateStaticParams(). */

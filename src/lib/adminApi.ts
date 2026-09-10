@@ -113,6 +113,71 @@ export function savePage(
 }
 
 /**
+ * Klient API "kolekcji" (blog i każda przyszła — patrz src/lib/collections/registry.ts)
+ * — mirror fetch/save Page powyżej, ale zakresowany przez `collection` i, w
+ * odróżnieniu od stron, z prawdziwym tworzeniem/usuwaniem (patrz
+ * backend/src/Controller/CollectionAdminController.php).
+ */
+export type CollectionItemSummary = {
+  slug: string;
+  title: string;
+  status: string;
+  publishedAt: string | null;
+  updatedAt: string;
+};
+
+export type CollectionItem = {
+  slug: string;
+  content: Record<string, unknown>;
+  status: "draft" | "published" | string;
+  publishedAt: string | null;
+  updatedAt: string;
+};
+
+export function fetchCollectionItems(collection: string, session: Session | null): Promise<CollectionItemSummary[]> {
+  return request<CollectionItemSummary[]>("/collection-items", { params: { collection }, session });
+}
+
+export function fetchCollectionItem(
+  collection: string,
+  slug: string,
+  session: Session | null
+): Promise<CollectionItem> {
+  return request<CollectionItem>("/collection-item", { params: { collection, slug }, session });
+}
+
+export function createCollectionItem(
+  collection: string,
+  slug: string,
+  content: Record<string, unknown>,
+  session: Session | null
+): Promise<CollectionItem> {
+  return request<CollectionItem>("/collection-items", {
+    method: "POST",
+    params: { collection },
+    body: { slug, content },
+    session,
+  });
+}
+
+export function saveCollectionItem(
+  collection: string,
+  slug: string,
+  input: { content: Record<string, unknown>; status: "draft" | "published"; publishedAt: string | null },
+  session: Session | null
+): Promise<{ saved: boolean; slug: string; status: string; publishedAt: string | null }> {
+  return request("/collection-item", { method: "POST", params: { collection, slug }, body: input, session });
+}
+
+export function deleteCollectionItem(
+  collection: string,
+  slug: string,
+  session: Session | null
+): Promise<{ deleted: boolean; slug: string }> {
+  return request("/collection-item", { method: "DELETE", params: { collection, slug }, session });
+}
+
+/**
  * Pola typu "asset" w EditableField.tsx — wysyła plik jako multipart/form-data
  * (nie JSON, w odróżnieniu od reszty tego klienta) i dostaje z powrotem URL
  * względny od korzenia domeny (np. "/api/uploads/abc123.webp"), gotowy do
