@@ -166,6 +166,27 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     syncFromDom(false);
   }
 
+  /**
+   * Anuluje ewentualny debounce OCZEKUJĄCY z pisania sprzed chwili (patrz
+   * EditableSurface.tsx::isDraggingRef, ten sam powód) — inaczej ten
+   * zaplanowany wcześniej `setTimeout(syncFromDom, 500)` mógłby wystrzelić W
+   * TRAKCIE aktywnego natywnego przeciągania (np. wolne/wstrzymane
+   * przeciąganie obrazka trwające >500ms) i podmienić root.innerHTML pod
+   * przeglądarką, która wciąż śledzi węzeł-źródło przeciągania — to
+   * realnie zawieszało kartę.
+   */
+  function handleEditorDragStart() {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = undefined;
+    }
+  }
+
+  /** Natychmiastowa (nie debounced) synchronizacja PO zakończeniu przeciągania — mirror handleBlur, ten sam powód (nie czekać niepotrzebnie 500ms na coś, co już się skończyło). */
+  function handleEditorDragEnd() {
+    syncFromDom(true);
+  }
+
   function runCommand(command: (root: HTMLElement) => void) {
     const root = editorRef.current;
     if (!root) return;
@@ -394,6 +415,8 @@ export default function RichTextEditor({ label, value, path, session, onChange }
           onChange={handleTypingChange}
           onKeyDown={handleKeyDown}
           onImageClick={handleImageClick}
+          onDragStart={handleEditorDragStart}
+          onDragEnd={handleEditorDragEnd}
         />
       ) : (
         <HtmlPreview html={html} />

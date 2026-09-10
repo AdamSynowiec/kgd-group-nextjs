@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type KeyboardEvent, type RefObject } from "react";
+import { useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { RICH_TEXT_CONTENT_CLASS } from "@/lib/richTextStyles";
 import { isEditorEmpty } from "@/lib/richText/commands";
 
@@ -32,6 +32,8 @@ export default function EditableSurface({
   onChange,
   onKeyDown,
   onImageClick,
+  onDragStart,
+  onDragEnd,
 }: {
   editorRef: RefObject<HTMLDivElement | null>;
   initialHtml: string;
@@ -41,11 +43,28 @@ export default function EditableSurface({
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   /** PODWÓJNE kliknięcie istniejącego <img> w treści — otwiera panel wstawiania zdjęcia w trybie edycji tego węzła (patrz RichTextEditor.tsx). Celowo dblclick, nie zwykły click: obrazek jest natywnie przeciągalny (drag&drop w obrębie contenteditable, wbudowane w przeglądarkę, żadnego własnego kodu) — zwykły onClick łapał też mouseup na końcu przeciągania, blokując przenoszenie. */
   onImageClick: (img: HTMLImageElement) => void;
+  /** Anuluje ewentualny OCZEKUJĄCY (z pisania sprzed chwili) debounce w RichTextEditor.tsx — patrz isDraggingRef niżej, ten sam powód. */
+  onDragStart: () => void;
+  /** Natychmiastowa (nie debounced) synchronizacja PO zakończeniu przeciągania — mirror handleBlur w RichTextEditor.tsx. */
+  onDragEnd: () => void;
 }) {
   const [mountHtml] = useState(() => initialHtml);
   const [isEmpty, setIsEmpty] = useState(
     () => !/<img\b/i.test(initialHtml) && !/data-columns/i.test(initialHtml) && initialHtml.replace(/<[^>]*>/g, "").trim() === ""
   );
+  /**
+   * Prawda między dragstart a dragend NATYWNEGO przeciągania w obrębie tej
+   * powierzchni (np. przenoszenie <img> między akapitami — wbudowane w
+   * contenteditable, żadnego własnego kodu do samego przenoszenia). KRYTYCZNE:
+   * dopóki trwa, handleInput NIE wywołuje onChange() — RichTextEditor.tsx w
+   * odpowiedzi na onChange w końcu podmienia root.innerHTML (sanitize-on-write,
+   * patrz syncFromDom), a podmiana całego poddrzewa DOM PODCZAS aktywnego
+   * przeciągania (przeglądarka wciąż śledzi węzeł-źródło przeciągania, który
+   * właśnie znikł) potrafi zawiesić kartę — to był rzeczywisty efekt zgłoszony
+   * jako "zamraża ekran". Ref, nie state — nie potrzeba re-renderu, tylko
+   * odczytu w handleInput.
+   */
+  const isDraggingRef = useRef(false);
 
   function refreshEmptyState() {
     if (editorRef.current) setIsEmpty(isEditorEmpty(editorRef.current));
@@ -53,7 +72,20 @@ export default function EditableSurface({
 
   function handleInput() {
     refreshEmptyState();
+    if (isDraggingRef.current) return;
     onChange();
+  }
+
+  function handleDragStart() {
+    isDraggingRef.current = true;
+    onDragStart();
+  }
+
+  /** dragend ZAWSZE odpala się po dragstart (w odróżnieniu od "drop" — nie odpala się np. gdy przeciąganie zostanie anulowane klawiszem Escape), więc to jedyne bezpieczne miejsce na odblokowanie i domknięcie odłożonej synchronizacji. */
+  function handleDragEnd() {
+    isDraggingRef.current = false;
+    refreshEmptyState();
+    onDragEnd();
   }
 
   function handlePaste(event: React.ClipboardEvent<HTMLDivElement>) {
@@ -103,6 +135,8 @@ export default function EditableSurface({
         onPaste={handlePaste}
         onKeyDown={onKeyDown}
         onDoubleClick={handleDoubleClick}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
         className={`${RICH_TEXT_CONTENT_CLASS} min-h-[220px] rounded-b-md px-3 py-2 text-sm leading-relaxed focus:outline-none [&_img]:cursor-pointer [&_img:hover]:outline [&_img:hover]:outline-2 [&_img:hover]:outline-offset-2 [&_img:hover]:outline-blue-400 [&_[data-column]]:min-h-[2rem] [&_[data-column]]:rounded [&_[data-column]]:p-2 [&_[data-column]]:outline [&_[data-column]]:outline-1 [&_[data-column]]:outline-dashed [&_[data-column]]:outline-zinc-300`}
       />
     </div>
