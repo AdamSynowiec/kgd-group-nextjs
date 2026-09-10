@@ -103,7 +103,11 @@ final class EditableMerge
     private static function matchesType(mixed $value, string $type): bool
     {
         return match ($type) {
-            'string', 'asset' => is_string($value),
+            // "richtext" to na poziomie przechowywania string z HTML-em — tak samo jak "string"/"asset",
+            // odróżnia je tylko to, który edytor panel pokazuje (patrz src/components/admin/fields/registry.ts).
+            // Oczyszczanie HTML-a (DOMPurify) dzieje się w przeglądarce przy każdej zmianie w RichTextEditor.tsx,
+            // nie tutaj — backend ufa zalogowanemu redaktorowi tak samo jak przy każdym innym polu treści.
+            'string', 'asset', 'richtext' => is_string($value),
             'bool' => is_bool($value),
             'number' => is_int($value) || is_float($value),
             'table' => self::isValidTableValue($value),

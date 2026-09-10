@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { unwrap } from "@/lib/editable";
+import { RICH_TEXT_CONTENT_CLASS } from "@/lib/richTextStyles";
 import type { BlogPostContent } from "./types";
 
 /** Pojedynczy wpis — patrz src/app/(site)/blog/[slug]/page.tsx. */
@@ -27,7 +28,15 @@ export default function BlogPostTemplate({ post }: { post: BlogPostContent }) {
         <img src={cover} alt="" className="mt-8 aspect-[16/9] w-full rounded-lg object-cover" />
       )}
 
-      <div className="mt-8 whitespace-pre-wrap text-[17px] leading-relaxed text-zinc-700">{body}</div>
+      {/*
+        body to type:"richtext" — HTML, nie zwykły tekst (patrz
+        RichTextEditor.tsx). Oczyszczane DOMPurify.sanitize() w przeglądarce
+        PRZY KAŻDEJ zmianie w edytorze (sanitize-on-write) — ta strona ufa
+        już zapisanej treści tak samo, jak ufa wartości każdego innego pola
+        edytowalnego wyłącznie przez zalogowanego redaktora; nie sanityzuje
+        powtórnie przy renderze (build działa w Node bez DOM-u).
+      */}
+      <div className={`mt-8 text-[17px] text-zinc-700 ${RICH_TEXT_CONTENT_CLASS}`} dangerouslySetInnerHTML={{ __html: body }} />
 
       {tags.length > 0 && (
         <ul className="mt-10 flex flex-wrap gap-2">

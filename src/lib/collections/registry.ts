@@ -36,7 +36,7 @@ export const COLLECTIONS: Record<string, CollectionDefinition> = {
       excerpt: { value: "", editable: true, label: "Zajawka (widoczna na liście)", type: "string" },
       coverImage: { value: "", editable: true, label: "Zdjęcie główne", type: "asset" },
       author: { value: "", editable: true, label: "Autor", type: "string" },
-      body: { value: "", editable: true, label: "Treść artykułu", type: "string" },
+      body: { value: "", editable: true, label: "Treść artykułu", type: "richtext" },
       tags: { value: [], editable: true, label: "Tagi", type: "table" },
       seo: {
         title: { value: "", editable: true, label: "Tytuł SEO", type: "string" },

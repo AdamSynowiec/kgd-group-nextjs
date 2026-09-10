@@ -1,6 +1,6 @@
 /**
- * Klasyfikacja "type" pola CMS-a (string|bool|number|table|asset) na podstawie
- * kształtu wartości (i, dla assetów z pustą wartością, etykiety).
+ * Klasyfikacja "type" pola CMS-a (string|bool|number|table|asset|richtext) na
+ * podstawie kształtu wartości (i, dla assetów z pustą wartością, etykiety).
  *
  * UWAGA: to NIE jest mechanizm renderowania panelu admina — panel renderuje
  * WYŁĄCZNIE na podstawie zapisanego już `field.type` (patrz
@@ -10,11 +10,18 @@
  *   2) awaryjnemu, WIDOCZNIE oznaczonemu fallbackowi w panelu dla węzła, który
  *      (nie powinien, ale) nie ma jeszcze zapisanego `type`.
  * Nigdy nie jest wywoływana jako normalna ścieżka wyboru edytora.
+ *
+ * "richtext" NIE jest tu wykrywane z kształtu — string sformatowanego HTML-a
+ * i zwykły string wyglądają identycznie (oba to `typeof value === "string"`),
+ * więc classifyFieldType() zawsze spadnie na "string" dla takiej wartości.
+ * Pole musi dostać "richtext" jawnie w miejscu, gdzie powstaje (patrz
+ * src/lib/collections/registry.ts — pole "body" bloga) — to jest właśnie ta
+ * "jawność typu", o którą chodzi w całym tym systemie.
  */
 
-export type FieldType = "string" | "bool" | "number" | "table" | "asset";
+export type FieldType = "string" | "bool" | "number" | "table" | "asset" | "richtext";
 
-export const FIELD_TYPES: readonly FieldType[] = ["string", "bool", "number", "table", "asset"];
+export const FIELD_TYPES: readonly FieldType[] = ["string", "bool", "number", "table", "asset", "richtext"];
 
 export function isFieldType(value: unknown): value is FieldType {
   return typeof value === "string" && (FIELD_TYPES as readonly string[]).includes(value);

@@ -17,8 +17,8 @@ if (!defined('APP_ENTRY')) {
  */
 final class Editable
 {
-    /** Dozwolone wartości "type" — jedyne pięć edytorów, jakie zna panel (patrz src/lib/fieldType.ts). */
-    public const FIELD_TYPES = ['string', 'bool', 'number', 'table', 'asset'];
+    /** Dozwolone wartości "type" — jedyne edytory, jakie zna panel (patrz src/lib/fieldType.ts). */
+    public const FIELD_TYPES = ['string', 'bool', 'number', 'table', 'asset', 'richtext'];
 
     public static function isEditableNode(mixed $node): bool
     {
