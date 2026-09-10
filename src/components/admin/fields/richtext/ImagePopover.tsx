@@ -199,7 +199,10 @@ export default function ImagePopover({
       </div>
 
       {isEditing && (
-        <p className="mt-2 text-xs text-zinc-500">Wskazówka: przeciągnij zdjęcie w treści myszką, żeby zmienić jego pozycję.</p>
+        <p className="mt-2 text-xs text-zinc-500">
+          Wskazówka: przeciągnij zdjęcie w treści myszką, żeby zmienić jego pozycję. Wyrównanie (lewo/środek/prawo)
+          ustawisz przyciskami wyrównania na górnym pasku — tymi samymi co dla tekstu.
+        </p>
       )}
 
       {error && (

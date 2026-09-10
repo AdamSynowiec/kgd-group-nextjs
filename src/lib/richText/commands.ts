@@ -307,6 +307,40 @@ export function getActiveTextAlign(root: HTMLElement): TextAlign {
   return value === "center" || value === "right" ? value : "left";
 }
 
+/**
+ * Wyrównanie obrazka (lewo/środek/prawo) — DOKŁADNIE ten sam mechanizm co
+ * setTextAlign/getActiveTextAlign (text-align na akapicie), tylko wyprowadzony
+ * z KONKRETNEGO obrazka zamiast z bieżącego zaznaczenia tekstu. Potrzebne
+ * osobno, bo kliknięcie obrazka (patrz EditableSurface.tsx) otwiera panel
+ * edycji zamiast stawiać kursor w tekście, więc nie ma Selection/Range, z
+ * którego getActiveTextAlign/setTextAlign mogłyby odczytać/ustawić akapit.
+ *
+ * Używane wprost przez TE SAME przyciski wyrównania na pasku co dla tekstu
+ * (RichTextEditor.tsx: gdy editingImage !== null, przyciski paska wołają
+ * getImageAlign/setImageAlign zamiast getActiveTextAlign/setTextAlign) — tak
+ * jak w Wordzie, gdzie zaznaczenie obrazka i kliknięcie tych samych
+ * przycisków wyrównania akapitu przesuwa obrazek. Gdy obrazek dzieli akapit
+ * z tekstem, wyrównanie dotyczy CAŁEGO tego akapitu (ta sama, świadoma
+ * granularność co reszta edytora) — typowy przypadek to obrazek sam w swoim
+ * akapicie.
+ */
+export function getImageAlign(img: HTMLImageElement): TextAlign {
+  const value = img.parentElement?.style.textAlign;
+  return value === "center" || value === "right" ? value : "left";
+}
+
+export function setImageAlign(img: HTMLImageElement, align: TextAlign): void {
+  const parent = img.parentElement;
+  if (!parent) return;
+
+  if (align === "left") {
+    parent.style.removeProperty("text-align");
+    if (parent.getAttribute("style") === "") parent.removeAttribute("style");
+  } else {
+    parent.style.textAlign = align;
+  }
+}
+
 /** Zawija NIEPUSTE zaznaczenie w nowy <a>. Wymaga wywołującego, by wcześniej sprawdził, że zaznaczenie nie jest zwinięte (patrz Toolbar: przycisk linku wyłączony, gdy nic nie zaznaczono i kursor nie jest w istniejącym linku). */
 export function applyLink(root: HTMLElement, url: string, openInNewTab: boolean): void {
   const selection = getSelectionWithin(root);

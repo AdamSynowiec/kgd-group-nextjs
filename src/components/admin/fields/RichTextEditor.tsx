@@ -16,6 +16,7 @@ import {
   getActiveBlockType,
   getActiveListTag,
   getActiveTextAlign,
+  getImageAlign,
   insertColumns,
   insertImage,
   isMarkActive,
@@ -23,6 +24,7 @@ import {
   restoreSelection,
   saveSelection,
   setBlockType as applyBlockType,
+  setImageAlign,
   setTextAlign as applyTextAlign,
   toggleInlineMark,
   toggleList as applyToggleList,
@@ -71,6 +73,18 @@ const DEFAULT_SELECTION: SelectionSnapshot = {
 };
 
 const TYPING_SYNC_DELAY_MS = 500;
+
+/** Pozycja obrazka wśród WSZYSTKICH <img> w edytorze — patrz syncFromDom/restoreFromSnapshot, do odzyskania referencji po podmianie innerHTML. -1, gdy nie znaleziono, zwrócone jako null. */
+function indexOfImage(root: HTMLElement, img: HTMLImageElement): number | null {
+  const index = Array.from(root.querySelectorAll("img")).indexOf(img);
+  return index === -1 ? null : index;
+}
+
+/** Odwrotność indexOfImage — obrazek na danej pozycji w ŚWIEŻYM drzewie (po podmianie innerHTML), albo null (usunięty/nie było go). */
+function imageAtIndex(root: HTMLElement, index: number | null): HTMLImageElement | null {
+  if (index === null) return null;
+  return (root.querySelectorAll("img")[index] as HTMLImageElement | undefined) ?? null;
+}
 
 export default function RichTextEditor({ label, value, path, session, onChange }: FieldEditorProps) {
   const initialHtml = typeof value === "string" && value.trim() !== "" ? value : "<p><br></p>";
@@ -128,15 +142,37 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     };
   }, []);
 
-  /** Jedyne miejsce, które czyta DOM, sanityzuje i puszcza wynik w górę — wywoływane po KAŻDEJ zmianie treści, żeby nie powielać tej logiki w komendach paska/pisania/wklejania. */
+  /**
+   * Jedyne miejsce, które czyta DOM, sanityzuje i puszcza wynik w górę —
+   * wywoływane po KAŻDEJ zmianie treści, żeby nie powielać tej logiki w
+   * komendach paska/pisania/wklejania.
+   *
+   * sanitizeHtml() zawsze robi pełny przejazd przez DOMParser i zwraca
+   * NOWY, ponownie zserializowany string — `root.innerHTML = sanitized`
+   * niemal zawsze więc podmienia WSZYSTKIE węzły na świeże klony, odrywając
+   * każdą trzymaną gdzieś referencję do konkretnego węzła (np. editingImage)
+   * od żywego drzewa. Dla obrazka to realny problem dopiero od paska
+   * wyrównania (patrz handleSetAlign): popover trzymał editingImage tylko
+   * do JEDNEGO użycia i zaraz go czyścił, ale przyciski wyrównania na pasku
+   * działają na TYM SAMYM editingImage wielokrotnie, z popoverem wciąż
+   * otwartym — bez poniższego odzyskania referencji drugie kliknięcie
+   * wyrównania (i update src/alt/szerokości z popovera po zmianie
+   * wyrównania) trafiałoby w osierocony klon i nie miałoby efektu na ekranie.
+   */
   const syncFromDom = useCallback(
     (pushHistory: boolean) => {
       const root = editorRef.current;
       if (!root) return;
 
+      const editingImageIndex = editingImage ? indexOfImage(root, editingImage) : null;
+
       const sanitized = sanitizeHtml(root.innerHTML);
       if (sanitized !== root.innerHTML) {
         root.innerHTML = sanitized;
+      }
+
+      if (editingImage) {
+        setEditingImage(imageAtIndex(root, editingImageIndex));
       }
 
       setHtml(sanitized);
@@ -149,7 +185,7 @@ export default function RichTextEditor({ label, value, path, session, onChange }
 
       refreshSelectionState();
     },
-    [onChange, path, refreshHistoryButtons, refreshSelectionState]
+    [editingImage, onChange, path, refreshHistoryButtons, refreshSelectionState]
   );
 
   function handleTypingChange() {
@@ -200,10 +236,13 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     syncFromDom(true);
   }
 
+  /** Cofnij/ponów też podmienia całe innerHTML — patrz komentarz przy syncFromDom, ten sam powód odzyskania editingImage. */
   function restoreFromSnapshot(snapshot: string) {
     const root = editorRef.current;
     if (!root) return;
+    const editingImageIndex = editingImage ? indexOfImage(root, editingImage) : null;
     root.innerHTML = snapshot;
+    if (editingImage) setEditingImage(imageAtIndex(root, editingImageIndex));
     setHtml(snapshot);
     onChange(path, snapshot);
     refreshHistoryButtons();
@@ -302,11 +341,20 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     syncFromDom(true);
   }
 
+  /**
+   * syncFromDom() PRZED closePopover(): syncFromDom (gdy editingImage
+   * ustawiony) sam robi setEditingImage(refreshed) — patrz jej komentarz —
+   * a React zbiera oba wywołania setEditingImage z tego samego handlera w
+   * jedną aktualizację, w której wygrywa OSTATNIE. closePopover() musi więc
+   * biec jako drugie, żeby jego setEditingImage(null) było tym ostatnim
+   * słowem, inaczej po zapisaniu obrazka pasek wyrównania zostałby po cichu
+   * "przyklejony" do tego obrazka zamiast wrócić do sterowania tekstem.
+   */
   function handleImageConfirm(src: string, alt: string, width: ImageWidth) {
     if (editingImage) {
       updateImageAttributes(editingImage, src, alt, width);
-      closePopover();
       syncFromDom(true);
+      closePopover();
       return;
     }
 
@@ -316,8 +364,8 @@ export default function RichTextEditor({ label, value, path, session, onChange }
       return;
     }
     insertImage(range, src, alt, width);
-    closePopover();
     syncFromDom(true);
+    closePopover();
   }
 
   function handleColumnsConfirm(count: number) {
@@ -354,6 +402,21 @@ export default function RichTextEditor({ label, value, path, session, onChange }
     syncFromDom(true);
   }
 
+  /**
+   * Te same przyciski wyrównania na pasku co dla tekstu — jak w Wordzie:
+   * gdy jest "zaznaczony" (aktualnie edytowany, patrz handleImageClick)
+   * obrazek, kliknięcie przycisku przesuwa JEGO, zamiast działać na
+   * zaznaczeniu tekstu. Patrz getImageAlign/setImageAlign w commands.ts.
+   */
+  function handleSetAlign(align: TextAlign) {
+    if (editingImage) {
+      setImageAlign(editingImage, align);
+      syncFromDom(true);
+      return;
+    }
+    runCommand((root) => applyTextAlign(root, align));
+  }
+
   const markDisabled = selection.collapsed;
   const linkDisabled = selection.collapsed && !selection.link;
   const blockTypeDisabled = selection.listTag !== null;
@@ -371,8 +434,8 @@ export default function RichTextEditor({ label, value, path, session, onChange }
         isBulletList={selection.listTag === "ul"}
         isOrderedList={selection.listTag === "ol"}
         onToggleList={(tag) => runCommand((root) => applyToggleList(root, tag))}
-        align={selection.align}
-        onSetAlign={(align) => runCommand((root) => applyTextAlign(root, align))}
+        align={editingImage ? getImageAlign(editingImage) : selection.align}
+        onSetAlign={handleSetAlign}
         isLinkActive={selection.link !== null}
         linkDisabled={linkDisabled}
         onOpenLink={openLinkPopover}
