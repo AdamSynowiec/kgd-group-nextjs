@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { looksLikeAssetPath } from "@/lib/fieldType";
 import type { Session } from "@/lib/adminApi";
 import { labelFor } from "./labels";
@@ -9,6 +10,8 @@ import { inputClass, type FieldEditorProps, type OnChange, type Path } from "./t
 const removeButtonClass =
   "rounded-md border border-zinc-200 px-2 py-1.5 text-xs text-zinc-500 hover:border-red-300 hover:text-red-600";
 const addButtonClass = "mt-2 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50";
+const bulkButtonClass =
+  "rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-100";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -16,6 +19,47 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function isScalarValue(value: unknown): value is string | number | boolean {
   return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
+/**
+ * Zaznaczenie wierszy do akcji masowych — czysto lokalny stan UI (nie
+ * zapisywany, resetuje się np. przy odświeżeniu panelu). Czyścimy je
+ * automatycznie, gdy zmieni się LICZBA wierszy (dodanie/usunięcie, masowe albo
+ * pojedyncze) — same indeksy po takiej zmianie wskazywałyby na inne wiersze,
+ * więc trzymanie starego zaznaczenia byłoby mylące. Edycja komórki nie zmienia
+ * długości `rows`, więc zaznaczenie przeżywa zwykłe wpisywanie tekstu.
+ */
+function useRowSelection(rowCount: number) {
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Wzorzec "dopasuj stan podczas renderu" z dokumentacji Reacta — zamiast
+  // useEffect (który powodowałby dodatkowy, kaskadowy render po commicie),
+  // porównanie i ewentualny setState dzieją się w trakcie tego samego renderu.
+  const [prevRowCount, setPrevRowCount] = useState(rowCount);
+  if (rowCount !== prevRowCount) {
+    setPrevRowCount(rowCount);
+    setSelected(new Set());
+  }
+
+  function toggle(index: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected((prev) =>
+      prev.size === rowCount ? new Set() : new Set(Array.from({ length: rowCount }, (_, i) => i))
+    );
+  }
+
+  function clear() {
+    setSelected(new Set());
+  }
+
+  return { selected, toggle, toggleAll, clear, isAllSelected: rowCount > 0 && selected.size === rowCount };
 }
 
 /**
@@ -56,6 +100,9 @@ export default function TableEditor({ value, path, session, onChange, meta }: Fi
 // --- Kształt 1: lista prostych wartości --------------------------------------
 
 function PrimitiveRowsTable({ rows, path, onChange }: { rows: unknown[]; path: Path; onChange: OnChange }) {
+  const { selected, toggle, toggleAll, clear, isAllSelected } = useRowSelection(rows.length);
+  const [bulkValue, setBulkValue] = useState("");
+
   function handleChange(index: number, raw: string, wasNumber: boolean) {
     const next = [...rows];
     next[index] = wasNumber ? Number(raw) || 0 : raw;
@@ -71,15 +118,78 @@ function PrimitiveRowsTable({ rows, path, onChange }: { rows: unknown[]; path: P
     onChange(path, [...rows, templateIsNumber ? 0 : ""]);
   }
 
+  function handleBulkDelete() {
+    onChange(path, rows.filter((_, i) => !selected.has(i)));
+    clear();
+  }
+
+  function handleBulkSet() {
+    const wasNumber = typeof rows[0] === "number";
+    const value: unknown = wasNumber ? Number(bulkValue) || 0 : bulkValue;
+    onChange(
+      path,
+      rows.map((cell, i) => (selected.has(i) ? value : cell))
+    );
+  }
+
   return (
     <div>
+      {selected.size > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+          <span className="font-medium text-zinc-700">Zaznaczono: {selected.size}</span>
+          <button type="button" onClick={handleBulkDelete} className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50">
+            Usuń zaznaczone
+          </button>
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={bulkValue}
+              onChange={(event) => setBulkValue(event.target.value)}
+              placeholder="Nowa wartość"
+              className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
+            />
+            <button type="button" onClick={handleBulkSet} className={bulkButtonClass}>
+              Zastosuj do zaznaczonych
+            </button>
+          </div>
+          <button type="button" onClick={clear} className="ml-auto text-xs text-zinc-500 hover:text-zinc-800">
+            Odznacz wszystko
+          </button>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-md border border-zinc-200">
         <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-zinc-50">
+              <th className="w-8 border-b border-zinc-200 px-2 py-2">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={toggleAll}
+                  aria-label="Zaznacz wszystkie wiersze"
+                />
+              </th>
+              <th className="border-b border-zinc-200 px-2 py-2" />
+              <th className="border-b border-zinc-200 px-2 py-2" />
+            </tr>
+          </thead>
           <tbody>
             {rows.map((cell, index) => {
               const wasNumber = typeof cell === "number";
               return (
-                <tr key={index} className="border-b border-zinc-100 last:border-b-0">
+                <tr
+                  key={index}
+                  className={`border-b border-zinc-100 last:border-b-0 ${selected.has(index) ? "bg-blue-50" : ""}`}
+                >
+                  <td className="px-2 py-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(index)}
+                      onChange={() => toggle(index)}
+                      aria-label={`Zaznacz wiersz ${index + 1}`}
+                    />
+                  </td>
                   <td className="px-2 py-1.5">
                     <input
                       type={wasNumber ? "number" : "text"}
@@ -222,6 +332,82 @@ function AssetListCell({
   );
 }
 
+/**
+ * Pasek akcji masowych dla ObjectRowsTable — widoczny tylko, gdy coś jest
+ * zaznaczone. Kolumny typu "assetList" (obrazki) są wykluczone z masowego
+ * ustawiania wartości — pojedyncze pole tekstowe nie ma jak sensownie
+ * zastąpić listy plików, a usuwanie wierszy nadal działa dla takich kolumn.
+ */
+function BulkToolbar({
+  selectedCount,
+  columns,
+  columnLabels,
+  columnKinds,
+  onBulkDelete,
+  onBulkSet,
+  onClear,
+}: {
+  selectedCount: number;
+  columns: string[];
+  columnLabels?: Record<string, string>;
+  columnKinds: Record<string, ColumnKind>;
+  onBulkDelete: () => void;
+  onBulkSet: (key: string, value: string) => void;
+  onClear: () => void;
+}) {
+  const editableColumns = columns.filter((key) => columnKinds[key] !== "assetList");
+  const [bulkKey, setBulkKey] = useState(editableColumns[0] ?? "");
+  const [bulkValue, setBulkValue] = useState("");
+
+  if (selectedCount === 0) return null;
+
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+      <span className="font-medium text-zinc-700">Zaznaczono: {selectedCount}</span>
+      <button
+        type="button"
+        onClick={onBulkDelete}
+        className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+      >
+        Usuń zaznaczone
+      </button>
+      {editableColumns.length > 0 && (
+        <div className="flex items-center gap-1">
+          <select
+            value={bulkKey}
+            onChange={(event) => setBulkKey(event.target.value)}
+            className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
+            aria-label="Kolumna do masowej zmiany"
+          >
+            {editableColumns.map((key) => (
+              <option key={key} value={key}>
+                {columnLabels?.[key] ?? labelFor(key)}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={bulkValue}
+            onChange={(event) => setBulkValue(event.target.value)}
+            placeholder="Nowa wartość"
+            className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
+          />
+          <button
+            type="button"
+            onClick={() => bulkKey && onBulkSet(bulkKey, bulkValue)}
+            className={bulkButtonClass}
+          >
+            Zastosuj do zaznaczonych
+          </button>
+        </div>
+      )}
+      <button type="button" onClick={onClear} className="ml-auto text-xs text-zinc-500 hover:text-zinc-800">
+        Odznacz wszystko
+      </button>
+    </div>
+  );
+}
+
 function ObjectRowsTable({
   rows,
   path,
@@ -240,6 +426,7 @@ function ObjectRowsTable({
     string,
     ColumnKind
   >;
+  const { selected, toggle, toggleAll, clear, isAllSelected } = useRowSelection(rows.length);
 
   function handleCellChange(rowIndex: number, key: string, raw: string, kind: ColumnKind) {
     onChange([...path, rowIndex, key], kind === "number" ? Number(raw) || 0 : raw);
@@ -261,12 +448,43 @@ function ObjectRowsTable({
     onChange(path, [...rows, blank]);
   }
 
+  function handleBulkDelete() {
+    onChange(path, rows.filter((_, i) => !selected.has(i)));
+    clear();
+  }
+
+  function handleBulkSet(key: string, raw: string) {
+    const kind = columnKinds[key];
+    const value: unknown = kind === "number" ? Number(raw) || 0 : raw;
+    onChange(
+      path,
+      rows.map((row, i) => (selected.has(i) ? { ...row, [key]: value } : row))
+    );
+  }
+
   return (
     <div>
+      <BulkToolbar
+        selectedCount={selected.size}
+        columns={columns}
+        columnLabels={columnLabels}
+        columnKinds={columnKinds}
+        onBulkDelete={handleBulkDelete}
+        onBulkSet={handleBulkSet}
+        onClear={clear}
+      />
       <div className="overflow-x-auto rounded-md border border-zinc-200">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="bg-zinc-50">
+              <th className="w-8 border-b border-zinc-200 px-2 py-2">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={toggleAll}
+                  aria-label="Zaznacz wszystkie wiersze"
+                />
+              </th>
               {columns.map((key) => (
                 <th
                   key={key}
@@ -280,7 +498,18 @@ function ObjectRowsTable({
           </thead>
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr key={rowIndex} className="border-b border-zinc-100 align-top last:border-b-0">
+              <tr
+                key={rowIndex}
+                className={`border-b border-zinc-100 align-top last:border-b-0 ${selected.has(rowIndex) ? "bg-blue-50" : ""}`}
+              >
+                <td className="px-2 py-1.5">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(rowIndex)}
+                    onChange={() => toggle(rowIndex)}
+                    aria-label={`Zaznacz wiersz ${rowIndex + 1}`}
+                  />
+                </td>
                 {columns.map((key) => {
                   const kind = columnKinds[key];
                   const cellValue = row[key];
