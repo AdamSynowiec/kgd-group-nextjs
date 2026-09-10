@@ -93,7 +93,21 @@ export default function EditableSurface({
     onDragEnd();
   }
 
-  function handleDragOver() {
+  /**
+   * event.preventDefault() jest tu WYMAGANE przez natywne API drag&drop —
+   * bez tego przeglądarka nigdy nie zgłasza tego miejsca jako poprawny cel
+   * upuszczenia, więc "drop" (i "dragend") nigdy się nie odpala: przeciąganie
+   * zawisa w połowie (kursor pokazuje "zakaz", strona sprawia wrażenie
+   * zablokowanej) aż coś je przerwie z zewnątrz (np. utrata fokusu okna) —
+   * to był realny mechanizm zgłoszonego "zamrażania". Dotyczy KAŻDEGO celu
+   * upuszczenia w API drag&drop, nie tylko contenteditable — błędne
+   * założenie, że contenteditable ma to "za darmo", tylko czasem maskowane
+   * przez zachowanie konkretnej przeglądarki/wersji.
+   */
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+
     dragOverCountRef.current += 1;
     if (dragOverCountRef.current % 25 === 1) {
       console.log("[rt-debug] dragover x" + dragOverCountRef.current, { t: performance.now() });
