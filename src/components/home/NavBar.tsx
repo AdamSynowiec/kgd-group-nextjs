@@ -31,7 +31,7 @@ export default function NavBar({ logo, menu, phone }: { logo: string; menu: Menu
           </a>
         </div>
 
-        <nav className="hidden xl:flex items-center space-x-8 text-white text-[16px] relative">
+        <nav className="hidden xl:flex items-center space-x-8 text-white text-[12px] md:text-[14px] relative">
           <ul className="flex space-x-4">
             {menu.map((item) => (
               <NavMenuItem key={item.label} item={item} onNavigate={() => setIsMenuOpen(false)} />

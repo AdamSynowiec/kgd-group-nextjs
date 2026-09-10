@@ -76,6 +76,19 @@ final class AdminController
 
         $merged = EditableMerge::apply($current['content'], $incoming);
 
+        // "status"/"updatedAt" to strukturalne metadane strony (jak "parent"/"template"),
+        // nie węzły {value,editable} — EditableMerge::apply() celowo je pomija (patrz
+        // komentarz w EditableMerge.php). W odróżnieniu od "parent"/"template" redaktor
+        // MUSI móc je zmieniać (draft/publikacja, widoczna data — patrz PageEditor.tsx),
+        // więc nadpisywane są wprost z incoming, gdy przyszły jako poprawne wartości —
+        // reszta struktury nietknięta przez EditableMerge jak zawsze.
+        if (in_array($incoming['status'] ?? null, ['draft', 'published'], true)) {
+            $merged['status'] = $incoming['status'];
+        }
+        if (is_string($incoming['updatedAt'] ?? null) && $incoming['updatedAt'] !== '') {
+            $merged['updatedAt'] = $incoming['updatedAt'];
+        }
+
         $this->pages->save($slug, $merged);
 
         JsonResponse::ok(['saved' => true, 'slug' => $slug]);

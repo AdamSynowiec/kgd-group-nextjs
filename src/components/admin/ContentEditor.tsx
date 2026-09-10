@@ -33,7 +33,7 @@ export default function ContentEditor({
   onBack: () => void;
   /** Rzuca na błąd (np. AdminApiError) — ContentEditor sam zamienia to na komunikat. */
   onSave: (content: Record<string, unknown>) => Promise<unknown>;
-  /** Dodatkowe kontrolki nad polami treści — nieużywane dziś, zostaje jako punkt rozszerzenia dla przyszłego wrappera. */
+  /** Dodatkowe kontrolki nad polami treści (np. status/data w PageEditor.tsx). */
   beforeFields?: ReactNode;
 }) {
   const [content, setContent] = useState(initialContent);
