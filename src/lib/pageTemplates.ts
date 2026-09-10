@@ -35,6 +35,49 @@ export const PAGE_TEMPLATES: Record<string, PageTemplate> = {
       sections: [],
     }),
   },
+  /**
+   * Strona-lista "/blog" — dokładnie jeden wiersz, adres zawsze "/blog"
+   * niezależnie od wpisanego tytułu (stąd defaultSlug ignoruje titleSlug).
+   * Jeśli już istnieje, backend odrzuci utworzenie drugiej (409, unikalny slug)
+   * — utworzenie przez ten szablon to jednorazowa czynność. Ten sam kształt
+   * treści co backend/scripts/migrate-blog-to-pages.php buduje dla /blog —
+   * dwie równoległe ścieżki do tego samego efektu (panel, bez dostępu do
+   * serwera, albo skrypt migracyjny, gdy trzeba jeszcze przenieść stare
+   * wpisy z collection_items).
+   */
+  "blog-index": {
+    key: "blog-index",
+    label: "Blog (strona główna listy)",
+    defaultSlug: () => "/blog",
+    blankContent: (title) => ({
+      slug: "/blog",
+      parent: "/",
+      template: "blog-index",
+      title: { value: title || "Blog", editable: true, label: "Tytuł", type: "string" },
+      status: "published",
+      nav: { label: title || "Blog", order: 99 },
+      seo: {
+        title: { value: "", editable: true, label: "Tytuł SEO", type: "string" },
+        description: { value: "", editable: true, label: "Opis SEO", type: "string" },
+      },
+      sections: [
+        {
+          id: "hero",
+          component: "BlogHero",
+          fields: {
+            eyebrow: { value: "Aktualności", editable: true, label: "Nadpis", type: "string" },
+            heading: { value: title || "Blog KGD Group", editable: true, label: "Nagłówek", type: "string" },
+            intro: {
+              value: "Nowości, porady i historie ze świata inwestycji KGD Group.",
+              editable: true,
+              label: "Wstęp",
+              type: "string",
+            },
+          },
+        },
+      ],
+    }),
+  },
   "blog-post": {
     key: "blog-post",
     label: "Wpis bloga",
