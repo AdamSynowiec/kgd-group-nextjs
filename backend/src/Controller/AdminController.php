@@ -9,6 +9,7 @@ use App\Exception\NotFoundException;
 use App\Http\JsonResponse;
 use App\Http\Request;
 use App\Repository\PageRepositoryInterface;
+use App\Support\Acl;
 use App\Support\EditableMerge;
 use App\Support\Slug;
 use JsonException;
@@ -30,20 +31,51 @@ final class AdminController
     {
     }
 
-    /** GET /pages — lista wszystkich stron (też szkiców) pod panel. */
-    public function listPages(): void
+    /**
+     * GET /pages — lista wszystkich stron (też szkiców) pod panel, tylko te,
+     * które $currentSession['role'] wolno CZYTAĆ (patrz Acl::canRead — rola
+     * "admin" widzi zawsze wszystko). "acl" strony jest tu potrzebne tylko do
+     * filtrowania, więc znika z odpowiedzi zanim trafi do panelu.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function listPages(?array $currentSession): void
     {
-        JsonResponse::ok($this->pages->listAll());
+        $role = $currentSession['role'] ?? null;
+
+        $pages = array_values(array_filter(
+            $this->pages->listAll(),
+            static fn (array $page): bool => Acl::canRead($page['acl'] ?? null, $role)
+        ));
+
+        $pages = array_map(static function (array $page): array {
+            unset($page['acl']);
+            return $page;
+        }, $pages);
+
+        JsonResponse::ok($pages);
     }
 
-    /** GET /page?slug=/o-nas — pełna treść jednej strony do edycji. */
-    public function getPage(Request $request): void
+    /**
+     * GET /page?slug=/o-nas — pełna treść jednej strony do edycji. 403, gdy
+     * ACL strony nie pozwala tej roli na odczyt (patrz Acl::canRead) — bez
+     * tego panel dostałby treść, której nie powinien nawet zobaczyć, a samo
+     * ukrycie jej z listy (listPages) nie wystarczy, gdy ktoś zna slug.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function getPage(Request $request, ?array $currentSession): void
     {
         $slug = $this->slugFromQuery($request);
         $page = $this->pages->findBySlug($slug);
 
         if ($page === null) {
             throw new NotFoundException("Nie znaleziono strony dla adresu: {$slug}");
+        }
+
+        $role = $currentSession['role'] ?? null;
+        if (!Acl::canRead($page['content']['acl'] ?? null, $role)) {
+            throw new ApiException('Brak uprawnień do tej strony.', 403);
         }
 
         JsonResponse::ok($page['content'], ['slug' => $page['slug'], 'updatedAt' => $page['updatedAt']]);
@@ -58,8 +90,17 @@ final class AdminController
      * (structural pola, editable:false, sam znacznik "editable") zostaje
      * dokładnie taka, jak była. Klient nie musi już nawet znać pełnej
      * struktury dokumentu ani przysyłać z powrotem "slug".
+     *
+     * ACL strony sprawdzane jest NAJPIERW, zanim EditableMerge w ogóle
+     * zobaczy treść — rola bez prawa zapisu do całej strony nie może jej
+     * zmienić, nawet gdyby pojedyncze pole miało własne acl:{permission:"write"}
+     * (strona ma pierwszeństwo). Rola z prawem zapisu do strony, ale nie do
+     * konkretnego pola, nadal przechodzi tutaj — EditableMerge::apply($role)
+     * dopiero potem odrzuca zmiany tego konkretnego pola.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function savePage(Request $request): void
+    public function savePage(Request $request, ?array $currentSession): void
     {
         $slug = $this->slugFromQuery($request);
 
@@ -74,7 +115,12 @@ final class AdminController
             throw new NotFoundException("Nie znaleziono strony dla adresu: {$slug}");
         }
 
-        $merged = EditableMerge::apply($current['content'], $incoming);
+        $role = $currentSession['role'] ?? null;
+        if (!Acl::canWrite($current['content']['acl'] ?? null, $role)) {
+            throw new ApiException('Brak uprawnień do zapisu tej strony.', 403);
+        }
+
+        $merged = EditableMerge::apply($current['content'], $incoming, $role);
 
         // "status"/"updatedAt" to strukturalne metadane strony (jak "parent"/"template"),
         // nie węzły {value,editable} — EditableMerge::apply() celowo je pomija (patrz
@@ -139,10 +185,25 @@ final class AdminController
         JsonResponse::ok($created);
     }
 
-    /** DELETE /page?slug=/blog/moj-wpis */
-    public function deletePage(Request $request): void
+    /**
+     * DELETE /page?slug=/blog/moj-wpis — usunięcie traktowane jak zapis:
+     * wymaga prawa zapisu do strony (patrz savePage).
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function deletePage(Request $request, ?array $currentSession): void
     {
         $slug = $this->slugFromQuery($request);
+
+        $current = $this->pages->findBySlug($slug);
+        if ($current === null) {
+            throw new NotFoundException("Nie znaleziono strony do usunięcia: {$slug}");
+        }
+
+        $role = $currentSession['role'] ?? null;
+        if (!Acl::canWrite($current['content']['acl'] ?? null, $role)) {
+            throw new ApiException('Brak uprawnień do usunięcia tej strony.', 403);
+        }
 
         $this->pages->delete($slug);
 

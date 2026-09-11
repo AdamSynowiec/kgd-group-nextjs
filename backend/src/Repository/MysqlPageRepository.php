@@ -65,9 +65,13 @@ final class MysqlPageRepository implements PageRepositoryInterface
 
         $pages = [];
         foreach ($statement as $row) {
+            $content = $this->decode($row['content']);
             $pages[] = [
                 ...$this->mapSummaryRow($row),
-                'status' => (string) ($this->decode($row['content'])['status'] ?? 'published'),
+                'status' => (string) ($content['status'] ?? 'published'),
+                // Tylko do filtrowania po ACL w AdminController::listPages() — kontroler
+                // usuwa ten klucz, zanim odpowiedź trafi do panelu (patrz Acl.php).
+                'acl' => $content['acl'] ?? null,
             ];
         }
 

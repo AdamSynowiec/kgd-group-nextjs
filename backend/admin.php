@@ -65,11 +65,11 @@ $uploadController = new UploadController();
 
 $router = new Router();
 $router->post('/login', static fn (Request $req) => $authController()->login($req));
-$router->get('/pages', static fn (Request $req) => $adminController()->listPages());
+$router->get('/pages', static fn (Request $req) => $adminController()->listPages($currentSession));
 $router->post('/pages', static fn (Request $req) => $adminController()->createPage($req));
-$router->get('/page', static fn (Request $req) => $adminController()->getPage($req));
-$router->post('/page', static fn (Request $req) => $adminController()->savePage($req));
-$router->delete('/page', static fn (Request $req) => $adminController()->deletePage($req));
+$router->get('/page', static fn (Request $req) => $adminController()->getPage($req, $currentSession));
+$router->post('/page', static fn (Request $req) => $adminController()->savePage($req, $currentSession));
+$router->delete('/page', static fn (Request $req) => $adminController()->deletePage($req, $currentSession));
 // Pola typu "asset" w panelu (zdjęcia/ikony) — każdy zalogowany redaktor, bez
 // wymogu roli "admin" (to edycja treści, jak savePage, nie operacja na koncie/deployu).
 $router->post('/upload', static fn (Request $req) => $uploadController->upload($req));

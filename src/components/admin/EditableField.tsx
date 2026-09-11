@@ -2,6 +2,7 @@
 
 import { hasValidType, isEditableValue, type EditableValue } from "@/lib/editable";
 import { classifyFieldType } from "@/lib/fieldType";
+import { canRead, canWrite } from "@/lib/acl";
 import type { Session } from "@/lib/adminApi";
 import { describeArrayItem, groupLabelFor, labelFor } from "./fields/labels";
 import { fieldEditors } from "./fields/registry";
@@ -51,9 +52,15 @@ function collectFields(
   path: Path,
   group: string | null,
   key: string | null,
+  role: string | null | undefined,
   columnLabelsForRows?: Record<string, string>
 ): FlatField[] {
   if (isEditableValue(node)) {
+    // Brak "acl" -> pole tylko dla roli "admin" (patrz src/lib/acl.ts). Rola bez
+    // dostępu do odczytu nie widzi pola w ogóle — tak samo jak strukturalny brak
+    // {value,editable} dziś (ta funkcja go po prostu pomija), nie "zablokowany" input.
+    if (!canRead(node.acl, role)) return [];
+
     const ownLabel = node.label && node.label.trim() !== "" ? node.label : key ? labelFor(key) : "Wartość";
     const name = key ?? path.map(String).join(".");
     return [
@@ -71,7 +78,7 @@ function collectFields(
   if (Array.isArray(node)) {
     return node.flatMap((item, index) => {
       const itemGroup = describeArrayItem(item, `Element ${index + 1}`);
-      return collectFields(item, [...path, index], itemGroup, null);
+      return collectFields(item, [...path, index], itemGroup, null, role);
     });
   }
 
@@ -88,7 +95,7 @@ function collectFields(
 
     return Object.entries(record).flatMap(([childKey, value]) => {
       if (TRANSPARENT_KEYS.has(childKey)) {
-        return collectFields(value, [...path, childKey], group, null, siblingColumnLabels);
+        return collectFields(value, [...path, childKey], group, null, role, siblingColumnLabels);
       }
 
       const isPlainObject =
@@ -96,7 +103,7 @@ function collectFields(
       const nextGroup =
         isPlainObject && group === null ? groupLabelFor(childKey, value as Record<string, unknown>) : group;
 
-      return collectFields(value, [...path, childKey], nextGroup, childKey, siblingColumnLabels);
+      return collectFields(value, [...path, childKey], nextGroup, childKey, role, siblingColumnLabels);
     });
   }
 
@@ -113,7 +120,7 @@ export default function EditableField({
   session: Session | null;
   onChange: OnChange;
 }) {
-  const fields = collectFields(node, [], null, null);
+  const fields = collectFields(node, [], null, null, session?.role);
 
   if (fields.length === 0) {
     return <p className="text-sm text-zinc-500">Ta strona nie ma pól do edycji.</p>;
@@ -153,7 +160,10 @@ function EditableControl({
   const { groupPrefix, ownLabel, name, node, path, columnLabels } = field;
   const valuePath = [...path, "value"];
 
-  if (!node.editable) {
+  // "acl" z permission:"read" (bez "write") blokuje edycję dokładnie tak samo jak
+  // editable:false — widoczne, ale zablokowane. collectFields() już odfiltrował
+  // pola bez prawa ODCZYTU w ogóle, więc tu liczy się tylko prawo ZAPISU.
+  if (!node.editable || !canWrite(node.acl, session?.role)) {
     const preview = isPlainObject(node.value) || Array.isArray(node.value) ? JSON.stringify(node.value) : String(node.value);
     return (
       <div>

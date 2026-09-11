@@ -31,10 +31,17 @@
  */
 
 import { type FieldType, isFieldType } from "./fieldType";
+import type { Acl } from "./acl";
 
 export type { FieldType };
 
-export type EditableValue<T = unknown> = { value: T; editable: boolean; label?: string; type: FieldType };
+/**
+ * "acl" (opcjonalny) — patrz src/lib/acl.ts. Brak "acl" -> pole widoczne/
+ * edytowalne wyłącznie dla roli "admin" (tak samo jak Page.acl w
+ * src/lib/content.ts). Egzekwowane w EditableField.tsx (panel) i
+ * EditableMerge.php (backend, realna granica bezpieczeństwa).
+ */
+export type EditableValue<T = unknown> = { value: T; editable: boolean; label?: string; type: FieldType; acl?: Acl };
 
 export function isEditableValue(node: unknown): node is EditableValue {
   return (

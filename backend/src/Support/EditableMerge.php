@@ -22,10 +22,21 @@ if (!defined('APP_ENTRY')) {
  */
 final class EditableMerge
 {
-    public static function apply(mixed $stored, mixed $incoming): mixed
+    /**
+     * $role — rola wołającego (patrz Acl.php), domyślnie null (= sprawdzanie ACL
+     * pominięte, tak jak przed wprowadzeniem ACL) dla wstecznej zgodności z
+     * istniejącymi wywołaniami/testami. AdminController::savePage() przekazuje
+     * tu realną rolę z sesji.
+     */
+    public static function apply(mixed $stored, mixed $incoming, ?string $role = null): mixed
     {
         if (Editable::isEditableNode($stored)) {
             if ($stored['editable'] !== true) {
+                return $stored;
+            }
+
+            // Brak "acl" na polu -> zapis tylko dla roli "admin" (patrz Acl::check).
+            if (!Acl::canWrite($stored['acl'] ?? null, $role)) {
                 return $stored;
             }
 
@@ -64,7 +75,7 @@ final class EditableMerge
 
             $result = [];
             foreach ($stored as $index => $storedItem) {
-                $result[] = self::apply($storedItem, $incoming[$index] ?? null);
+                $result[] = self::apply($storedItem, $incoming[$index] ?? null, $role);
             }
 
             return $result;
@@ -74,7 +85,7 @@ final class EditableMerge
             $result = [];
             foreach ($stored as $key => $storedValue) {
                 $incomingValue = is_array($incoming) && array_key_exists($key, $incoming) ? $incoming[$key] : null;
-                $result[$key] = self::apply($storedValue, $incomingValue);
+                $result[$key] = self::apply($storedValue, $incomingValue, $role);
             }
 
             return $result;

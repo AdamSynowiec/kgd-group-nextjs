@@ -17,8 +17,10 @@ declare(strict_types=1);
 define('APP_ENTRY', true);
 
 require __DIR__ . '/../src/Support/Editable.php';
+require __DIR__ . '/../src/Support/Acl.php';
 require __DIR__ . '/../src/Support/EditableMerge.php';
 
+use App\Support\Acl;
 use App\Support\Editable;
 use App\Support\EditableMerge;
 
@@ -182,6 +184,75 @@ check(
     'node without type falls back to legacy gettype() coercion',
     EditableMerge::apply($storedLegacy, incoming('Nowa treść'))['value'],
     'Nowa treść'
+);
+
+// --- Acl::canRead / Acl::canWrite -----------------------------------------------
+
+$aclMarketingReadWrite = ['role' => 'marketing', 'permission' => 'read/write'];
+$aclMarketingReadOnly = ['role' => 'marketing', 'permission' => 'read'];
+
+check('no acl -> denied for a non-admin role', Acl::canRead(null, 'marketing'), false);
+check('no acl -> allowed for role "admin"', Acl::canRead(null, 'admin'), true);
+check('no acl -> allowed when role is null (auth disabled)', Acl::canRead(null, null), true);
+check('acl role matches, permission "read/write" -> read allowed', Acl::canRead($aclMarketingReadWrite, 'marketing'), true);
+check('acl role matches, permission "read/write" -> write allowed', Acl::canWrite($aclMarketingReadWrite, 'marketing'), true);
+check('acl role matches, permission "read" -> write denied', Acl::canWrite($aclMarketingReadOnly, 'marketing'), false);
+check('acl role matches, permission "read" -> read allowed', Acl::canRead($aclMarketingReadOnly, 'marketing'), true);
+check('acl role does not match -> denied', Acl::canRead($aclMarketingReadWrite, 'blog'), false);
+check('admin bypasses any acl, even a mismatched role', Acl::canWrite($aclMarketingReadOnly, 'admin'), true);
+
+// --- EditableMerge::apply() is ACL-aware via the optional $role argument --------
+
+$storedNoAcl = ['value' => 'Bez ACL', 'editable' => true, 'type' => 'string'];
+check(
+    'field without acl: role=null (no $role passed) behaves exactly as before ACL existed',
+    EditableMerge::apply($storedNoAcl, incoming('Nowa treść'))['value'],
+    'Nowa treść'
+);
+check(
+    'field without acl: a real non-admin role is rejected, value stays stored',
+    EditableMerge::apply($storedNoAcl, incoming('Nowa treść'), 'marketing')['value'],
+    'Bez ACL'
+);
+check(
+    'field without acl: role "admin" is still accepted',
+    EditableMerge::apply($storedNoAcl, incoming('Nowa treść'), 'admin')['value'],
+    'Nowa treść'
+);
+
+$storedWithAcl = [
+    'value' => 'Widoczne dla marketingu',
+    'editable' => true,
+    'type' => 'string',
+    'acl' => $aclMarketingReadWrite,
+];
+check(
+    'field with acl: matching role + read/write is accepted',
+    EditableMerge::apply($storedWithAcl, incoming('Nowa treść'), 'marketing')['value'],
+    'Nowa treść'
+);
+check(
+    'field with acl: non-matching role is rejected',
+    EditableMerge::apply($storedWithAcl, incoming('Nowa treść'), 'blog')['value'],
+    'Widoczne dla marketingu'
+);
+
+$storedReadOnlyAcl = [
+    'value' => 'Tylko odczyt dla marketingu',
+    'editable' => true,
+    'type' => 'string',
+    'acl' => $aclMarketingReadOnly,
+];
+check(
+    'field with acl permission:"read" (no write): matching role is still rejected',
+    EditableMerge::apply($storedReadOnlyAcl, incoming('Nowa treść'), 'marketing')['value'],
+    'Tylko odczyt dla marketingu'
+);
+
+check(
+    '"acl" itself is preserved across a save it did not block',
+    EditableMerge::apply($storedWithAcl, incoming('Nowa treść'), 'marketing')['acl'],
+    $aclMarketingReadWrite
 );
 
 echo "\n" . (count($failures) === 0 ? "ALL PASS" : count($failures) . " FAILED: " . implode(', ', $failures)) . "\n";

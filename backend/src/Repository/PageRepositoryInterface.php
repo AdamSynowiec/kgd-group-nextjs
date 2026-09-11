@@ -23,8 +23,10 @@ interface PageRepositoryInterface
     public function listPublished(): array;
 
     /**
-     * Jak listPublished(), ale pokazuje też szkice — pod panel edycji.
-     * @return list<array{slug: string, title: string, status: string, parent: ?string, updatedAt: string, createdAt: string}>
+     * Jak listPublished(), ale pokazuje też szkice — pod panel edycji. "acl"
+     * to acl.$content (patrz Acl.php) — wyłącznie do filtrowania po roli w
+     * AdminController::listPages(), nigdy nie trafia do odpowiedzi panelu.
+     * @return list<array{slug: string, title: string, status: string, parent: ?string, updatedAt: string, createdAt: string, acl: array{role: string, permission: string}|null}>
      */
     public function listAll(): array;
 

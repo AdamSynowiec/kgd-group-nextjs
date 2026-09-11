@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { cache } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import type { Acl } from "@/lib/acl";
 
 /**
  * Warstwa dostępu do treści.
@@ -101,6 +102,8 @@ export type Page = {
   seo?: PageSeo;
   sections: PageSection[];
   related?: { mode?: "auto" | "manual"; manual?: string[] };
+  /** ACL całej strony — patrz src/lib/acl.ts. Brak -> widoczna/edytowalna tylko dla roli "admin" (panel /admin). */
+  acl?: Acl;
 };
 
 /** Lekki wpis z listy `GET /api/pages` — tyle, ile backend zwraca bez wczytywania pełnej treści. */
