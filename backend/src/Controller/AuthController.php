@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Http\JsonResponse;
 use App\Http\Request;
 use App\Http\SessionToken;
+use App\Repository\PermissionRepositoryInterface;
 use App\Repository\UserRepositoryInterface;
 use JsonException;
 
@@ -21,7 +22,8 @@ final class AuthController
 {
     public function __construct(
         private readonly UserRepositoryInterface $users,
-        private readonly SessionToken $tokens
+        private readonly SessionToken $tokens,
+        private readonly PermissionRepositoryInterface $permissions
     ) {
     }
 
@@ -53,9 +55,19 @@ final class AuthController
             'role' => $user['role'],
         ]);
 
+        // "permissions" tutaj oszczędza panelowi obowiązkowego dodatkowego
+        // zapytania (GET /me) zaraz po zalogowaniu — token i tak niesie tylko
+        // tożsamość, nie jest źródłem prawdy o uprawnieniach (patrz
+        // Authorization.php); ta lista jest jednorazowym zrzutem stanu w
+        // momencie logowania, panel odświeża ją przez GET /me po każdej
+        // zmianie ról/uprawnień, żeby nie wymagać przelogowania.
         JsonResponse::ok([
             'token' => $token,
-            'user' => ['login' => $user['login'], 'role' => $user['role']],
+            'user' => [
+                'login' => $user['login'],
+                'role' => $user['role'],
+                'permissions' => $this->permissions->effectivePermissions($user['id'], $user['role']),
+            ],
         ]);
     }
 }

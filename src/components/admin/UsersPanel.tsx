@@ -9,6 +9,8 @@ import {
   type Session,
   type UserAccount,
 } from "@/lib/adminApi";
+import { can } from "@/lib/permissions";
+import Can from "@/components/admin/Can";
 
 const inputClass =
   "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
@@ -33,7 +35,9 @@ export default function UsersPanel({
 
   return (
     <div className="space-y-6">
-      <NewUserForm roles={roles} session={session} onCreated={(user) => setUsers((prev) => [...prev, user].sort(byLogin))} />
+      <Can session={session} permission="users.create">
+        <NewUserForm roles={roles} session={session} onCreated={(user) => setUsers((prev) => [...prev, user].sort(byLogin))} />
+      </Can>
       <UserList
         users={users}
         session={session}
@@ -195,14 +199,16 @@ function UserList({
                 </div>
                 <div className="truncate text-sm text-zinc-500">utworzono: {user.createdAt}</div>
               </div>
-              <button
-                onClick={() => handleDelete(user)}
-                disabled={isSelf || pendingId === user.id}
-                title={isSelf ? "Nie możesz usunąć własnego konta." : undefined}
-                className="shrink-0 rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
-              >
-                {pendingId === user.id ? "Usuwanie..." : "Usuń"}
-              </button>
+              {can(session?.permissions, "users.delete") && (
+                <button
+                  onClick={() => handleDelete(user)}
+                  disabled={isSelf || pendingId === user.id}
+                  title={isSelf ? "Nie możesz usunąć własnego konta." : undefined}
+                  className="shrink-0 rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
+                >
+                  {pendingId === user.id ? "Usuwanie..." : "Usuń"}
+                </button>
+              )}
             </li>
           );
         })}

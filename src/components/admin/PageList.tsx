@@ -4,6 +4,8 @@ import { useState } from "react";
 import { AdminApiError, createPage, deletePage, type PageSummary, type Session } from "@/lib/adminApi";
 import { PAGE_TEMPLATES, getPageTemplate } from "@/lib/pageTemplates";
 import { slugify } from "@/lib/slugify";
+import { can } from "@/lib/permissions";
+import Can from "@/components/admin/Can";
 
 const inputClass = "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
 
@@ -27,13 +29,15 @@ export default function PageList({
 
   return (
     <div className="space-y-6">
-      <NewPageForm
-        session={session}
-        onCreated={(slug, title) => {
-          setPages((prev) => [{ slug, title, status: "draft", parent: null, updatedAt: new Date().toISOString() }, ...prev]);
-          onEdit(slug);
-        }}
-      />
+      <Can session={session} permission="pages.create">
+        <NewPageForm
+          session={session}
+          onCreated={(slug, title) => {
+            setPages((prev) => [{ slug, title, status: "draft", parent: null, updatedAt: new Date().toISOString() }, ...prev]);
+            onEdit(slug);
+          }}
+        />
+      </Can>
       <PageRows pages={pages} session={session} onEdit={onEdit} onDeleted={(slug) => setPages((prev) => prev.filter((p) => p.slug !== slug))} />
     </div>
   );
@@ -178,13 +182,15 @@ function PageRows({
               >
                 Edytuj
               </button>
-              <button
-                onClick={() => handleDelete(page)}
-                disabled={pendingSlug === page.slug}
-                className="rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
-              >
-                {pendingSlug === page.slug ? "Usuwanie..." : "Usuń"}
-              </button>
+              {can(session?.permissions, "pages.delete") && (
+                <button
+                  onClick={() => handleDelete(page)}
+                  disabled={pendingSlug === page.slug}
+                  className="rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
+                >
+                  {pendingSlug === page.slug ? "Usuwanie..." : "Usuń"}
+                </button>
+              )}
             </div>
           </li>
         ))}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import BuildButton from "@/components/admin/BuildButton";
 import { ChevronDownIcon } from "@/components/admin/icons";
+import { can } from "@/lib/permissions";
 import type { Session } from "@/lib/adminApi";
 
 export default function Topbar({
@@ -27,14 +28,11 @@ export default function Topbar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // UWAGA: brak sesji NIE zawsze znaczy "logowanie wyłączone" — to samo
-  // (session === null) daje też zwykłe "jeszcze się nie zalogowałeś na tym
-  // originie" (sesja w localStorage jest per-origin: zalogowanie na
-  // produkcji nie przenosi się na localhost i odwrotnie), niezależnie od
-  // tego, czy backend (ADMIN_AUTH_ENABLED) faktycznie wymaga logowania.
-  // Jeśli backend RZECZYWIŚCIE ma auth wyłączone, i tak nic tu nie blokuje —
-  // pokazuj wszystko tak jak backend (patrz SessionAuth::requireRole()).
-  const canBuild = session === null || session.role === "admin";
+  // session.permissions przychodzi świeże z GET /me (patrz src/app/admin/page.tsx),
+  // nie z samej roli w tokenie — nawet gdy session === null (dev:
+  // ADMIN_AUTH_ENABLED=false), /me i tak zwraca permissions:["*"], więc
+  // można tu po prostu ufać can() bez osobnego przypadku na null.
+  const canBuild = can(session?.permissions, "build.trigger");
   const displayName = session?.login || "Gość";
   const initial = displayName.charAt(0).toUpperCase();
 

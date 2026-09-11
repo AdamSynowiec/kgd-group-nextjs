@@ -7,6 +7,7 @@ import PageEditor from "@/components/admin/PageEditor";
 import AdminShell from "@/components/admin/AdminShell";
 import {
   AdminApiError,
+  fetchMe,
   fetchPage,
   fetchPages,
   loadSession,
@@ -63,7 +64,20 @@ export default function AdminPage() {
     async (currentSession: Session | null) => {
       setView({ status: "checking" });
       try {
-        const pages = await fetchPages(currentSession);
+        // /me obok /pages, nie zamiast: odświeża "permissions" (patrz
+        // src/lib/permissions.ts, Can.tsx) niezależnie od tego, czy
+        // currentSession jest null (dev: ADMIN_AUTH_ENABLED=false — backend
+        // wtedy i tak zwraca permissions:["*"], patrz PermissionsController::me())
+        // czy realnym tokenem. Bez tego każdy <Can> chowałby się w trybie
+        // deweloperskim bez logowania, bo "session === null" przestałoby
+        // samo w sobie znaczyć "pokaż wszystko" (dawny warunek w Topbar.tsx).
+        const [pages, me] = await Promise.all([fetchPages(currentSession), fetchMe(currentSession)]);
+        setSession((prev) => ({
+          token: prev?.token ?? "",
+          login: me.login ?? prev?.login ?? "",
+          role: me.role ?? prev?.role ?? "",
+          permissions: me.permissions,
+        }));
         setView({ status: "list", pages });
       } catch (error) {
         if (error instanceof AdminApiError && error.status === 401) {

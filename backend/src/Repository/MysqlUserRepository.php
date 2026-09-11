@@ -64,13 +64,6 @@ final class MysqlUserRepository implements UserRepositoryInterface
         $statement->execute(['id' => $id]);
     }
 
-    public function countAdmins(): int
-    {
-        $statement = $this->pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'");
-
-        return (int) $statement->fetchColumn();
-    }
-
     /**
      * @param array<string, mixed>|false $row
      * @return array{id: int, login: string, password: string, role: string}|null

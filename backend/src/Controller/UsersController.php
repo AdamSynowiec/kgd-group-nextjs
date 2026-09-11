@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Exception\NotFoundException;
 use App\Http\JsonResponse;
 use App\Http\Request;
+use App\Repository\PermissionRepositoryInterface;
 use App\Repository\RoleRepositoryInterface;
 use App\Repository\UserRepositoryInterface;
 use JsonException;
@@ -20,18 +21,22 @@ if (!defined('APP_ENTRY')) {
 
 /**
  * Zarządzanie kontami panelu (sekcja "Ustawienia" w /admin) — dodawanie i
- * usuwanie użytkowników. Wszystkie trasy wymagają roli "admin" (patrz
- * admin.php: SessionAuth::requireRole($session, 'admin') przed wywołaniem
- * którejkolwiek metody tego kontrolera) — sam kontroler i tak dodatkowo
- * pilnuje dwóch rzeczy, których żadna rola nie powinna móc zrobić przez
- * pomyłkę: usunięcia własnego konta i usunięcia ostatniego konta "admin"
- * (co zablokowałoby dostęp do panelu dla wszystkich).
+ * usuwanie użytkowników. Wszystkie trasy wymagają uprawnienia "users.list"/
+ * "users.create"/"users.delete" (patrz admin.php: Authorization::require()
+ * przed wywołaniem którejkolwiek metody tego kontrolera, patrz
+ * Authorization.php) — sam kontroler i tak dodatkowo pilnuje dwóch rzeczy,
+ * których żadna rola nie powinna móc zrobić przez pomyłkę: usunięcia
+ * własnego konta i usunięcia ostatniego AKTYWNEGO konta "admin" (patrz
+ * PermissionRepositoryInterface::countActiveAdmins() — konto liczy się jako
+ * "aktywne", jeśli nie ma indywidualnego "deny" na uprawnienia potrzebne do
+ * naprawienia dostępu, patrz PermissionRegistry::CRITICAL).
  */
 final class UsersController
 {
     public function __construct(
         private readonly UserRepositoryInterface $users,
-        private readonly RoleRepositoryInterface $roles
+        private readonly RoleRepositoryInterface $roles,
+        private readonly PermissionRepositoryInterface $permissions
     ) {
     }
 
@@ -103,8 +108,8 @@ final class UsersController
             throw new ApiException('Nie możesz usunąć własnego konta.', 400);
         }
 
-        if ($target['role'] === 'admin' && $this->users->countAdmins() <= 1) {
-            throw new ApiException('Nie można usunąć ostatniego konta z rolą "admin".', 400);
+        if ($target['role'] === 'admin' && $this->permissions->countActiveAdmins() <= 1) {
+            throw new ApiException('Nie można usunąć ostatniego aktywnego konta z rolą "admin".', 400);
         }
 
         $this->users->delete($id);

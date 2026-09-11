@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import EditableField from "@/components/admin/EditableField";
+import Can from "@/components/admin/Can";
 import { deepSet } from "@/lib/deepSet";
 import type { Session } from "@/lib/adminApi";
 
@@ -70,13 +71,15 @@ export default function ContentEditor({
         <EditableField node={content} session={session} onChange={handleChange} />
 
         <div className="mt-6 flex items-center gap-3 border-t border-zinc-100 pt-6">
-          <button
-            onClick={handleSave}
-            disabled={saveState === "saving"}
-            className="rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50"
-          >
-            {saveState === "saving" ? "Zapisywanie..." : "Zapisz zmiany"}
-          </button>
+          <Can session={session} permission="pages.update">
+            <button
+              onClick={handleSave}
+              disabled={saveState === "saving"}
+              className="rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50"
+            >
+              {saveState === "saving" ? "Zapisywanie..." : "Zapisz zmiany"}
+            </button>
+          </Can>
           {saveState === "success" && <span className="text-sm text-green-600">Zapisano.</span>}
           {saveState === "error" && <span className="text-sm text-red-600">{errorMessage}</span>}
         </div>

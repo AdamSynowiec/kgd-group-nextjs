@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { AdminApiError, createRole, deleteRole, type RoleAccount, type Session } from "@/lib/adminApi";
+import { can } from "@/lib/permissions";
+import Can from "@/components/admin/Can";
 
 const inputClass = "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
 
@@ -15,7 +17,9 @@ export default function RolesPanel({ initialRoles, session }: { initialRoles: Ro
 
   return (
     <div className="space-y-6">
-      <NewRoleForm session={session} onCreated={(role) => setRoles((prev) => [...prev, role].sort(byName))} />
+      <Can session={session} permission="roles.create">
+        <NewRoleForm session={session} onCreated={(role) => setRoles((prev) => [...prev, role].sort(byName))} />
+      </Can>
       <RoleList roles={roles} session={session} onDeleted={(name) => setRoles((prev) => prev.filter((role) => role.name !== name))} />
     </div>
   );
@@ -137,14 +141,16 @@ function RoleList({
                 </div>
                 <div className="truncate text-sm text-zinc-500">utworzono: {role.createdAt}</div>
               </div>
-              <button
-                onClick={() => handleDelete(role)}
-                disabled={isAdmin || pendingName === role.name}
-                title={isAdmin ? 'Roli "admin" nie można usunąć.' : undefined}
-                className="shrink-0 rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
-              >
-                {pendingName === role.name ? "Usuwanie..." : "Usuń"}
-              </button>
+              {can(session?.permissions, "roles.delete") && (
+                <button
+                  onClick={() => handleDelete(role)}
+                  disabled={isAdmin || pendingName === role.name}
+                  title={isAdmin ? 'Roli "admin" nie można usunąć.' : undefined}
+                  className="shrink-0 rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
+                >
+                  {pendingName === role.name ? "Usuwanie..." : "Usuń"}
+                </button>
+              )}
             </li>
           );
         })}

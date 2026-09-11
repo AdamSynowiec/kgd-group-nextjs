@@ -24,7 +24,4 @@ interface UserRepositoryInterface
     public function create(string $login, string $passwordHash, string $role): array;
 
     public function delete(int $id): void;
-
-    /** Liczba kont z rolą "admin" — do pilnowania, że przynajmniej jedno zawsze zostaje. */
-    public function countAdmins(): int;
 }

@@ -12,7 +12,15 @@
 
 export type PageSummary = { slug: string; title: string; status: string; parent: string | null; updatedAt: string };
 
-export type Session = { token: string; login: string; role: string };
+/**
+ * "permissions" — efektywne uprawnienia operacyjne (patrz src/lib/permissions.ts,
+ * can()/<Can>) w chwili logowania/ostatniego fetchMe(). "role" zostaje tu
+ * tylko do wyświetlenia (np. Topbar.tsx) — backend NIGDY nie ufa roli z
+ * tokenu przy autoryzacji (patrz backend/src/Support/Authorization.php),
+ * więc frontend też nie powinien jej używać do decyzji o dostępie — zawsze
+ * przez "permissions".
+ */
+export type Session = { token: string; login: string; role: string; permissions: string[] };
 
 const SESSION_KEY = "admin-session";
 
@@ -87,13 +95,27 @@ async function request<T>(
 
 /** POST /login — weryfikuje dane i wystawia token sesji. Backend jest jedynym źródłem prawdy o tym, czy dane są poprawne. */
 export async function login(loginName: string, password: string): Promise<Session> {
-  const data = await request<{ token: string; user: { login: string; role: string } }>("/login", {
+  const data = await request<{ token: string; user: { login: string; role: string; permissions: string[] } }>("/login", {
     method: "POST",
     body: { login: loginName, password },
     session: null,
   });
 
-  return { token: data.token, login: data.user.login, role: data.user.role };
+  return { token: data.token, login: data.user.login, role: data.user.role, permissions: data.user.permissions };
+}
+
+export type MeResponse = { login: string | null; role: string | null; permissions: string[] };
+
+/**
+ * GET /me — świeże login/rola/efektywne uprawnienia WŁASNEGO konta, bez
+ * przelogowania (token sam w sobie się nie odświeża — patrz Authorization.php).
+ * "login"/"role" bywają null tylko gdy uwierzytelnianie panelu jest
+ * wyłączone (ADMIN_AUTH_ENABLED=false — patrz PermissionsController::me()).
+ * Woła się po zmianach w sekcji "Uprawnienia" (PermissionsPanel.tsx), żeby
+ * zobaczyć ich efekt natychmiast, nie dopiero po 7 dniach ważności tokenu.
+ */
+export function fetchMe(session: Session | null): Promise<MeResponse> {
+  return request<MeResponse>("/me", { session });
 }
 
 export function fetchPages(session: Session | null): Promise<PageSummary[]> {
@@ -210,6 +232,60 @@ export function deleteRole(name: string, session: Session | null): Promise<{ del
   return request<{ deleted: boolean; name: string }>("/roles", {
     method: "DELETE",
     params: { name },
+    session,
+  });
+}
+
+export type RolePermissionsMap = { roles: RoleAccount[]; grants: Record<string, string[]> };
+
+/** GET /roles/permissions — mapowanie WSZYSTKICH ról naraz, pod grid w PermissionsPanel.tsx. Wymaga "roles.permissions.manage". */
+export function fetchRolePermissions(session: Session | null): Promise<RolePermissionsMap> {
+  return request<RolePermissionsMap>("/roles/permissions", { session });
+}
+
+/** POST /roles/permissions — nadpisuje CAŁY zestaw uprawnień jednej roli na raz (checkbox-grid wysyła pełny stan). Rola "admin" jest odrzucana przez backend (ma zawsze "*"). */
+export function updateRolePermissions(
+  role: string,
+  permissions: string[],
+  session: Session | null
+): Promise<{ role: string; permissions: string[] }> {
+  return request<{ role: string; permissions: string[] }>("/roles/permissions", {
+    method: "POST",
+    body: { role, permissions },
+    session,
+  });
+}
+
+export type UserPermissions = { userId: number; role: string; granted: string[]; denied: string[]; effective: string[] };
+
+/** GET /users/permissions?id= — efektywne uprawnienia jednego konta, z rozbiciem na źródło (rola / odebrane). */
+export function fetchUserPermissions(userId: number, session: Session | null): Promise<UserPermissions> {
+  return request<UserPermissions>("/users/permissions", { params: { id: String(userId) }, session });
+}
+
+/** POST /users/permissions/deny?id= — odbiera JEDNO uprawnienie temu userowi mimo jego roli. Bez odpowiednika "allow" — patrz src/lib/permissions.ts. */
+export function denyUserPermission(
+  userId: number,
+  permission: string,
+  session: Session | null
+): Promise<{ denied: boolean; userId: number; permission: string }> {
+  return request<{ denied: boolean; userId: number; permission: string }>("/users/permissions/deny", {
+    method: "POST",
+    params: { id: String(userId) },
+    body: { permission },
+    session,
+  });
+}
+
+/** DELETE /users/permissions/deny?id=&permission= — przywraca dostęp wynikający z roli (usuwa deny). */
+export function undenyUserPermission(
+  userId: number,
+  permission: string,
+  session: Session | null
+): Promise<{ restored: boolean; userId: number; permission: string }> {
+  return request<{ restored: boolean; userId: number; permission: string }>("/users/permissions/deny", {
+    method: "DELETE",
+    params: { id: String(userId), permission },
     session,
   });
 }

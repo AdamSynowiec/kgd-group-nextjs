@@ -19,7 +19,7 @@ export default function AdminShell({
 }) {
   return (
     <div className="flex min-h-full bg-zinc-50">
-      <Sidebar />
+      <Sidebar session={session} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar title={title} session={session} onLogout={onLogout} />
         <main className="flex-1 overflow-y-auto p-6">

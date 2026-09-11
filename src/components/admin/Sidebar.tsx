@@ -4,17 +4,28 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PagesIcon, SettingsIcon } from "@/components/admin/icons";
 import { useBrand } from "@/components/admin/BrandProvider";
+import { can, type Permission } from "@/lib/permissions";
+import type { Session } from "@/lib/adminApi";
 
 // Blog to zwykłe strony w `pages` (parent:"/blog") — bez osobnej zakładki,
 // widoczne na liście "Strony" jak każda inna podstrona (patrz PageList.tsx).
-const NAV_ITEMS = [
-  { label: "Strony", href: "/admin", Icon: PagesIcon },
-  { label: "Ustawienia", href: "/admin/settings", Icon: SettingsIcon },
-] as const;
+// "Strony" wymaga pages.list; "Ustawienia" pokazuje się, gdy wolno choć
+// jedno z uprawnień jej trzech sekcji (patrz src/app/admin/settings/page.tsx)
+// — samo wejście na pustą, w pełni zablokowaną stronę nie ma sensu pokazywać.
+const NAV_ITEMS: { label: string; href: string; Icon: typeof PagesIcon; anyOf: Permission[] }[] = [
+  { label: "Strony", href: "/admin", Icon: PagesIcon, anyOf: ["pages.list"] },
+  {
+    label: "Ustawienia",
+    href: "/admin/settings",
+    Icon: SettingsIcon,
+    anyOf: ["users.list", "roles.list", "roles.permissions.manage"],
+  },
+];
 
-export default function Sidebar() {
+export default function Sidebar({ session }: { session: Session | null }) {
   const brand = useBrand();
   const pathname = usePathname();
+  const items = NAV_ITEMS.filter((item) => item.anyOf.some((permission) => can(session?.permissions, permission)));
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white sm:flex">
@@ -26,7 +37,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {NAV_ITEMS.map(({ label, href, Icon }) => {
+        {items.map(({ label, href, Icon }) => {
           const active = pathname === href;
           return (
             <Link

@@ -33,16 +33,17 @@ final class AdminController
 
     /**
      * GET /pages — lista wszystkich stron (też szkiców) pod panel, tylko te,
-     * które $currentSession['role'] wolno CZYTAĆ (patrz Acl::canRead — rola
-     * "admin" widzi zawsze wszystko). "acl" strony jest tu potrzebne tylko do
-     * filtrowania, więc znika z odpowiedzi zanim trafi do panelu.
+     * które $role wolno CZYTAĆ (patrz Acl::canRead — rola "admin" widzi
+     * zawsze wszystko). "acl" strony jest tu potrzebne tylko do filtrowania,
+     * więc znika z odpowiedzi zanim trafi do panelu.
      *
-     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     * $role to ŚWIEŻA rola wołającego z bazy, zwrócona przez
+     * Authorization::require('pages.list') w admin.php — NIE surowa rola z
+     * tokenu sesji (patrz komentarz w Authorization.php o nieaktualności
+     * roli w tokenie). null tylko gdy uwierzytelnianie panelu jest wyłączone.
      */
-    public function listPages(?array $currentSession): void
+    public function listPages(?string $role): void
     {
-        $role = $currentSession['role'] ?? null;
-
         $pages = array_values(array_filter(
             $this->pages->listAll(),
             static fn (array $page): bool => Acl::canRead($page['acl'] ?? null, $role)
@@ -62,9 +63,9 @@ final class AdminController
      * tego panel dostałby treść, której nie powinien nawet zobaczyć, a samo
      * ukrycie jej z listy (listPages) nie wystarczy, gdy ktoś zna slug.
      *
-     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     * $role — patrz komentarz przy listPages().
      */
-    public function getPage(Request $request, ?array $currentSession): void
+    public function getPage(Request $request, ?string $role): void
     {
         $slug = $this->slugFromQuery($request);
         $page = $this->pages->findBySlug($slug);
@@ -73,7 +74,6 @@ final class AdminController
             throw new NotFoundException("Nie znaleziono strony dla adresu: {$slug}");
         }
 
-        $role = $currentSession['role'] ?? null;
         if (!Acl::canRead($page['content']['acl'] ?? null, $role)) {
             throw new ApiException('Brak uprawnień do tej strony.', 403);
         }
@@ -98,9 +98,9 @@ final class AdminController
      * konkretnego pola, nadal przechodzi tutaj — EditableMerge::apply($role)
      * dopiero potem odrzuca zmiany tego konkretnego pola.
      *
-     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     * $role — patrz komentarz przy listPages().
      */
-    public function savePage(Request $request, ?array $currentSession): void
+    public function savePage(Request $request, ?string $role): void
     {
         $slug = $this->slugFromQuery($request);
 
@@ -115,7 +115,6 @@ final class AdminController
             throw new NotFoundException("Nie znaleziono strony dla adresu: {$slug}");
         }
 
-        $role = $currentSession['role'] ?? null;
         $pageAcl = $current['content']['acl'] ?? null;
         if (!Acl::canWrite($pageAcl, $role)) {
             throw new ApiException('Brak uprawnień do zapisu tej strony.', 403);
@@ -158,9 +157,9 @@ final class AdminController
      * "acl" zostaje takie, jak przyszło (zwykle brak, i tak bez znaczenia
      * w tym trybie, patrz Acl::check).
      *
-     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     * $role — patrz komentarz przy listPages().
      */
-    public function createPage(Request $request, ?array $currentSession): void
+    public function createPage(Request $request, ?string $role): void
     {
         try {
             $body = $request->jsonBody();
@@ -185,7 +184,6 @@ final class AdminController
             throw new ApiException('Brak wymaganego pola "content".', 400);
         }
 
-        $role = $currentSession['role'] ?? null;
         if ($role !== null) {
             $content['acl'] = ['role' => $role, 'permission' => 'read/write'];
         }
@@ -207,9 +205,9 @@ final class AdminController
      * DELETE /page?slug=/blog/moj-wpis — usunięcie traktowane jak zapis:
      * wymaga prawa zapisu do strony (patrz savePage).
      *
-     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     * $role — patrz komentarz przy listPages().
      */
-    public function deletePage(Request $request, ?array $currentSession): void
+    public function deletePage(Request $request, ?string $role): void
     {
         $slug = $this->slugFromQuery($request);
 
@@ -218,7 +216,6 @@ final class AdminController
             throw new NotFoundException("Nie znaleziono strony do usunięcia: {$slug}");
         }
 
-        $role = $currentSession['role'] ?? null;
         if (!Acl::canWrite($current['content']['acl'] ?? null, $role)) {
             throw new ApiException('Brak uprawnień do usunięcia tej strony.', 403);
         }
