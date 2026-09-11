@@ -27,16 +27,27 @@ final class EditableMerge
      * pominięte, tak jak przed wprowadzeniem ACL) dla wstecznej zgodności z
      * istniejącymi wywołaniami/testami. AdminController::savePage() przekazuje
      * tu realną rolę z sesji.
+     *
+     * $pageAcl — "acl" CAŁEJ strony (jej najwyższy poziom, patrz Page.acl w
+     * src/lib/content.ts), używane jako DOMYŚLNE acl dla pola, które nie ma
+     * WŁASNEGO "acl". Bez tego rola z prawem zapisu do strony (np. "blog" do
+     * własnego wpisu, patrz AdminController::createPage()) nie mogłaby
+     * zmienić żadnego pojedynczego pola — każde pole bez własnego "acl"
+     * byłoby i tak zablokowane jako "tylko admin" (patrz Acl::check), mimo
+     * dostępu do całej strony. Pole z WŁASNYM "acl" nadal je nadpisuje (np.
+     * jedno pole zablokowane dla adminów na stronie poza tym współdzielonej
+     * z inną rolą) — mirror identycznej logiki w EditableField.tsx.
      */
-    public static function apply(mixed $stored, mixed $incoming, ?string $role = null): mixed
+    public static function apply(mixed $stored, mixed $incoming, ?string $role = null, mixed $pageAcl = null): mixed
     {
         if (Editable::isEditableNode($stored)) {
             if ($stored['editable'] !== true) {
                 return $stored;
             }
 
-            // Brak "acl" na polu -> zapis tylko dla roli "admin" (patrz Acl::check).
-            if (!Acl::canWrite($stored['acl'] ?? null, $role)) {
+            // Brak WŁASNEGO "acl" na polu -> dziedziczy "acl" całej strony ($pageAcl);
+            // brak obu -> tylko rola "admin" (patrz Acl::check).
+            if (!Acl::canWrite($stored['acl'] ?? $pageAcl, $role)) {
                 return $stored;
             }
 
@@ -75,7 +86,7 @@ final class EditableMerge
 
             $result = [];
             foreach ($stored as $index => $storedItem) {
-                $result[] = self::apply($storedItem, $incoming[$index] ?? null, $role);
+                $result[] = self::apply($storedItem, $incoming[$index] ?? null, $role, $pageAcl);
             }
 
             return $result;
@@ -85,7 +96,7 @@ final class EditableMerge
             $result = [];
             foreach ($stored as $key => $storedValue) {
                 $incomingValue = is_array($incoming) && array_key_exists($key, $incoming) ? $incoming[$key] : null;
-                $result[$key] = self::apply($storedValue, $incomingValue, $role);
+                $result[$key] = self::apply($storedValue, $incomingValue, $role, $pageAcl);
             }
 
             return $result;

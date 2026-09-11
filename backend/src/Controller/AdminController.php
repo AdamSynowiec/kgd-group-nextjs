@@ -116,11 +116,12 @@ final class AdminController
         }
 
         $role = $currentSession['role'] ?? null;
-        if (!Acl::canWrite($current['content']['acl'] ?? null, $role)) {
+        $pageAcl = $current['content']['acl'] ?? null;
+        if (!Acl::canWrite($pageAcl, $role)) {
             throw new ApiException('Brak uprawnień do zapisu tej strony.', 403);
         }
 
-        $merged = EditableMerge::apply($current['content'], $incoming, $role);
+        $merged = EditableMerge::apply($current['content'], $incoming, $role, $pageAcl);
 
         // "status"/"updatedAt" to strukturalne metadane strony (jak "parent"/"template"),
         // nie węzły {value,editable} — EditableMerge::apply() celowo je pomija (patrz
@@ -146,8 +147,20 @@ final class AdminController
      * z src/lib/pageTemplates.ts — backend niczego nie wymusza co do jej
      * kształtu poza tym, że to obiekt (mirror dawnego
      * CollectionAdminController::createItem()).
+     *
+     * "acl" strony jest zawsze NADPISYWANE tu, po stronie backendu, rolą
+     * TWÓRCY (nie tym, co ewentualnie przyszło w $body['content']['acl'] —
+     * klient nigdy nie decyduje o własnych uprawnieniach). Bez tego strona
+     * bez "acl" domyślnie widzi tylko rola "admin" (patrz Acl::check) — więc
+     * np. redaktor z rolą "blog" tworzący nowy wpis od razu tracił do niego
+     * dostęp. $role === null tylko gdy uwierzytelnianie jest wyłączone
+     * (ADMIN_AUTH_ENABLED=false) — wtedy nie ma czyjej roli przypisać, więc
+     * "acl" zostaje takie, jak przyszło (zwykle brak, i tak bez znaczenia
+     * w tym trybie, patrz Acl::check).
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function createPage(Request $request): void
+    public function createPage(Request $request, ?array $currentSession): void
     {
         try {
             $body = $request->jsonBody();
@@ -170,6 +183,11 @@ final class AdminController
         $content = $body['content'] ?? null;
         if (!is_array($content)) {
             throw new ApiException('Brak wymaganego pola "content".', 400);
+        }
+
+        $role = $currentSession['role'] ?? null;
+        if ($role !== null) {
+            $content['acl'] = ['role' => $role, 'permission' => 'read/write'];
         }
 
         try {

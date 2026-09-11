@@ -255,5 +255,28 @@ check(
     $aclMarketingReadWrite
 );
 
+// --- $pageAcl: a field without its OWN acl inherits the whole page's acl --------
+
+check(
+    'field without own acl, role matches $pageAcl (page-level grant): write accepted',
+    EditableMerge::apply($storedNoAcl, incoming('Nowa treść'), 'blog', $aclMarketingReadWrite)['value'],
+    'Bez ACL'
+);
+check(
+    'field without own acl, role matches $pageAcl role+permission: write accepted',
+    EditableMerge::apply($storedNoAcl, incoming('Nowa treść'), 'marketing', $aclMarketingReadWrite)['value'],
+    'Nowa treść'
+);
+check(
+    'field without own acl, $pageAcl is read-only: write still rejected even for the matching role',
+    EditableMerge::apply($storedNoAcl, incoming('Nowa treść'), 'marketing', $aclMarketingReadOnly)['value'],
+    'Bez ACL'
+);
+check(
+    'field WITH its own acl overrides $pageAcl, not just falls back to it',
+    EditableMerge::apply($storedReadOnlyAcl, incoming('Nowa treść'), 'marketing', $aclMarketingReadWrite)['value'],
+    'Tylko odczyt dla marketingu'
+);
+
 echo "\n" . (count($failures) === 0 ? "ALL PASS" : count($failures) . " FAILED: " . implode(', ', $failures)) . "\n";
 exit(count($failures) === 0 ? 0 : 1);
