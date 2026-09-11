@@ -56,6 +56,17 @@ final class PermissionRegistry
      */
     public const CRITICAL = ['users.create', 'roles.permissions.manage'];
 
+    /**
+     * Uprawnienia, których NIE DA SIĘ przypisać żadnej roli przez
+     * role_permissions (patrz PermissionsController::updateRolePermissions()) —
+     * ich wymuszanie na stałe omija cały system RBAC (SessionAuth::requireRole('admin')
+     * zamiast Authorization::require(), patrz komentarz wyżej i w admin.php).
+     * Zaznaczenie ich w gridzie ról nie miałoby więc ŻADNEGO efektu poza
+     * mylącym stanem w bazie — dlatego blokujemy to już przy zapisie, nie
+     * tylko kosmetycznie w UI (patrz PermissionsPanel.tsx).
+     */
+    public const FIXED_ADMIN_ONLY = ['build.trigger', 'build.status'];
+
     public static function isValid(string $permission): bool
     {
         return in_array($permission, self::ALL, true);
