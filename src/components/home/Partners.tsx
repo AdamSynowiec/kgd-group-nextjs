@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
-export type PartnerItem = { header: string; description: string; footer?: string; image?: string };
+export type PartnerItem = { img: string; title: string; description: string };
 export type PartnerCategory = { name: string; icon?: string; items: PartnerItem[] };
 
 export default function Partners({ eyebrow, header, text, categories }: { eyebrow: string; header: string; text: string; categories: PartnerCategory[] }) {
@@ -49,25 +49,24 @@ export default function Partners({ eyebrow, header, text, categories }: { eyebro
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-6">
           {activeItems.map((item) => (
             <motion.article
-              key={item.header}
+              key={item.title}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.2 }}
               className="flex flex-col md:flex-row border border-gray-200 bg-white overflow-hidden"
             >
-              {item.image && (
+              {item.img && (
                 <div className="relative w-full md:w-[260px] flex items-center justify-center p-6 md:p-8 border-b md:border-b-0 md:border-r border-gray-100 bg-white overflow-hidden">
-                  <div className="absolute inset-0 bg-center bg-cover scale-110 blur-xl" style={{ backgroundImage: `url(${item.image})` }} />
+                  <div className="absolute inset-0 bg-center bg-cover scale-110 blur-xl" style={{ backgroundImage: `url(${item.img})` }} />
                   <div className="absolute inset-0 bg-white/60" />
-                  <img src={item.image} alt={item.header} loading="lazy" decoding="async" className="relative z-10 max-h-[120px] md:max-h-[160px] max-w-[80%] object-contain" />
+                  <img src={item.img} alt={item.title} loading="lazy" decoding="async" className="relative z-10 max-h-[120px] md:max-h-[160px] max-w-[80%] object-contain" />
                 </div>
               )}
 
               <div className="flex-1 p-5 md:p-8">
-                <h3 className="text-base md:text-xl font-semibold text-[#1D1D1D]">{item.header}</h3>
+                <h3 className="text-base md:text-xl font-semibold text-[#1D1D1D]">{item.title}</h3>
                 <div className="w-10 h-[1px] bg-gray-300 my-3 md:my-4" />
                 <p className="text-sm text-gray-600 leading-relaxed">{item.description}</p>
-                {item.footer && <p className="text-xs text-gray-400 mt-5 md:mt-6">{item.footer}</p>}
               </div>
             </motion.article>
           ))}
