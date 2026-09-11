@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Http\GithubDispatcher;
 use App\Http\JsonResponse;
 use App\Http\Request;
+use App\Repository\ActivityLogRepositoryInterface;
 
 if (!defined('APP_ENTRY')) {
     http_response_code(403);
@@ -17,14 +18,27 @@ if (!defined('APP_ENTRY')) {
 /** Przycisk "Zbuduj stronę" w panelu — odpala GitHub Actions i pozwala śledzić status bez wychodzenia z /admin. */
 final class BuildController
 {
-    public function __construct(private readonly GithubDispatcher $dispatcher)
-    {
+    public function __construct(
+        private readonly GithubDispatcher $dispatcher,
+        private readonly ActivityLogRepositoryInterface $activity
+    ) {
     }
 
-    /** POST /build */
-    public function trigger(): void
+    /**
+     * POST /build
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function trigger(?array $currentSession): void
     {
         $dispatchedAt = $this->dispatcher->dispatch();
+
+        // Ta trasa celowo NIE przechodzi przez Authorization:: (patrz
+        // SessionAuth.php) — bezbazowa, żeby działać nawet gdy baza nie
+        // odpowiada. To jedyny log w tym kontrolerze, który więc MOŻE się nie
+        // zapisać, jeśli baza akurat faktycznie nie działa — akceptowane
+        // świadomie, log nie może być warunkiem działania przycisku
+        // odzyskiwania po awarii.
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'build.trigger');
 
         JsonResponse::ok(['triggered' => true, 'dispatchedAt' => $dispatchedAt]);
     }

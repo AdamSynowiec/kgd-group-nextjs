@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Exception\NotFoundException;
 use App\Http\JsonResponse;
 use App\Http\Request;
+use App\Repository\ActivityLogRepositoryInterface;
 use App\Repository\PermissionRepositoryInterface;
 use App\Repository\RoleRepositoryInterface;
 use App\Repository\UserRepositoryInterface;
@@ -35,7 +36,8 @@ final class PermissionsController
     public function __construct(
         private readonly UserRepositoryInterface $users,
         private readonly RoleRepositoryInterface $roles,
-        private readonly PermissionRepositoryInterface $permissions
+        private readonly PermissionRepositoryInterface $permissions,
+        private readonly ActivityLogRepositoryInterface $activity
     ) {
     }
 
@@ -45,8 +47,11 @@ final class PermissionsController
         JsonResponse::ok(['roles' => $this->roles->listAll(), 'grants' => $this->permissions->roleGrants()]);
     }
 
-    /** POST /roles/permissions, body: {"role": "editor", "permissions": ["pages.list", ...]} — nadpisuje CAŁY zestaw roli na raz. */
-    public function updateRolePermissions(Request $request): void
+    /**
+     * POST /roles/permissions, body: {"role": "editor", "permissions": ["pages.list", ...]} — nadpisuje CAŁY zestaw roli na raz.
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function updateRolePermissions(Request $request, ?array $currentSession): void
     {
         try {
             $body = $request->jsonBody();
@@ -84,6 +89,14 @@ final class PermissionsController
 
         $this->permissions->setRoleGrants($roleName, $permissions);
 
+        $this->activity->log(
+            $currentSession['userId'] ?? null,
+            $currentSession['login'] ?? null,
+            'roles.permissions.manage',
+            $roleName,
+            ['permissions' => array_values(array_unique($permissions))]
+        );
+
         JsonResponse::ok(['role' => $roleName, 'permissions' => array_values(array_unique($permissions))]);
     }
 
@@ -108,8 +121,11 @@ final class PermissionsController
         ]);
     }
 
-    /** POST /users/permissions/deny?id=5, body: {"permission": "pages.delete"} — odbiera jedno uprawnienie mimo roli. */
-    public function denyUserPermission(Request $request): void
+    /**
+     * POST /users/permissions/deny?id=5, body: {"permission": "pages.delete"} — odbiera jedno uprawnienie mimo roli.
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function denyUserPermission(Request $request, ?array $currentSession): void
     {
         $userId = $this->userIdFromQuery($request);
         $target = $this->users->findById($userId);
@@ -145,13 +161,30 @@ final class PermissionsController
 
         $this->permissions->addDeny($userId, $permission);
 
+        $this->activity->log(
+            $currentSession['userId'] ?? null,
+            $currentSession['login'] ?? null,
+            'permissions.deny',
+            $target['login'],
+            ['permission' => $permission]
+        );
+
         JsonResponse::ok(['denied' => true, 'userId' => $userId, 'permission' => $permission]);
     }
 
-    /** DELETE /users/permissions/deny?id=5&permission=pages.delete — przywraca dostęp wynikający z roli. */
-    public function undenyUserPermission(Request $request): void
+    /**
+     * DELETE /users/permissions/deny?id=5&permission=pages.delete — przywraca dostęp wynikający z roli.
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function undenyUserPermission(Request $request, ?array $currentSession): void
     {
         $userId = $this->userIdFromQuery($request);
+        $target = $this->users->findById($userId);
+
+        if ($target === null) {
+            throw new NotFoundException("Nie znaleziono konta o id {$userId}.");
+        }
+
         $permission = is_string($request->query['permission'] ?? null) ? $request->query['permission'] : '';
 
         if ($permission === '') {
@@ -159,6 +192,14 @@ final class PermissionsController
         }
 
         $this->permissions->removeDeny($userId, $permission);
+
+        $this->activity->log(
+            $currentSession['userId'] ?? null,
+            $currentSession['login'] ?? null,
+            'permissions.undeny',
+            $target['login'],
+            ['permission' => $permission]
+        );
 
         JsonResponse::ok(['restored' => true, 'userId' => $userId, 'permission' => $permission]);
     }

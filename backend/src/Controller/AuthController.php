@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Http\JsonResponse;
 use App\Http\Request;
 use App\Http\SessionToken;
+use App\Repository\ActivityLogRepositoryInterface;
 use App\Repository\PermissionRepositoryInterface;
 use App\Repository\UserRepositoryInterface;
 use JsonException;
@@ -23,7 +24,8 @@ final class AuthController
     public function __construct(
         private readonly UserRepositoryInterface $users,
         private readonly SessionToken $tokens,
-        private readonly PermissionRepositoryInterface $permissions
+        private readonly PermissionRepositoryInterface $permissions,
+        private readonly ActivityLogRepositoryInterface $activity
     ) {
     }
 
@@ -46,8 +48,14 @@ final class AuthController
         $user = $this->users->findByLogin($login);
 
         if ($user === null || !password_verify($password, $user['password'])) {
+            // "auth.login_failed" celowo loguje PRÓBOWANY login, nie hasło —
+            // przydatne do wykrycia np. prób odgadywania loginów/haseł.
+            $this->activity->log(null, $login, 'auth.login_failed');
+
             throw new ApiException('Nieprawidłowy login lub hasło.', 401);
         }
+
+        $this->activity->log($user['id'], $user['login'], 'auth.login');
 
         $token = $this->tokens->issue([
             'userId' => $user['id'],

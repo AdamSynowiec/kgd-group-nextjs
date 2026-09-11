@@ -7,6 +7,7 @@ import MyAccountPanel from "@/components/admin/MyAccountPanel";
 import UsersPanel from "@/components/admin/UsersPanel";
 import RolesPanel from "@/components/admin/RolesPanel";
 import PermissionsPanel from "@/components/admin/PermissionsPanel";
+import ActivityLogPanel from "@/components/admin/ActivityLogPanel";
 import { can } from "@/lib/permissions";
 import {
   AdminApiError,
@@ -22,19 +23,20 @@ import {
 
 /**
  * /admin/settings — jedna zakładka na kategorię ("Moje konto"/"Konta"/"Role"/
- * "Uprawnienia"), zamiast wszystkiego na raz pod sobą — każda kategoria to
- * osobne zarządzanie, łatwiej się w tym poruszać niż w jednej długiej stronie.
- * Lista dostępnych zakładek (tabs, niżej) to jedyne miejsce decydujące, co
- * się w ogóle pokazuje — "Moje konto" zawsze (to nie administracja, tylko
- * własne konto, patrz MyAccountPanel.tsx/UsersController::updateOwnAccount()),
- * reszta wg uprawnienia (users.list/roles.list/roles.permissions.manage —
- * patrz src/lib/permissions.ts). Backend jest jedynym źródłem prawdy: to
- * ukrycie zakładki jest konsekwencją brakującego uprawnienia w
- * session.permissions, nie jedynym zabezpieczeniem (patrz
- * Authorization::require() po stronie backendu).
+ * "Uprawnienia"/"Aktywność"), zamiast wszystkiego na raz pod sobą — każda
+ * kategoria to osobne zarządzanie, łatwiej się w tym poruszać niż w jednej
+ * długiej stronie. Lista dostępnych zakładek (tabs, niżej) to jedyne miejsce
+ * decydujące, co się w ogóle pokazuje — "Moje konto" zawsze (to nie
+ * administracja, tylko własne konto, patrz MyAccountPanel.tsx/
+ * UsersController::updateOwnAccount()), reszta wg uprawnienia
+ * (users.list/roles.list/roles.permissions.manage/activity.list — patrz
+ * src/lib/permissions.ts; "activity.list" domyślnie ma tylko rola "admin").
+ * Backend jest jedynym źródłem prawdy: to ukrycie zakładki jest konsekwencją
+ * brakującego uprawnienia w session.permissions, nie jedynym zabezpieczeniem
+ * (patrz Authorization::require() po stronie backendu).
  */
 
-type TabKey = "account" | "users" | "roles" | "permissions";
+type TabKey = "account" | "users" | "roles" | "permissions" | "activity";
 
 type ViewState =
   | { status: "checking" }
@@ -100,6 +102,7 @@ export default function AdminSettingsPage() {
     if (can(session?.permissions, "users.list")) list.push({ key: "users", label: "Konta" });
     if (can(session?.permissions, "roles.list")) list.push({ key: "roles", label: "Role" });
     if (can(session?.permissions, "roles.permissions.manage")) list.push({ key: "permissions", label: "Uprawnienia" });
+    if (can(session?.permissions, "activity.list")) list.push({ key: "activity", label: "Aktywność" });
     return list;
   }, [session]);
 
@@ -151,6 +154,7 @@ export default function AdminSettingsPage() {
           {activeTab === "users" && <UsersPanel initialUsers={view.users} roles={view.roles} session={session} />}
           {activeTab === "roles" && <RolesPanel initialRoles={view.roles} session={session} />}
           {activeTab === "permissions" && <PermissionsPanel users={view.users} roles={view.roles} session={session} />}
+          {activeTab === "activity" && <ActivityLogPanel session={session} />}
         </div>
       )}
 

@@ -46,6 +46,7 @@ final class PermissionRegistry
         'roles.create',
         'roles.delete',
         'roles.permissions.manage',
+        'activity.list',
     ];
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 define('APP_ENTRY', true);
 
+use App\Controller\ActivityController;
 use App\Controller\AdminController;
 use App\Controller\AuthController;
 use App\Controller\BuildController;
@@ -18,6 +19,7 @@ use App\Http\Request;
 use App\Http\Router;
 use App\Http\SessionAuth;
 use App\Http\SessionToken;
+use App\Repository\MysqlActivityLogRepository;
 use App\Repository\MysqlPageRepository;
 use App\Repository\MysqlPermissionRepository;
 use App\Repository\MysqlRoleRepository;
@@ -42,6 +44,8 @@ $request = Request::fromGlobals();
 // Wszystko inne wymaga ważnego tokenu (gdy ADMIN_AUTH_ENABLED=true).
 $currentSession = $request->path === '/login' ? null : SessionAuth::guard($config);
 
+$activityLogRepository = static fn (): MysqlActivityLogRepository => new MysqlActivityLogRepository(Connection::get($config));
+
 // Połączenie z bazą jest leniwe — otwiera się dopiero, gdy faktycznie
 // obsługujemy trasę, która go potrzebuje. Weryfikacja tokenu (SessionAuth::guard()
 // powyżej) NIE dotyka bazy, więc "Zbuduj stronę" działa nawet, gdy baza akurat
@@ -51,7 +55,7 @@ $currentSession = $request->path === '/login' ? null : SessionAuth::guard($confi
 // SessionAuth::requireRole() zamiast $authorization niżej — patrz jego
 // komentarz i backend/src/Support/PermissionRegistry.php.
 $adminController = static fn (): AdminController =>
-    new AdminController(new MysqlPageRepository(Connection::get($config)));
+    new AdminController(new MysqlPageRepository(Connection::get($config)), $activityLogRepository());
 
 $roleRepository = static fn (): MysqlRoleRepository => new MysqlRoleRepository(Connection::get($config));
 $permissionRepository = static fn (): MysqlPermissionRepository => new MysqlPermissionRepository(Connection::get($config));
@@ -60,7 +64,8 @@ $userRepository = static fn (): MysqlUserRepository => new MysqlUserRepository(C
 $authController = static fn (): AuthController => new AuthController(
     $userRepository(),
     new SessionToken($config->get('SESSION_SECRET')),
-    $permissionRepository()
+    $permissionRepository(),
+    $activityLogRepository()
 );
 
 // JEDYNA bramka operacyjnych uprawnień (poza /build, patrz wyżej) — patrz
@@ -70,22 +75,27 @@ $authController = static fn (): AuthController => new AuthController(
 $authorization = static fn (): Authorization => new Authorization($userRepository(), $permissionRepository());
 
 $usersController = static fn (): UsersController =>
-    new UsersController($userRepository(), $roleRepository(), $permissionRepository());
+    new UsersController($userRepository(), $roleRepository(), $permissionRepository(), $activityLogRepository());
 
-$rolesController = static fn (): RolesController => new RolesController($roleRepository());
+$rolesController = static fn (): RolesController => new RolesController($roleRepository(), $activityLogRepository());
 
 $permissionsController = static fn (): PermissionsController =>
-    new PermissionsController($userRepository(), $roleRepository(), $permissionRepository());
+    new PermissionsController($userRepository(), $roleRepository(), $permissionRepository(), $activityLogRepository());
 
-$buildController = new BuildController(new GithubDispatcher(
-    $config->get('GITHUB_TOKEN'),
-    $config->get('GITHUB_OWNER'),
-    $config->get('GITHUB_REPO'),
-    $config->get('GITHUB_WORKFLOW', 'deploy.yml'),
-    $config->get('GITHUB_REF', 'main')
-));
+$buildController = new BuildController(
+    new GithubDispatcher(
+        $config->get('GITHUB_TOKEN'),
+        $config->get('GITHUB_OWNER'),
+        $config->get('GITHUB_REPO'),
+        $config->get('GITHUB_WORKFLOW', 'deploy.yml'),
+        $config->get('GITHUB_REF', 'main')
+    ),
+    $activityLogRepository()
+);
 
-$uploadController = new UploadController();
+$uploadController = new UploadController($activityLogRepository());
+
+$activityController = static fn (): ActivityController => new ActivityController($activityLogRepository());
 
 $router = new Router();
 $router->post('/login', static fn (Request $req) => $authController()->login($req));
@@ -100,7 +110,7 @@ $router->get('/pages', static function (Request $req) use ($adminController, $au
 });
 $router->post('/pages', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.create');
-    $adminController()->createPage($req, $role);
+    $adminController()->createPage($req, $role, $currentSession);
 });
 $router->get('/page', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.read');
@@ -108,23 +118,23 @@ $router->get('/page', static function (Request $req) use ($adminController, $aut
 });
 $router->post('/page', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.update');
-    $adminController()->savePage($req, $role);
+    $adminController()->savePage($req, $role, $currentSession);
 });
 $router->delete('/page', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.delete');
-    $adminController()->deletePage($req, $role);
+    $adminController()->deletePage($req, $role, $currentSession);
 });
 
 $router->post('/upload', static function (Request $req) use ($uploadController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'assets.upload');
-    $uploadController->upload($req);
+    $uploadController->upload($req, $currentSession);
 });
 
 // /build, /build/status — patrz komentarz przy $adminController wyżej: na
 // stałe poza $authorization, wymagają wprost roli "admin" bez dotykania bazy.
 $router->post('/build', static function (Request $req) use ($buildController, $currentSession) {
     SessionAuth::requireRole($currentSession, 'admin');
-    $buildController->trigger();
+    $buildController->trigger($currentSession);
 });
 $router->get('/build/status', static function (Request $req) use ($buildController, $currentSession) {
     SessionAuth::requireRole($currentSession, 'admin');
@@ -138,7 +148,7 @@ $router->get('/users', static function (Request $req) use ($usersController, $au
 });
 $router->post('/users', static function (Request $req) use ($usersController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'users.create');
-    $usersController()->createUser($req);
+    $usersController()->createUser($req, $currentSession);
 });
 $router->delete('/users', static function (Request $req) use ($usersController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'users.delete');
@@ -159,11 +169,11 @@ $router->get('/roles', static function (Request $req) use ($rolesController, $au
 });
 $router->post('/roles', static function (Request $req) use ($rolesController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'roles.create');
-    $rolesController()->createRole($req);
+    $rolesController()->createRole($req, $currentSession);
 });
 $router->delete('/roles', static function (Request $req) use ($rolesController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'roles.delete');
-    $rolesController()->deleteRole($req);
+    $rolesController()->deleteRole($req, $currentSession);
 });
 
 // Zarządzanie uprawnieniami ("Ustawienia" w panelu, obok kont i ról) — patrz
@@ -177,7 +187,7 @@ $router->get('/roles/permissions', static function (Request $req) use ($permissi
 });
 $router->post('/roles/permissions', static function (Request $req) use ($permissionsController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'roles.permissions.manage');
-    $permissionsController()->updateRolePermissions($req);
+    $permissionsController()->updateRolePermissions($req, $currentSession);
 });
 $router->get('/users/permissions', static function (Request $req) use ($permissionsController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'roles.permissions.manage');
@@ -185,11 +195,11 @@ $router->get('/users/permissions', static function (Request $req) use ($permissi
 });
 $router->post('/users/permissions/deny', static function (Request $req) use ($permissionsController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'roles.permissions.manage');
-    $permissionsController()->denyUserPermission($req);
+    $permissionsController()->denyUserPermission($req, $currentSession);
 });
 $router->delete('/users/permissions/deny', static function (Request $req) use ($permissionsController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'roles.permissions.manage');
-    $permissionsController()->undenyUserPermission($req);
+    $permissionsController()->undenyUserPermission($req, $currentSession);
 });
 
 // GET /me — świeże dane WŁASNEGO konta wołającego (login/rola/efektywne
@@ -197,5 +207,14 @@ $router->delete('/users/permissions/deny', static function (Request $req) use ($
 // zalogowany odczytuje tylko siebie. Woła panel po zalogowaniu i po każdej
 // zmianie w sekcji Uprawnienia, żeby zobaczyć efekt bez przelogowania.
 $router->get('/me', static fn (Request $req) => $permissionsController()->me($req, $currentSession));
+
+// Historia aktywności ("Aktywność" w Ustawieniach) — patrz ActivityController.php
+// i db/013_create_activity_log.sql. "activity.list" nie jest nadane
+// "editor"/"blog" w seedzie (db/011) — domyślnie widzi to tylko rola
+// "admin" (przez wildcard '*'), tym samym mechanizmem RBAC co reszta panelu.
+$router->get('/activity', static function (Request $req) use ($activityController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'activity.list');
+    $activityController()->list($req);
+});
 
 $router->dispatch($request);

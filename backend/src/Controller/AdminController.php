@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Exception\NotFoundException;
 use App\Http\JsonResponse;
 use App\Http\Request;
+use App\Repository\ActivityLogRepositoryInterface;
 use App\Repository\PageRepositoryInterface;
 use App\Support\Acl;
 use App\Support\EditableMerge;
@@ -27,8 +28,10 @@ if (!defined('APP_ENTRY')) {
  */
 final class AdminController
 {
-    public function __construct(private readonly PageRepositoryInterface $pages)
-    {
+    public function __construct(
+        private readonly PageRepositoryInterface $pages,
+        private readonly ActivityLogRepositoryInterface $activity
+    ) {
     }
 
     /**
@@ -98,9 +101,15 @@ final class AdminController
      * konkretnego pola, nadal przechodzi tutaj — EditableMerge::apply($role)
      * dopiero potem odrzuca zmiany tego konkretnego pola.
      *
-     * $role — patrz komentarz przy listPages().
+     * $role — patrz komentarz przy listPages(). $currentSession — surowa
+     * sesja z tokenu, WYŁĄCZNIE do zapisu do historii aktywności (patrz
+     * ActivityLogRepositoryInterface) — userId/login z tokenu nie stają się
+     * nieaktualne między logowaniami tak jak rola, więc nie trzeba ich
+     * dociągać świeżo z bazy jak $role.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function savePage(Request $request, ?string $role): void
+    public function savePage(Request $request, ?string $role, ?array $currentSession): void
     {
         $slug = $this->slugFromQuery($request);
 
@@ -137,6 +146,8 @@ final class AdminController
 
         $this->pages->save($slug, $merged);
 
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.update', $slug);
+
         JsonResponse::ok(['saved' => true, 'slug' => $slug]);
     }
 
@@ -157,9 +168,12 @@ final class AdminController
      * "acl" zostaje takie, jak przyszło (zwykle brak, i tak bez znaczenia
      * w tym trybie, patrz Acl::check).
      *
-     * $role — patrz komentarz przy listPages().
+     * $role — patrz komentarz przy listPages(). $currentSession — patrz
+     * komentarz przy savePage().
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function createPage(Request $request, ?string $role): void
+    public function createPage(Request $request, ?string $role, ?array $currentSession): void
     {
         try {
             $body = $request->jsonBody();
@@ -198,6 +212,8 @@ final class AdminController
             throw $exception;
         }
 
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.create', $slug);
+
         JsonResponse::ok($created);
     }
 
@@ -205,9 +221,12 @@ final class AdminController
      * DELETE /page?slug=/blog/moj-wpis — usunięcie traktowane jak zapis:
      * wymaga prawa zapisu do strony (patrz savePage).
      *
-     * $role — patrz komentarz przy listPages().
+     * $role — patrz komentarz przy listPages(). $currentSession — patrz
+     * komentarz przy savePage().
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function deletePage(Request $request, ?string $role): void
+    public function deletePage(Request $request, ?string $role, ?array $currentSession): void
     {
         $slug = $this->slugFromQuery($request);
 
@@ -221,6 +240,8 @@ final class AdminController
         }
 
         $this->pages->delete($slug);
+
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.delete', $slug);
 
         JsonResponse::ok(['deleted' => true, 'slug' => $slug]);
     }

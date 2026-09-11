@@ -30,6 +30,7 @@ export const PERMISSIONS = [
   "roles.create",
   "roles.delete",
   "roles.permissions.manage",
+  "activity.list",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

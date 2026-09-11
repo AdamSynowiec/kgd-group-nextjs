@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Exception\NotFoundException;
 use App\Http\JsonResponse;
 use App\Http\Request;
+use App\Repository\ActivityLogRepositoryInterface;
 use App\Repository\PermissionRepositoryInterface;
 use App\Repository\RoleRepositoryInterface;
 use App\Repository\UserRepositoryInterface;
@@ -39,7 +40,8 @@ final class UsersController
     public function __construct(
         private readonly UserRepositoryInterface $users,
         private readonly RoleRepositoryInterface $roles,
-        private readonly PermissionRepositoryInterface $permissions
+        private readonly PermissionRepositoryInterface $permissions,
+        private readonly ActivityLogRepositoryInterface $activity
     ) {
     }
 
@@ -49,8 +51,11 @@ final class UsersController
         JsonResponse::ok($this->users->listAll());
     }
 
-    /** POST /users, body: {"login": "...", "password": "...", "role": "<nazwa techniczna roli z tabeli roles>"} */
-    public function createUser(Request $request): void
+    /**
+     * POST /users, body: {"login": "...", "password": "...", "role": "<nazwa techniczna roli z tabeli roles>"}
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function createUser(Request $request, ?array $currentSession): void
     {
         try {
             $body = $request->jsonBody();
@@ -87,6 +92,8 @@ final class UsersController
             throw $exception;
         }
 
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'users.create', $login, ['role' => $role]);
+
         JsonResponse::ok($user);
     }
 
@@ -116,6 +123,8 @@ final class UsersController
         }
 
         $this->users->delete($id);
+
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'users.delete', $target['login']);
 
         JsonResponse::ok(['deleted' => true, 'id' => $id]);
     }
@@ -199,6 +208,12 @@ final class UsersController
         }
 
         $updated = $this->users->findById($user['id']);
+
+        // "details" niesie TYLKO fakt zmiany (bool), nigdy nowe hasło ani jego hash — patrz db/013_create_activity_log.sql.
+        $this->activity->log($user['id'], $user['login'], 'account.update', $email, [
+            'emailChanged' => $email !== null,
+            'passwordChanged' => $newPassword !== null,
+        ]);
 
         JsonResponse::ok(['login' => $updated['login'], 'email' => $updated['email'], 'role' => $updated['role']]);
     }

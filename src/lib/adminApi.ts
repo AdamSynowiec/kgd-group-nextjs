@@ -307,3 +307,30 @@ export function undenyUserPermission(
     session,
   });
 }
+
+export type ActivityEntry = {
+  id: number;
+  userId: number | null;
+  login: string | null;
+  action: string;
+  target: string | null;
+  details: Record<string, unknown> | null;
+  ipAddress: string | null;
+  createdAt: string;
+};
+
+/**
+ * GET /activity?limit=&offset= — historia aktywności kont, najnowsze
+ * najpierw. Wymaga uprawnienia "activity.list" — domyślnie tylko rola
+ * "admin" (patrz db/011/db/013, backend/src/Support/PermissionRegistry.php).
+ */
+export function fetchActivity(
+  limit: number,
+  offset: number,
+  session: Session | null
+): Promise<{ items: ActivityEntry[]; total: number }> {
+  return request<{ items: ActivityEntry[]; total: number }>("/activity", {
+    params: { limit: String(limit), offset: String(offset) },
+    session,
+  });
+}

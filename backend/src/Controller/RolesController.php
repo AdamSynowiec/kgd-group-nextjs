@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Exception\NotFoundException;
 use App\Http\JsonResponse;
 use App\Http\Request;
+use App\Repository\ActivityLogRepositoryInterface;
 use App\Repository\RoleRepositoryInterface;
 use JsonException;
 use PDOException;
@@ -21,17 +22,19 @@ if (!defined('APP_ENTRY')) {
  * Zarządzanie rolami (sekcja "Ustawienia" w /admin, obok kont — patrz
  * UsersController.php) — role dostępne do przypisania kontom (users.role,
  * patrz UsersController::createUser()) i do ACL stron/pól (acl.role, patrz
- * Acl.php). Wszystkie trasy wymagają roli "admin" (patrz admin.php:
- * SessionAuth::requireRole($session, 'admin') przed wywołaniem którejkolwiek
- * metody tego kontrolera).
+ * Acl.php). Wszystkie trasy wymagają uprawnienia "roles.list"/"roles.create"/
+ * "roles.delete" (patrz admin.php: Authorization::require() przed
+ * wywołaniem którejkolwiek metody tego kontrolera, patrz Authorization.php).
  */
 final class RolesController
 {
     /** Nazwa techniczna: małe litery/cyfry/-/_ , zaczyna się od litery, 2-50 znaków. */
     private const NAME_PATTERN = '/^[a-z][a-z0-9_-]{1,49}$/';
 
-    public function __construct(private readonly RoleRepositoryInterface $roles)
-    {
+    public function __construct(
+        private readonly RoleRepositoryInterface $roles,
+        private readonly ActivityLogRepositoryInterface $activity
+    ) {
     }
 
     /** GET /roles — lista ról pod panel ustawień i pod selektor roli w formularzu nowego konta. */
@@ -48,8 +51,10 @@ final class RolesController
      * users.role. Celowo NIGDY się nie zmienia po utworzeniu — nie ma
      * endpointu do jej edycji, tylko do utworzenia i usunięcia roli; "label"
      * to wyłącznie czytelny podpis w panelu.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function createRole(Request $request): void
+    public function createRole(Request $request, ?array $currentSession): void
     {
         try {
             $body = $request->jsonBody();
@@ -81,11 +86,16 @@ final class RolesController
             throw $exception;
         }
 
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'roles.create', $name, ['label' => $label]);
+
         JsonResponse::ok($role);
     }
 
-    /** DELETE /roles?name=marketing */
-    public function deleteRole(Request $request): void
+    /**
+     * DELETE /roles?name=marketing
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function deleteRole(Request $request, ?array $currentSession): void
     {
         $name = is_string($request->query['name'] ?? null) ? $request->query['name'] : '';
 
@@ -112,6 +122,8 @@ final class RolesController
         }
 
         $this->roles->delete($name);
+
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'roles.delete', $name);
 
         JsonResponse::ok(['deleted' => true, 'name' => $name]);
     }

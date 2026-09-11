@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\Exception\ApiException;
 use App\Http\JsonResponse;
 use App\Http\Request;
+use App\Repository\ActivityLogRepositoryInterface;
 
 if (!defined('APP_ENTRY')) {
     http_response_code(403);
@@ -43,7 +44,12 @@ final class UploadController
         'svg' => null,
     ];
 
-    public function upload(Request $request): void
+    public function __construct(private readonly ActivityLogRepositoryInterface $activity)
+    {
+    }
+
+    /** @param array{userId: int, login: string, role: string, exp: int}|null $currentSession */
+    public function upload(Request $request, ?array $currentSession): void
     {
         $file = $request->files['file'] ?? null;
 
@@ -93,6 +99,14 @@ final class UploadController
         if (!move_uploaded_file($file['tmp_name'], $destination)) {
             throw new ApiException('Nie udało się zapisać pliku na serwerze.', 500);
         }
+
+        $this->activity->log(
+            $currentSession['userId'] ?? null,
+            $currentSession['login'] ?? null,
+            'assets.upload',
+            $filename,
+            ['originalName' => (string) $file['name'], 'size' => (int) $file['size']]
+        );
 
         JsonResponse::ok(['url' => '/api/uploads/' . $filename]);
     }
