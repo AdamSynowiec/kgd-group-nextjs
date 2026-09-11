@@ -4,7 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import UsersPanel from "@/components/admin/UsersPanel";
-import { AdminApiError, fetchUsers, loadSession, storeSession, type Session, type UserAccount } from "@/lib/adminApi";
+import RolesPanel from "@/components/admin/RolesPanel";
+import {
+  AdminApiError,
+  fetchRoles,
+  fetchUsers,
+  loadSession,
+  storeSession,
+  type RoleAccount,
+  type Session,
+  type UserAccount,
+} from "@/lib/adminApi";
 
 /**
  * /admin/settings — na razie tylko zarządzanie kontami panelu. Backend jest
@@ -17,7 +27,7 @@ import { AdminApiError, fetchUsers, loadSession, storeSession, type Session, typ
 type ViewState =
   | { status: "checking" }
   | { status: "forbidden" }
-  | { status: "ready"; users: UserAccount[] }
+  | { status: "ready"; users: UserAccount[]; roles: RoleAccount[] }
   | { status: "error"; message: string };
 
 export default function AdminSettingsPage() {
@@ -35,8 +45,8 @@ export default function AdminSettingsPage() {
     async (currentSession: Session | null) => {
       setView({ status: "checking" });
       try {
-        const users = await fetchUsers(currentSession);
-        setView({ status: "ready", users });
+        const [users, roles] = await Promise.all([fetchUsers(currentSession), fetchRoles(currentSession)]);
+        setView({ status: "ready", users, roles });
       } catch (error) {
         if (error instanceof AdminApiError && error.status === 401) {
           goToLogin();
@@ -68,7 +78,18 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
-      {view.status === "ready" && <UsersPanel initialUsers={view.users} session={session} />}
+      {view.status === "ready" && (
+        <div className="space-y-10">
+          <section>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Konta</h2>
+            <UsersPanel initialUsers={view.users} roles={view.roles} session={session} />
+          </section>
+          <section>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Role</h2>
+            <RolesPanel initialRoles={view.roles} session={session} />
+          </section>
+        </div>
+      )}
 
       {view.status === "error" && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">

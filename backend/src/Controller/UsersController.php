@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Exception\NotFoundException;
 use App\Http\JsonResponse;
 use App\Http\Request;
+use App\Repository\RoleRepositoryInterface;
 use App\Repository\UserRepositoryInterface;
 use JsonException;
 use PDOException;
@@ -28,8 +29,10 @@ if (!defined('APP_ENTRY')) {
  */
 final class UsersController
 {
-    public function __construct(private readonly UserRepositoryInterface $users)
-    {
+    public function __construct(
+        private readonly UserRepositoryInterface $users,
+        private readonly RoleRepositoryInterface $roles
+    ) {
     }
 
     /** GET /users — lista kont (bez hasła) pod panel ustawień. */
@@ -38,7 +41,7 @@ final class UsersController
         JsonResponse::ok($this->users->listAll());
     }
 
-    /** POST /users, body: {"login": "...", "password": "...", "role": "admin"|"editor"} */
+    /** POST /users, body: {"login": "...", "password": "...", "role": "<nazwa techniczna roli z tabeli roles>"} */
     public function createUser(Request $request): void
     {
         try {
@@ -49,7 +52,7 @@ final class UsersController
 
         $login = is_string($body['login'] ?? null) ? trim($body['login']) : '';
         $password = $body['password'] ?? null;
-        $role = $body['role'] ?? 'editor';
+        $role = is_string($body['role'] ?? null) ? $body['role'] : '';
 
         if ($login === '') {
             throw new ApiException('Podaj login.', 400);
@@ -59,8 +62,11 @@ final class UsersController
             throw new ApiException('Hasło musi mieć co najmniej 8 znaków.', 400);
         }
 
-        if (!in_array($role, ['admin', 'editor'], true)) {
-            throw new ApiException('Rola musi być "admin" albo "editor".', 400);
+        // Role są teraz dynamiczne (patrz db/010_create_roles_table.sql,
+        // RolesController) — zamiast zaszytej listy ["admin", "editor"]
+        // sprawdzamy, że rola realnie istnieje w tabeli `roles`.
+        if (!$this->roles->exists($role)) {
+            throw new ApiException('Nieznana rola — najpierw utwórz ją w sekcji "Role".', 400);
         }
 
         try {

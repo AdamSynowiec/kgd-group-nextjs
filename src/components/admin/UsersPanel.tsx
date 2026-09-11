@@ -5,6 +5,7 @@ import {
   AdminApiError,
   createUser,
   deleteUser,
+  type RoleAccount,
   type Session,
   type UserAccount,
 } from "@/lib/adminApi";
@@ -20,16 +21,19 @@ const inputClass =
  */
 export default function UsersPanel({
   initialUsers,
+  roles,
   session,
 }: {
   initialUsers: UserAccount[];
+  /** Patrz RolesPanel.tsx — role tworzone/usuwane w osobnej sekcji "Role", tu tylko wybór dla nowego konta. */
+  roles: RoleAccount[];
   session: Session | null;
 }) {
   const [users, setUsers] = useState(initialUsers);
 
   return (
     <div className="space-y-6">
-      <NewUserForm session={session} onCreated={(user) => setUsers((prev) => [...prev, user].sort(byLogin))} />
+      <NewUserForm roles={roles} session={session} onCreated={(user) => setUsers((prev) => [...prev, user].sort(byLogin))} />
       <UserList
         users={users}
         session={session}
@@ -44,15 +48,17 @@ function byLogin(a: UserAccount, b: UserAccount): number {
 }
 
 function NewUserForm({
+  roles,
   session,
   onCreated,
 }: {
+  roles: RoleAccount[];
   session: Session | null;
   onCreated: (user: UserAccount) => void;
 }) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("editor");
+  const [role, setRole] = useState(() => roles.find((r) => r.name === "editor")?.name ?? roles[0]?.name ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -65,7 +71,6 @@ function NewUserForm({
       onCreated({ ...created, createdAt: new Date().toISOString() });
       setLogin("");
       setPassword("");
-      setRole("editor");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Nieznany błąd.");
     } finally {
@@ -110,15 +115,19 @@ function NewUserForm({
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">Rola</label>
           <select value={role} onChange={(event) => setRole(event.target.value)} disabled={submitting} className={inputClass}>
-            <option value="editor">Edytor — treść stron</option>
-            <option value="admin">Admin — treść + build + konta</option>
+            {roles.length === 0 && <option value="">Brak ról — dodaj jedną w sekcji &quot;Role&quot;</option>}
+            {roles.map((r) => (
+              <option key={r.name} value={r.name}>
+                {r.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
       <button
         type="submit"
-        disabled={submitting || login.trim() === "" || password === ""}
+        disabled={submitting || login.trim() === "" || password === "" || role === ""}
         className="rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50"
       >
         {submitting ? "Dodawanie..." : "Dodaj konto"}

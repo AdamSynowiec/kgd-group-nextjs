@@ -7,6 +7,7 @@ define('APP_ENTRY', true);
 use App\Controller\AdminController;
 use App\Controller\AuthController;
 use App\Controller\BuildController;
+use App\Controller\RolesController;
 use App\Controller\UploadController;
 use App\Controller\UsersController;
 use App\Database\Connection;
@@ -17,6 +18,7 @@ use App\Http\Router;
 use App\Http\SessionAuth;
 use App\Http\SessionToken;
 use App\Repository\MysqlPageRepository;
+use App\Repository\MysqlRoleRepository;
 use App\Repository\MysqlUserRepository;
 
 /**
@@ -50,8 +52,12 @@ $authController = static fn (): AuthController => new AuthController(
     new SessionToken($config->get('SESSION_SECRET'))
 );
 
+$roleRepository = static fn (): MysqlRoleRepository => new MysqlRoleRepository(Connection::get($config));
+
 $usersController = static fn (): UsersController =>
-    new UsersController(new MysqlUserRepository(Connection::get($config)));
+    new UsersController(new MysqlUserRepository(Connection::get($config)), $roleRepository());
+
+$rolesController = static fn (): RolesController => new RolesController($roleRepository());
 
 $buildController = new BuildController(new GithubDispatcher(
     $config->get('GITHUB_TOKEN'),
@@ -98,6 +104,22 @@ $router->post('/users', static function (Request $req) use ($usersController, $c
 $router->delete('/users', static function (Request $req) use ($usersController, $currentSession) {
     SessionAuth::requireRole($currentSession, 'admin');
     $usersController()->deleteUser($req, $currentSession);
+});
+
+// Zarządzanie rolami ("Ustawienia" w panelu, obok kont) — tylko rola "admin",
+// z tych samych powodów co "/users": role decydują o dostępie do całego panelu
+// (users.role) i do treści (acl.role), nie o pojedynczej stronie.
+$router->get('/roles', static function (Request $req) use ($rolesController, $currentSession) {
+    SessionAuth::requireRole($currentSession, 'admin');
+    $rolesController()->listRoles();
+});
+$router->post('/roles', static function (Request $req) use ($rolesController, $currentSession) {
+    SessionAuth::requireRole($currentSession, 'admin');
+    $rolesController()->createRole($req);
+});
+$router->delete('/roles', static function (Request $req) use ($rolesController, $currentSession) {
+    SessionAuth::requireRole($currentSession, 'admin');
+    $rolesController()->deleteRole($req);
 });
 
 $router->dispatch($request);

@@ -190,3 +190,26 @@ export function deleteUser(id: number, session: Session | null): Promise<{ delet
     session,
   });
 }
+
+export type RoleAccount = { name: string; label: string; createdAt: string };
+
+/** GET /roles — tylko rola "admin" (patrz RolesController.php). Role dostępne do przypisania kontom i do ACL (src/lib/acl.ts). */
+export function fetchRoles(session: Session | null): Promise<RoleAccount[]> {
+  return request<RoleAccount[]>("/roles", { session });
+}
+
+/** "name" (nazwa techniczna) jest niezmienna po utworzeniu — brak endpointu do jej edycji, patrz RolesController::createRole(). */
+export function createRole(
+  input: { name: string; label: string },
+  session: Session | null
+): Promise<{ name: string; label: string }> {
+  return request<{ name: string; label: string }>("/roles", { method: "POST", body: input, session });
+}
+
+export function deleteRole(name: string, session: Session | null): Promise<{ deleted: boolean; name: string }> {
+  return request<{ deleted: boolean; name: string }>("/roles", {
+    method: "DELETE",
+    params: { name },
+    session,
+  });
+}
