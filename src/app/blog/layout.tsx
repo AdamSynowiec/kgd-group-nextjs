@@ -6,6 +6,7 @@ import { homeFontVariables } from "@/lib/fonts";
 import NavBar from "@/components/home/NavBar";
 import Contact from "@/components/shared/Contact";
 import Footer from "@/components/shared/Footer";
+import CallToUs from "@/components/shared/CallToUs";
 import type { MenuItem } from "@/components/home/NavMenuItem";
 
 /**
@@ -24,6 +25,7 @@ export default async function BlogLayout({ children }: { children: ReactNode }) 
   const homeSection = homePage.sections.find((section) => section.component === "HomePage");
   const contactSection = homePage.sections.find((section) => section.component === "Contact");
   const footerSection = homePage.sections.find((section) => section.component === "Footer");
+  const callToUsSection = homePage.sections.find((section) => section.component === "CallToUs");
 
   const logo = unwrap(homeSection?.fields?.logo as EditableValue<string> | string | undefined) ?? "";
   const navMenu = unwrap(homeSection?.fields?.navMenu as EditableValue<MenuItem[]> | MenuItem[] | undefined) ?? [];
@@ -46,6 +48,7 @@ export default async function BlogLayout({ children }: { children: ReactNode }) 
 
       {contactSection && <Contact fields={contactSection.fields ?? {}} />}
       {footerSection && <Footer fields={footerSection.fields ?? {}} />}
+      {callToUsSection && <CallToUs fields={callToUsSection.fields ?? {}} />}
     </div>
   );
 }

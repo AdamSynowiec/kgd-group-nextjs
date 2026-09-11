@@ -4,6 +4,7 @@ import type { Page } from "@/lib/content";
 import HomePage from "@/components/home/HomePage";
 import Contact from "@/components/shared/Contact";
 import Footer from "@/components/shared/Footer";
+import CallToUs from "@/components/shared/CallToUs";
 
 /**
  * Rejestr sekcji dla strony głównej — mirror src/lib/investments/sections.tsx,
@@ -17,6 +18,7 @@ const REGISTRY: Record<string, ComponentType<SectionProps>> = {
   HomePage: HomePage as ComponentType<SectionProps>,
   Contact: Contact as ComponentType<SectionProps>,
   Footer: Footer as ComponentType<SectionProps>,
+  CallToUs: CallToUs as ComponentType<SectionProps>,
 };
 
 export default function HomeSectionRenderer({ page }: { page: Page }) {
