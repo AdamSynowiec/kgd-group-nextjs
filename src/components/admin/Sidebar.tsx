@@ -9,23 +9,20 @@ import type { Session } from "@/lib/adminApi";
 
 // Blog to zwykłe strony w `pages` (parent:"/blog") — bez osobnej zakładki,
 // widoczne na liście "Strony" jak każda inna podstrona (patrz PageList.tsx).
-// "Strony" wymaga pages.list; "Ustawienia" pokazuje się, gdy wolno choć
-// jedno z uprawnień jej trzech sekcji (patrz src/app/admin/settings/page.tsx)
-// — samo wejście na pustą, w pełni zablokowaną stronę nie ma sensu pokazywać.
-const NAV_ITEMS: { label: string; href: string; Icon: typeof PagesIcon; anyOf: Permission[] }[] = [
+// "Strony" wymaga pages.list. "Ustawienia" NIE ma "anyOf" — zawsze widoczne
+// dla każdego zalogowanego, bo od "Moje konto" (MyAccountPanel.tsx, zawsze
+// dostępne, żadnego uprawnienia) w dół ma teraz zawsze jakąś treść, nawet
+// bez users.list/roles.list/roles.permissions.manage (patrz
+// src/app/admin/settings/page.tsx).
+const NAV_ITEMS: { label: string; href: string; Icon: typeof PagesIcon; anyOf?: Permission[] }[] = [
   { label: "Strony", href: "/admin", Icon: PagesIcon, anyOf: ["pages.list"] },
-  {
-    label: "Ustawienia",
-    href: "/admin/settings",
-    Icon: SettingsIcon,
-    anyOf: ["users.list", "roles.list", "roles.permissions.manage"],
-  },
+  { label: "Ustawienia", href: "/admin/settings", Icon: SettingsIcon },
 ];
 
 export default function Sidebar({ session }: { session: Session | null }) {
   const brand = useBrand();
   const pathname = usePathname();
-  const items = NAV_ITEMS.filter((item) => item.anyOf.some((permission) => can(session?.permissions, permission)));
+  const items = NAV_ITEMS.filter((item) => !item.anyOf || item.anyOf.some((permission) => can(session?.permissions, permission)));
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white sm:flex">

@@ -19,7 +19,7 @@ final class MysqlUserRepository implements UserRepositoryInterface
 
     public function findByLogin(string $login): ?array
     {
-        $statement = $this->pdo->prepare('SELECT id, login, password, role FROM users WHERE login = :login LIMIT 1');
+        $statement = $this->pdo->prepare('SELECT id, login, email, password, role FROM users WHERE login = :login LIMIT 1');
         $statement->execute(['login' => $login]);
 
         return $this->mapRowOrNull($statement->fetch());
@@ -27,7 +27,7 @@ final class MysqlUserRepository implements UserRepositoryInterface
 
     public function findById(int $id): ?array
     {
-        $statement = $this->pdo->prepare('SELECT id, login, password, role FROM users WHERE id = :id LIMIT 1');
+        $statement = $this->pdo->prepare('SELECT id, login, email, password, role FROM users WHERE id = :id LIMIT 1');
         $statement->execute(['id' => $id]);
 
         return $this->mapRowOrNull($statement->fetch());
@@ -35,12 +35,13 @@ final class MysqlUserRepository implements UserRepositoryInterface
 
     public function listAll(): array
     {
-        $statement = $this->pdo->query('SELECT id, login, role, created_at FROM users ORDER BY login');
+        $statement = $this->pdo->query('SELECT id, login, email, role, created_at FROM users ORDER BY login');
         $rows = $statement->fetchAll();
 
         return array_map(static fn (array $row): array => [
             'id' => (int) $row['id'],
             'login' => (string) $row['login'],
+            'email' => $row['email'] !== null ? (string) $row['email'] : null,
             'role' => (string) $row['role'],
             'createdAt' => (string) $row['created_at'],
         ], $rows);
@@ -64,9 +65,21 @@ final class MysqlUserRepository implements UserRepositoryInterface
         $statement->execute(['id' => $id]);
     }
 
+    public function updateEmail(int $id, string $email): void
+    {
+        $statement = $this->pdo->prepare('UPDATE users SET email = :email WHERE id = :id');
+        $statement->execute(['email' => $email, 'id' => $id]);
+    }
+
+    public function updatePassword(int $id, string $passwordHash): void
+    {
+        $statement = $this->pdo->prepare('UPDATE users SET password = :password WHERE id = :id');
+        $statement->execute(['password' => $passwordHash, 'id' => $id]);
+    }
+
     /**
      * @param array<string, mixed>|false $row
-     * @return array{id: int, login: string, password: string, role: string}|null
+     * @return array{id: int, login: string, email: string|null, password: string, role: string}|null
      */
     private function mapRowOrNull(array|false $row): ?array
     {
@@ -77,6 +90,7 @@ final class MysqlUserRepository implements UserRepositoryInterface
         return [
             'id' => (int) $row['id'],
             'login' => (string) $row['login'],
+            'email' => $row['email'] !== null ? (string) $row['email'] : null,
             'password' => (string) $row['password'],
             'role' => (string) $row['role'],
         ];

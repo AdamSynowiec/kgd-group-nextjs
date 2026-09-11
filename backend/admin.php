@@ -145,6 +145,13 @@ $router->delete('/users', static function (Request $req) use ($usersController, 
     $usersController()->deleteUser($req, $currentSession);
 });
 
+// "Moje konto" ("Ustawienia" w panelu) — celowo BEZ Authorization::require():
+// zmienia zawsze i wyłącznie WŁASNE konto wołającego (patrz
+// UsersController::updateOwnAccount()), więc żadne uprawnienie z
+// PermissionRegistry nie ma tu czego ograniczać — dostępne dla KAŻDEGO
+// zalogowanego, niezależnie od roli/uprawnień.
+$router->post('/account', static fn (Request $req) => $usersController()->updateOwnAccount($req, $currentSession));
+
 // Zarządzanie rolami ("Ustawienia" w panelu, obok kont).
 $router->get('/roles', static function (Request $req) use ($rolesController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'roles.list');

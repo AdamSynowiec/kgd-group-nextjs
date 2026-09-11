@@ -72,7 +72,7 @@ function NewUserForm({
     setErrorMessage("");
     try {
       const created = await createUser({ login, password, role }, session);
-      onCreated({ ...created, createdAt: new Date().toISOString() });
+      onCreated({ ...created, email: null, createdAt: new Date().toISOString() });
       setLogin("");
       setPassword("");
     } catch (error) {
@@ -197,7 +197,9 @@ function UserList({
                     <span className="shrink-0 text-xs text-zinc-400">to Ty</span>
                   )}
                 </div>
-                <div className="truncate text-sm text-zinc-500">utworzono: {user.createdAt}</div>
+                <div className="truncate text-sm text-zinc-500">
+                  {user.email ?? "brak emaila"} · utworzono: {user.createdAt}
+                </div>
               </div>
               {can(session?.permissions, "users.delete") && (
                 <button

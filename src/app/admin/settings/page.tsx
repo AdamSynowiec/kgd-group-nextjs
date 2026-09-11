@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
+import MyAccountPanel from "@/components/admin/MyAccountPanel";
 import UsersPanel from "@/components/admin/UsersPanel";
 import RolesPanel from "@/components/admin/RolesPanel";
 import PermissionsPanel from "@/components/admin/PermissionsPanel";
@@ -21,14 +22,15 @@ import {
 } from "@/lib/adminApi";
 
 /**
- * /admin/settings — Konta / Role / Uprawnienia. Każda sekcja gate'owana
- * NIEZALEŻNIE swoim uprawnieniem (users.list / roles.list /
- * roles.permissions.manage — patrz src/lib/permissions.ts, Can.tsx) zamiast
- * jednego wspólnego 403 na cały widok jak wcześniej — rola z choć jednym z
- * tych uprawnień widzi tylko odpowiadającą mu część strony. Backend jest
- * jedynym źródłem prawdy: to ukrycie sekcji jest konsekwencją brakującego
- * uprawnienia w session.permissions, nie jedynym zabezpieczeniem (patrz
- * Authorization::require() po stronie backendu).
+ * /admin/settings — "Moje konto" (patrz MyAccountPanel.tsx) jest zawsze
+ * widoczne, dla KAŻDEGO zalogowanego niezależnie od roli/uprawnień — to nie
+ * administracja, tylko własne konto (patrz UsersController::updateOwnAccount()).
+ * Konta / Role / Uprawnienia to co innego: gate'owane NIEZALEŻNIE swoim
+ * uprawnieniem (users.list / roles.list / roles.permissions.manage — patrz
+ * src/lib/permissions.ts, Can.tsx) zamiast jednego wspólnego 403 na cały
+ * widok jak wcześniej. Backend jest jedynym źródłem prawdy: to ukrycie
+ * sekcji jest konsekwencją brakującego uprawnienia w session.permissions,
+ * nie jedynym zabezpieczeniem (patrz Authorization::require() po backendzie).
  */
 
 type ViewState =
@@ -89,23 +91,27 @@ export default function AdminSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ma się uruchomić tylko raz, przy montowaniu
   }, []);
 
-  const hasAnySettingsAccess =
-    can(session?.permissions, "users.list") ||
-    can(session?.permissions, "roles.list") ||
-    can(session?.permissions, "roles.permissions.manage");
-
   return (
     <AdminShell title="Ustawienia" session={session} onLogout={goToLogin}>
       {view.status === "checking" && <p className="text-sm text-zinc-500">Wczytywanie...</p>}
 
-      {view.status === "ready" && !hasAnySettingsAccess && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-          Brak dostępu do jakiejkolwiek sekcji ustawień.
-        </div>
-      )}
-
       {view.status === "ready" && (
         <div className="space-y-10">
+          <section>
+            <MyAccountPanel
+              session={session}
+              onUpdated={(email) => {
+                // Odświeża widoczny w sekcji "Konta" e-mail własnego konta (jeśli
+                // ta sekcja jest w ogóle widoczna, patrz users.list niżej) —
+                // reszta danych (login/hasło) się nie zmienia z perspektywy listy.
+                setView((prev) =>
+                  prev.status === "ready" && session
+                    ? { ...prev, users: prev.users.map((u) => (u.login === session.login ? { ...u, email } : u)) }
+                    : prev
+                );
+              }}
+            />
+          </section>
           <Can session={session} permission="users.list">
             <section>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Konta</h2>

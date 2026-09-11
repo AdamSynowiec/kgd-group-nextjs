@@ -191,9 +191,9 @@ export function fetchBuildStatus(since: string, session: Session | null): Promis
   return request<BuildStatus>("/build/status", { params: { since }, session });
 }
 
-export type UserAccount = { id: number; login: string; role: string; createdAt: string };
+export type UserAccount = { id: number; login: string; email: string | null; role: string; createdAt: string };
 
-/** GET /users — tylko rola "admin" (backend odrzuci innych 403-ką, patrz UsersController.php). */
+/** GET /users — wymaga uprawnienia "users.list" (backend odrzuci resztę 403-ką, patrz UsersController.php). */
 export function fetchUsers(session: Session | null): Promise<UserAccount[]> {
   return request<UserAccount[]>("/users", { session });
 }
@@ -209,6 +209,24 @@ export function deleteUser(id: number, session: Session | null): Promise<{ delet
   return request<{ deleted: boolean; id: number }>("/users", {
     method: "DELETE",
     params: { id: String(id) },
+    session,
+  });
+}
+
+/**
+ * POST /account — zmienia WYŁĄCZNIE własne konto wołającego (nie ma tu "id" —
+ * cel jest zawsze zalogowany user, patrz UsersController::updateOwnAccount()).
+ * Dostępne dla każdej roli, bez wymogu żadnego uprawnienia — "currentPassword"
+ * jest jedynym realnym zabezpieczeniem tej trasy. Podaj "email" i/lub
+ * "newPassword"; pominięcie obu to błąd walidacji po stronie backendu.
+ */
+export function updateOwnAccount(
+  input: { currentPassword: string; email?: string; newPassword?: string },
+  session: Session | null
+): Promise<{ login: string; email: string | null; role: string }> {
+  return request<{ login: string; email: string | null; role: string }>("/account", {
+    method: "POST",
+    body: input,
     session,
   });
 }
