@@ -85,8 +85,8 @@ final class Authorization
     {
         try {
             $this->require($currentSession, $permission);
-        } catch (ApiException) {
-            throw;
+        } catch (ApiException $exception) {
+            throw $exception;
         } catch (Throwable) {
             SessionAuth::requireRole($currentSession, 'admin');
         }
