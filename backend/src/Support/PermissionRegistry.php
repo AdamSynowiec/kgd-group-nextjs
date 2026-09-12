@@ -21,12 +21,12 @@ if (!defined('APP_ENTRY')) {
  * pages.content) — to uprawnienia odpowiadają "czy ta operacja jest w ogóle
  * dozwolona", nie "która konkretna strona/pole". Patrz Authorization.php.
  *
- * "build.trigger"/"build.status" SĄ tu zarejestrowane (żeby poprawnie
- * pokazywały się w GET /me i w panelu Uprawnień), ale ich realne wymuszanie
- * na stałe zostaje na starym SessionAuth::requireRole('admin') — patrz
- * komentarz w SessionAuth.php i w admin.php. Powód: te dwie trasy muszą
- * działać nawet gdy baza nie odpowiada (odzyskiwanie po awarii), a
- * Authorization:: wymaga świeżego zapytania do bazy przy każdym sprawdzeniu.
+ * "build.trigger"/"build.status" są uprawnieniami jak każde inne — admin
+ * może je nadać dowolnej roli w panelu Uprawnień (patrz
+ * Authorization::requireResilient()). Jedyna różnica: te dwie trasy mają
+ * dodatkowo bezbazowy fallback do roli "admin" z tokenu na wypadek, gdyby
+ * baza akurat nie odpowiadała (odzyskiwanie po awarii) — patrz komentarz w
+ * Authorization.php i w admin.php.
  */
 final class PermissionRegistry
 {
@@ -55,17 +55,6 @@ final class PermissionRegistry
      * PermissionRepositoryInterface::countActiveAdmins().
      */
     public const CRITICAL = ['users.create', 'roles.permissions.manage'];
-
-    /**
-     * Uprawnienia, których NIE DA SIĘ przypisać żadnej roli przez
-     * role_permissions (patrz PermissionsController::updateRolePermissions()) —
-     * ich wymuszanie na stałe omija cały system RBAC (SessionAuth::requireRole('admin')
-     * zamiast Authorization::require(), patrz komentarz wyżej i w admin.php).
-     * Zaznaczenie ich w gridzie ról nie miałoby więc ŻADNEGO efektu poza
-     * mylącym stanem w bazie — dlatego blokujemy to już przy zapisie, nie
-     * tylko kosmetycznie w UI (patrz PermissionsPanel.tsx).
-     */
-    public const FIXED_ADMIN_ONLY = ['build.trigger', 'build.status'];
 
     public static function isValid(string $permission): bool
     {

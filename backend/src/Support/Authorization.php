@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Exception\ApiException;
+use App\Http\SessionAuth;
 use App\Repository\PermissionRepositoryInterface;
 use App\Repository\UserRepositoryInterface;
+use Throwable;
 
 if (!defined('APP_ENTRY')) {
     http_response_code(403);
@@ -15,16 +17,14 @@ if (!defined('APP_ENTRY')) {
 
 /**
  * JEDYNA bramka operacyjnych uprawnień panelu /admin — zastępuje wszystkie
- * dotychczasowe SessionAuth::requireRole($session, 'admin') poza dwoma
- * wyjątkami (patrz niżej). Wołana raz na trasę, w closure w admin.php,
- * dokładnie tam, gdzie wcześniej było requireRole() — patrz README migracji
- * w db/011_create_permission_tables.sql.
+ * dotychczasowe SessionAuth::requireRole($session, 'admin'). Wołana raz na
+ * trasę, w closure w admin.php, dokładnie tam, gdzie wcześniej było
+ * requireRole() — patrz README migracji w db/011_create_permission_tables.sql.
  *
- * WYJĄTEK: /build i /build/status ZOSTAJĄ na starym, bezbazowym
- * SessionAuth::requireRole('admin') na stałe (patrz SessionAuth.php) — te
- * dwie trasy muszą działać nawet gdy baza nie odpowiada (odzyskiwanie po
- * awarii), a require() poniżej z definicji potrzebuje bazy przy każdym
- * wywołaniu.
+ * /build i /build/status wołają requireResilient() zamiast require() (patrz
+ * niżej) — poza tym każde uprawnienie, w tym "build.trigger"/"build.status",
+ * jest tak samo elastyczne: admin może je nadać dowolnej roli w panelu
+ * Uprawnień.
  *
  * Token sesji NIGDY nie jest źródłem prawdy o roli tutaj — bakuje ją tylko
  * przy loginie i nie odświeża się bez ponownego zalogowania (patrz
@@ -65,5 +65,30 @@ final class Authorization
         }
 
         return $user['role'];
+    }
+
+    /**
+     * Wariant require() dla tras, które muszą przetrwać awarię bazy — dziś
+     * tylko /build i /build/status (patrz admin.php, SessionAuth::requireRole()).
+     * Najpierw próbuje zwykłego require(): w normalnej pracy uprawnienie
+     * "build.trigger"/"build.status" działa więc tak samo elastycznie jak
+     * każde inne (dowolna rola, jeśli admin jej to nada). Jeśli SAMO
+     * zapytanie do bazy się wywali (baza nie odpowiada — nie mylić z legalną
+     * odmową 401/403, którą trzeba przepuścić dalej), spada na stary,
+     * bezbazowy SessionAuth::requireRole('admin'): w trakcie realnej awarii
+     * odpali to więc już tylko rola "admin" z tokenu, ale przycisk
+     * odzyskiwania po awarii przeżywa dokładnie tak, jak wcześniej.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function requireResilient(?array $currentSession, string $permission): void
+    {
+        try {
+            $this->require($currentSession, $permission);
+        } catch (ApiException) {
+            throw;
+        } catch (Throwable) {
+            SessionAuth::requireRole($currentSession, 'admin');
+        }
     }
 }

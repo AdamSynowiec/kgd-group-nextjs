@@ -13,7 +13,7 @@ import {
   type UserAccount,
   type UserPermissions,
 } from "@/lib/adminApi";
-import { FIXED_ADMIN_ONLY, PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 const selectClass = "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
 
@@ -104,9 +104,7 @@ function RoleGrid({ roles, session }: { roles: RoleAccount[]; session: Session |
       <h3 className="mb-1 text-sm font-semibold text-zinc-900">Uprawnienia ról</h3>
       <p className="mb-4 text-xs text-zinc-500">
         Rola &quot;admin&quot; ma zawsze pełny dostęp — jej zestawu nie da się tu edytować. Nowa rola bez zaznaczeń nie pozwala na nic
-        poza zalogowaniem. <span className="font-mono">build.trigger</span>/<span className="font-mono">build.status</span> zawsze
-        wymagają roli &quot;admin&quot; (działają nawet, gdy baza nie odpowiada) — nie da się ich przydzielić żadnej innej roli, dlatego
-        są tu zablokowane.
+        poza zalogowaniem.
       </p>
       <div className="space-y-4">
         {roles.map((role) => {
@@ -136,25 +134,17 @@ function RoleGrid({ roles, session }: { roles: RoleAccount[]; session: Session |
                 {isAdmin ? (
                   <span className="col-span-full text-sm text-zinc-500">* (wszystkie uprawnienia)</span>
                 ) : (
-                  PERMISSIONS.map((permission) => {
-                    const fixed = FIXED_ADMIN_ONLY.includes(permission);
-                    return (
-                      <label
-                        key={permission}
-                        title={fixed ? 'Zawsze wymaga roli "admin" — nie da się przydzielić tej roli.' : undefined}
-                        className={`flex items-center gap-2 text-sm ${fixed ? "cursor-not-allowed text-zinc-400" : "cursor-pointer text-zinc-700"}`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 border-zinc-300 disabled:cursor-not-allowed"
-                          checked={current.includes(permission)}
-                          disabled={fixed}
-                          onChange={() => toggle(role.name, permission)}
-                        />
-                        <span className="font-mono text-xs">{permission}</span>
-                      </label>
-                    );
-                  })
+                  PERMISSIONS.map((permission) => (
+                    <label key={permission} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 border-zinc-300"
+                        checked={current.includes(permission)}
+                        onChange={() => toggle(role.name, permission)}
+                      />
+                      <span className="font-mono text-xs">{permission}</span>
+                    </label>
+                  ))
                 )}
               </div>
             </div>

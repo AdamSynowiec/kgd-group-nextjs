@@ -32,12 +32,11 @@ final class BuildController
     {
         $dispatchedAt = $this->dispatcher->dispatch();
 
-        // Ta trasa celowo NIE przechodzi przez Authorization:: (patrz
-        // SessionAuth.php) — bezbazowa, żeby działać nawet gdy baza nie
-        // odpowiada. To jedyny log w tym kontrolerze, który więc MOŻE się nie
-        // zapisać, jeśli baza akurat faktycznie nie działa — akceptowane
-        // świadomie, log nie może być warunkiem działania przycisku
-        // odzyskiwania po awarii.
+        // Ta trasa gatuje przez Authorization::requireResilient() (patrz
+        // admin.php) — z fallbackiem do bezbazowego SessionAuth::requireRole('admin'),
+        // gdy baza akurat nie odpowiada. Ten log więc MOŻE się nie zapisać w
+        // takiej sytuacji — akceptowane świadomie, log nie może być
+        // warunkiem działania przycisku odzyskiwania po awarii.
         $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'build.trigger');
 
         JsonResponse::ok(['triggered' => true, 'dispatchedAt' => $dispatchedAt]);

@@ -47,13 +47,7 @@ $currentSession = $request->path === '/login' ? null : SessionAuth::guard($confi
 $activityLogRepository = static fn (): MysqlActivityLogRepository => new MysqlActivityLogRepository(Connection::get($config));
 
 // Połączenie z bazą jest leniwe — otwiera się dopiero, gdy faktycznie
-// obsługujemy trasę, która go potrzebuje. Weryfikacja tokenu (SessionAuth::guard()
-// powyżej) NIE dotyka bazy, więc "Zbuduj stronę" działa nawet, gdy baza akurat
-// nie odpowiada — to jedno z realnych zastosowań tego przycisku: odpalić
-// build po naprawieniu backendu, bez logowania się do GitHuba. Dlatego
-// /build i /build/status jako JEDYNE zostają na starym, bezbazowym
-// SessionAuth::requireRole() zamiast $authorization niżej — patrz jego
-// komentarz i backend/src/Support/PermissionRegistry.php.
+// obsługujemy trasę, która go potrzebuje.
 $adminController = static fn (): AdminController =>
     new AdminController(new MysqlPageRepository(Connection::get($config)), $activityLogRepository());
 
@@ -68,7 +62,7 @@ $authController = static fn (): AuthController => new AuthController(
     $activityLogRepository()
 );
 
-// JEDYNA bramka operacyjnych uprawnień (poza /build, patrz wyżej) — patrz
+// JEDYNA bramka operacyjnych uprawnień — patrz
 // backend/src/Support/Authorization.php. Pobiera świeżą rolę z bazy po
 // userId z tokenu przy KAŻDYM wywołaniu, więc zmiana roli/"deny" działa od
 // następnego żądania, nie dopiero od następnego logowania.
@@ -130,14 +124,15 @@ $router->post('/upload', static function (Request $req) use ($uploadController, 
     $uploadController->upload($req, $currentSession);
 });
 
-// /build, /build/status — patrz komentarz przy $adminController wyżej: na
-// stałe poza $authorization, wymagają wprost roli "admin" bez dotykania bazy.
-$router->post('/build', static function (Request $req) use ($buildController, $currentSession) {
-    SessionAuth::requireRole($currentSession, 'admin');
+// /build, /build/status — uprawnienie "build.trigger"/"build.status" jest
+// elastyczne jak każde inne, ale z bezbazowym fallbackiem do roli "admin" z
+// tokenu, gdy baza akurat nie odpowiada — patrz Authorization::requireResilient().
+$router->post('/build', static function (Request $req) use ($buildController, $authorization, $currentSession) {
+    $authorization()->requireResilient($currentSession, 'build.trigger');
     $buildController->trigger($currentSession);
 });
-$router->get('/build/status', static function (Request $req) use ($buildController, $currentSession) {
-    SessionAuth::requireRole($currentSession, 'admin');
+$router->get('/build/status', static function (Request $req) use ($buildController, $authorization, $currentSession) {
+    $authorization()->requireResilient($currentSession, 'build.status');
     $buildController->status($req);
 });
 

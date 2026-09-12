@@ -64,14 +64,15 @@ final class SessionAuth
      * Blokuje trasy zastrzeżone dla konkretnej roli — porównuje TYLKO rolę
      * zaszytą w tokenie (bez zapytania do bazy). Od wprowadzenia centralnego
      * RBAC (patrz Authorization.php, db/011_create_permission_tables.sql)
-     * jest to CELOWY WYJĄTEK, używany już tylko przez /build i /build/status
-     * (admin.php) — te dwie trasy muszą działać nawet gdy baza nie
-     * odpowiada (odzyskiwanie po awarii), a Authorization::require()
-     * wymaga bazy przy każdym wywołaniu z definicji. Każda inna trasa
-     * panelu idzie przez Authorization::require(), nie przez tę metodę —
-     * nie dodawaj tu nowych wywołań bez tego samego powodu (odporność na
-     * awarię bazy), inaczej wracamy do nieaktualnej roli z tokenu
-     * (patrz komentarz w Authorization.php).
+     * jest to CELOWY WYJĄTEK, wołany już tylko z
+     * Authorization::requireResilient() jako fallback, gdy samo zapytanie do
+     * bazy (potrzebne przez require()) się nie powiedzie — dziś dotyczy to
+     * /build i /build/status (admin.php), które muszą dać się odpalić nawet
+     * podczas awarii bazy. Każda inna trasa panelu idzie przez
+     * Authorization::require(), nie przez tę metodę — nie dodawaj tu nowych
+     * wywołań bez tego samego powodu (odporność na awarię bazy), inaczej
+     * wracamy do nieaktualnej roli z tokenu (patrz komentarz w
+     * Authorization.php).
      *
      * Gdy $session jest null — uwierzytelnianie jest wyłączone, więc nie ma
      * czego porównywać; przepuszcza, tak samo jak reszta panelu w tym trybie

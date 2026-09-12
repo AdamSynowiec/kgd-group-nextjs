@@ -35,16 +35,6 @@ export const PERMISSIONS = [
 
 export type Permission = (typeof PERMISSIONS)[number];
 
-/**
- * Mirror PermissionRegistry::FIXED_ADMIN_ONLY (backend) — "build.trigger"/
- * "build.status" wymuszane są na stałe przez SessionAuth::requireRole('admin'),
- * nigdy przez role_permissions (patrz komentarz w admin.php: /build musi
- * działać nawet, gdy baza nie odpowiada). Zaznaczenie ich w gridzie ról nie
- * miałoby więc żadnego efektu — PermissionsPanel.tsx pokazuje je jako
- * zablokowane, a backend i tak odrzuca próbę zapisania (400).
- */
-export const FIXED_ADMIN_ONLY: Permission[] = ["build.trigger", "build.status"];
-
 /** "*" (rola "admin") pasuje do każdego uprawnienia — mirror Acl::check()/PermissionRepositoryInterface::effectiveHas() po stronie backendu. */
 export function can(permissions: string[] | undefined | null, required: Permission): boolean {
   if (!permissions) return false;

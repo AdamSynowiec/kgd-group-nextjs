@@ -85,18 +85,6 @@ final class PermissionsController
             if (!is_string($permission) || !PermissionRegistry::isValid($permission)) {
                 throw new ApiException('Nieznane uprawnienie w liście.', 400);
             }
-
-            // build.trigger/build.status ZAWSZE wymagają roli "admin" —
-            // wymuszane na stałe przez SessionAuth::requireRole('admin'), nie
-            // przez ten mechanizm (patrz PermissionRegistry::FIXED_ADMIN_ONLY
-            // i komentarz w admin.php). Zapisanie ich tu dałoby mylący stan:
-            // checkbox zaznaczony, zero realnego efektu.
-            if (in_array($permission, PermissionRegistry::FIXED_ADMIN_ONLY, true)) {
-                throw new ApiException(
-                    "Uprawnienia \"{$permission}\" nie można przypisać żadnej roli — zawsze wymaga roli \"admin\" (działa nawet, gdy baza nie odpowiada).",
-                    400
-                );
-            }
         }
 
         $this->permissions->setRoleGrants($roleName, $permissions);
