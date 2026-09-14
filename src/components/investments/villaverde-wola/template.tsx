@@ -12,17 +12,22 @@ import PriceHistory from "./PriceHistory";
 import Deweloper from "@/components/shared/Deweloper";
 import Contact from "@/components/shared/Contact";
 import Footer from "@/components/shared/Footer";
+import PrivacyPolicy from "@/components/shared/PrivacyPolicy";
 
 /**
  * Rejestr sekcji dla szablonu "villaverde-wola" — mirror starego
  * src/components/templates/villaverde-wola/template.js.
  *
- * "PrivacyPolicy" celowo nie ma tu wpisu — w źródłowym projekcie ta strona
- * (polityka-prywatnosci) odwołuje się do komponentu, którego template.js
- * villaverde-wola NIGDY nie importował (brak wpisu w starym template.js,
- * mimo że plik danych istnieje) — sekcja się tam nie renderowała, więc nie
- * renderuje się i tutaj. Dane (treść HTML) zostają zapisane w SQL.
- * Analogicznie brak osobnego "Navbar" — w źródle nawigacja jest wbudowana w Hero.jsx.
+ * "PrivacyPolicy" JEST zarejestrowana (poprawka 2026-09-14): porównanie z
+ * aktualnie żywym kgd-group.pl pokazało, że /inwestycja/villaverde-wola/polityka-prywatnosci
+ * faktycznie renderuje pełną treść na produkcji — wcześniejsze założenie
+ * "stary template.js nigdy tego nie importował" nie odzwierciedlało już
+ * stanu żywej strony. Dane w db/inwestycje/villaverde-wola.sql poprawione
+ * przy okazji na kształt title+blocks (patrz PrivacyPolicy.tsx), zgodny z
+ * pozostałymi inwestycjami — wcześniej były zapisane jako surowy HTML
+ * ("content"), którego ten komponent i tak nigdy nie czyta.
+ * Brak osobnego "Navbar" pozostaje bez zmian — w źródle nawigacja jest
+ * wbudowana w Hero.jsx.
  */
 type SectionProps = { fields: Record<string, unknown>; id?: string };
 
@@ -38,6 +43,7 @@ const template: Record<string, ComponentType<SectionProps>> = {
   Contact: Contact as ComponentType<SectionProps>,
   Footer: Footer as ComponentType<SectionProps>,
   PriceHistory: PriceHistory as ComponentType<SectionProps>,
+  PrivacyPolicy: PrivacyPolicy as ComponentType<SectionProps>,
 };
 
 export default template;
