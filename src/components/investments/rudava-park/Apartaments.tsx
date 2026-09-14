@@ -162,118 +162,134 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
       </Container>
 
       {/* MAPA */}
-      <div className="w-full flex justify-center relative">
-        <img
-          loading="lazy"
-          decoding="async"
-          ref={imgRef}
-          src="/investments/rudava-park/rudava-park-wizualizacja-06.webp"
-          alt={labels.mapAlt}
-          className="max-w-full object-contain"
-          onLoad={(e) => {
-            const { naturalWidth, naturalHeight } = e.currentTarget;
-            setImageSize({ width: naturalWidth, height: naturalHeight });
-          }}
-        />
+      <div className="w-full flex justify-center">
+        {/* Bez tego wewnętrznego "relative" SVG (position: absolute) rozciągał
+            się do szerokości TEGO flex-wrappera (w-full = cała strona), nie
+            obrazka — na ekranach szerszych niż 1920px (naturalna szerokość
+            pliku) obrazek zostaje wyśrodkowany i węższy niż kontener
+            (max-w-full nigdy go nie rozciąga), a poligony (viewBox 1:1 z
+            naturalWidth/Height) rozjeżdżały się względem realnych budynków.
+            "relative" na węższym, samo-dopasowującym się do <img> wrapperze
+            (bez w-full) naprawia dopasowanie niezależnie od szerokości ekranu. */}
+        <div className="relative max-w-full">
+          <img
+            loading="lazy"
+            decoding="async"
+            ref={imgRef}
+            src="/investments/rudava-park/rudava-park-wizualizacja-06.webp"
+            alt={labels.mapAlt}
+            className="max-w-full object-contain block"
+            onLoad={(e) => {
+              const { naturalWidth, naturalHeight } = e.currentTarget;
+              setImageSize({ width: naturalWidth, height: naturalHeight });
+            }}
+          />
 
-        {imageSize.width > 0 && (
-          <svg className="absolute top-0 left-0 w-full h-full" viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}>
-            {houses
-              .filter((h) => statusFilter === "all" || h.status === statusFilter)
-              .map((house) => {
-                if (!house.points) return null;
-                const [cx, cy] = getPolygonCenter(house.points);
+          {imageSize.width > 0 && (
+            <svg className="absolute top-0 left-0 w-full h-full" viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}>
+              {houses
+                .filter((h) => statusFilter === "all" || h.status === statusFilter)
+                .map((house) => {
+                  if (!house.points) return null;
+                  const [cx, cy] = getPolygonCenter(house.points);
 
-                return (
-                  <polygon
-                    key={house.unit}
-                    points={house.points}
-                    fill={hoveredUnit === house.unit ? getStatusColorFill(house.status) : "transparent"}
-                    stroke="rgba(31,61,48,0.5)"
-                    style={{ cursor: "pointer", pointerEvents: "all" }}
-                    onMouseEnter={() => {
-                      setHoveredUnit(house.unit);
-                      setTooltipPos({ x: cx, y: cy });
-                    }}
-                    onMouseMove={(e) => {
-                      const rect = imgRef.current!.getBoundingClientRect();
-                      const x = e.clientX - rect.left;
-                      const y = e.clientY - rect.top;
-                      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
-                      setTooltipPos({ x, y });
-                    }}
-                    onMouseLeave={() => setHoveredUnit(null)}
-                  />
-                );
-              })}
-          </svg>
-        )}
+                  return (
+                    <polygon
+                      key={house.unit}
+                      points={house.points}
+                      fill={hoveredUnit === house.unit ? getStatusColorFill(house.status) : "transparent"}
+                      stroke="rgba(31,61,48,0.5)"
+                      style={{ cursor: "pointer", pointerEvents: "all" }}
+                      onMouseEnter={() => {
+                        setHoveredUnit(house.unit);
+                        setTooltipPos({ x: cx, y: cy });
+                      }}
+                      onMouseMove={(e) => {
+                        const rect = imgRef.current!.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+                        setTooltipPos({ x, y });
+                      }}
+                      onMouseLeave={() => setHoveredUnit(null)}
+                    />
+                  );
+                })}
+            </svg>
+          )}
 
-        {hoveredUnit && (
-          <div
-            className="font-ebgaramond-regular bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.15)] border border-gray-100 min-w-[280px] relative"
-            style={{ position: "absolute", left: tooltipPos.x, top: tooltipPos.y, transform: "translate(-50%, -100%)", pointerEvents: "none", zIndex: 50 }}
-          >
-            {(() => {
-              const hovered = houses.find((h) => h.unit === hoveredUnit);
-              if (!hovered) return null;
-              const housesInPolygon = houses.filter((h) => h.points === hovered.points).reverse();
+          {/* Tooltip przeniesiony do TEGO samego "relative" wrappera co img/svg
+              (zamiast szerszego flex-kontenera na zewnątrz) — tooltipPos z
+              onMouseMove jest liczony względem imgRef.getBoundingClientRect(),
+              więc musi się position:absolute-ować względem przodka o
+              DOKŁADNIE tym samym rozmiarze co obrazek, inaczej ten sam błąd
+              szerokości co przy poligonach. */}
+          {hoveredUnit && (
+            <div
+              className="font-ebgaramond-regular bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.15)] border border-gray-100 min-w-[280px]"
+              style={{ position: "absolute", left: tooltipPos.x, top: tooltipPos.y, transform: "translate(-50%, -100%)", pointerEvents: "none", zIndex: 50 }}
+            >
+              {(() => {
+                const hovered = houses.find((h) => h.unit === hoveredUnit);
+                if (!hovered) return null;
+                const housesInPolygon = houses.filter((h) => h.points === hovered.points).reverse();
 
-              const getStatusColor = (status: string) => {
-                switch (status?.toLowerCase()) {
-                  case "sprzedany":
-                    return "bg-red-50 text-red-600";
-                  case "rezerwacja":
-                    return "bg-orange-50 text-orange-600";
-                  case "wolny":
-                    return "bg-green-50 text-green-600";
-                  default:
-                    return "bg-gray-50 text-gray-500";
-                }
-              };
+                const getStatusColor = (status: string) => {
+                  switch (status?.toLowerCase()) {
+                    case "sprzedany":
+                      return "bg-red-50 text-red-600";
+                    case "rezerwacja":
+                      return "bg-orange-50 text-orange-600";
+                    case "wolny":
+                      return "bg-green-50 text-green-600";
+                    default:
+                      return "bg-gray-50 text-gray-500";
+                  }
+                };
 
-              return housesInPolygon.map((house) => (
-                <div key={house.unit} className="border-b border-gray-100 last:border-0">
-                  <div className="px-5 pt-4 pb-3">
-                    <div className="flex justify-between items-center">
-                      <strong className="text-lg text-gray-900 tracking-wide">{house.unit}</strong>
-                      <span className={`text-xs font-medium px-3 py-1 rounded-full tracking-wide ${getStatusColor(house.status)}`}>
-                        {house.status || "-"}
-                      </span>
+                return housesInPolygon.map((house) => (
+                  <div key={house.unit} className="border-b border-gray-100 last:border-0">
+                    <div className="px-5 pt-4 pb-3">
+                      <div className="flex justify-between items-center">
+                        <strong className="text-lg text-gray-900 tracking-wide">{house.unit}</strong>
+                        <span className={`text-xs font-medium px-3 py-1 rounded-full tracking-wide ${getStatusColor(house.status)}`}>
+                          {house.status || "-"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <ul className="px-5 py-2 text-sm text-gray-600 space-y-1">
-                    <li className="flex justify-between">
-                      <span>{labels.area}</span>
-                      <span className="font-medium text-gray-900">
-                        {house.area} m<sup>2</sup>
-                      </span>
-                    </li>
-                    {house.gardenArea && (
+                    <ul className="px-5 py-2 text-sm text-gray-600 space-y-1">
                       <li className="flex justify-between">
-                        <span>{labels.gardenArea}</span>
+                        <span>{labels.area}</span>
                         <span className="font-medium text-gray-900">
-                          {house.gardenArea} m<sup>2</sup>
+                          {house.area} m<sup>2</sup>
                         </span>
                       </li>
-                    )}
-                    <li className="flex justify-between">
-                      <span>{labels.rooms}</span>
-                      <span className="font-medium text-gray-900">{house.rooms}</span>
-                    </li>
-                  </ul>
+                      {house.gardenArea && (
+                        <li className="flex justify-between">
+                          <span>{labels.gardenArea}</span>
+                          <span className="font-medium text-gray-900">
+                            {house.gardenArea} m<sup>2</sup>
+                          </span>
+                        </li>
+                      )}
+                      <li className="flex justify-between">
+                        <span>{labels.rooms}</span>
+                        <span className="font-medium text-gray-900">{house.rooms}</span>
+                      </li>
+                    </ul>
 
-                  {!isHiddenStatus(house.status) && house.price !== "-" && (
-                    <div className="px-5 pb-4 pt-1 text-right">
-                      <span className="text-lg font-semibold text-gray-900">{house.price} zł</span>
-                    </div>
-                  )}
-                </div>
-              ));
-            })()}
-          </div>
-        )}
+                    {!isHiddenStatus(house.status) && house.price !== "-" && (
+                      <div className="px-5 pb-4 pt-1 text-right">
+                        <span className="text-lg font-semibold text-gray-900">{house.price} zł</span>
+                      </div>
+                    )}
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* TABELA */}
