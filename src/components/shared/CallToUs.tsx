@@ -138,7 +138,7 @@ export default function CallToUs({ fields }: { fields: CallToUsFields }) {
             </button>
 
             <div className="flex items-start gap-4">
-              <img loading="lazy" decoding="async" src="/home/logo.svg" alt="KGD" className="min-w-12 h-12 p-1.5 rounded-full border border-[#C9AB8B]/40 bg-white" />
+              <img loading="lazy" decoding="async" src="/home/kgd-icon.svg" alt="KGD" className="min-w-12 h-12 p-1.5 rounded-full border border-[#C9AB8B]/40 bg-white" />
 
               <div className="flex flex-col">
                 {!submitted ? (
