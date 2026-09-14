@@ -57,6 +57,18 @@ html {
   }
 }
 
+/* Wjazd nagłówka/podtytułu w Hero KGD Building (src/components/kgd-building/Hero.tsx) */
+@keyframes kgdFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .animate-fadeInRight {
   animation: fadeInRight 0.3s ease-out;
 }
