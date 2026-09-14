@@ -1,9 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import NavMenuItem, { type MenuItem } from "./NavMenuItem";
 
+/**
+ * Strony, na których pod transparentnym (nie przescrolowanym) NavBar-em NIE
+ * ma ciemnego pełnoekranowego tła (zdjęcia/wideo) — tylko jasny nagłówek jak
+ * BlogHero.tsx (bg-[#FBFBFB]). Bez tego biały tekst na jasnym tle był
+ * nieczytelny (patrz zgłoszenie: strona "/blog"). "/blog/[slug]" (pojedynczy
+ * wpis) celowo NIE jest tu wymieniony — tam nagłówek to ciemne zdjęcie na
+ * pełną wysokość (BlogPost.tsx), więc transparentny wariant działa poprawnie.
+ */
+function hasLightHeader(pathname: string): boolean {
+  return pathname === "/blog" || /^\/blog\/page\/\d+$/.test(pathname);
+}
+
 export default function NavBar({ logo, menu, phone }: { logo: string; menu: MenuItem[]; phone: string }) {
+  const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -13,8 +27,10 @@ export default function NavBar({ logo, menu, phone }: { logo: string; menu: Menu
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  const isDark = isScrolled || hasLightHeader(pathname);
+
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? "bg-[#1D1D1D] h-[80px]" : "h-[100px] md:h-[200px]"}`}>
+    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isDark ? "bg-[#1D1D1D] h-[80px]" : "h-[100px] md:h-[200px]"}`}>
       <div className="container max-w-[1596px] mx-auto h-full px-6 flex items-center justify-between">
         <div className="flex items-center">
           <a href="#">
@@ -26,7 +42,7 @@ export default function NavBar({ logo, menu, phone }: { logo: string; menu: Menu
               alt="Logo"
               width={267}
               height={63}
-              className={`w-auto transition-all duration-300 ${isScrolled ? "h-[35px] lg:h-[52px]" : "h-[40px] lg:h-[52px]"}`}
+              className={`w-auto transition-all duration-300 ${isDark ? "h-[35px] lg:h-[52px]" : "h-[40px] lg:h-[52px]"}`}
             />
           </a>
         </div>

@@ -1,7 +1,5 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "@/components/home/Container";
-import Separator from "@/components/home/Separator";
-import P from "@/components/home/P";
 
 type BlogHeroFields = {
   eyebrow?: EditableValue<string> | string;
@@ -15,8 +13,12 @@ type BlogHeroFields = {
  * ją src/app/blog/page.tsx / page/[n]/page.tsx bezpośrednio (blog ma tylko
  * jeden typ sekcji na trasę, więc bez pełnego rejestru jak
  * src/lib/sections.tsx — patrz komentarz tam o generycznym silniku (site)).
- * Stylistyka zgodna ze standardami strony głównej KGD (złoty akcent
- * #C9AB8B, Container/Separator/P z src/components/home/).
+ *
+ * Wygląd: nagłówek na jasnym tle z rozmytymi "plamami" światła w kolorze
+ * marki (#C9AB8B) — ten sam język wizualny co pulsujący blask w tle
+ * src/components/home/Hero.tsx (tam biały na ciemnym, tu złoty na jasnym),
+ * plus eyebrow jako pigułka (border+dot) zamiast gołego tekstu — czytelniej
+ * niż poprzednia wersja ze złotym nagłówkiem na jasnym tle (za mały kontrast).
  *
  * pt-[148px]/md:pt-[280px] = wysokość fixed NavBar (100px/200px, patrz
  * NavBar.tsx) + zwykły odstęp sekcji (48px/80px) — src/app/blog/layout.tsx
@@ -30,14 +32,23 @@ export default function BlogHero({ fields }: { fields: BlogHeroFields }) {
   const intro = unwrap(fields.intro);
 
   return (
-    <section className="border-b border-gray-100 bg-[#FBFBFB] pt-[148px] pb-[48px] md:pt-[280px] md:pb-[80px]">
-      <Container className="text-center">
-        {eyebrow && <span className="font-poppins text-[13px] uppercase tracking-[0.08em] text-gray-500">{eyebrow}</span>}
-        <h1 className="mt-3 font-poppins text-xl font-bold leading-[1.25] text-[#C9AB8B] sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl">
+    <section className="relative overflow-hidden border-b border-gray-100 bg-[#FBFBFB] pt-[148px] pb-[64px] md:pt-[280px] md:pb-[96px]">
+      <div className="pointer-events-none absolute -left-24 -top-24 h-[420px] w-[420px] rounded-full bg-[#C9AB8B]/20 blur-3xl" />
+      <div className="pointer-events-none absolute -right-32 top-1/3 h-[380px] w-[380px] rounded-full bg-[#C9AB8B]/15 blur-3xl" />
+
+      <Container className="relative text-center">
+        {eyebrow && (
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#C9AB8B]/30 bg-white px-4 py-1.5 font-poppins text-[12px] font-medium uppercase tracking-[0.1em] text-[#C9AB8B] shadow-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#C9AB8B]" />
+            {eyebrow}
+          </span>
+        )}
+        <h1 className="mx-auto mt-5 max-w-3xl font-poppins text-4xl font-bold leading-[1.1] text-[#1D1D1D] sm:text-5xl md:text-6xl">
           {heading}
         </h1>
-        <Separator className="mx-auto my-6 md:my-8" />
-        {intro && <P className="mx-auto max-w-2xl">{intro}</P>}
+        {intro && (
+          <p className="mx-auto mt-5 max-w-xl font-montserrat text-base font-light text-gray-500 md:text-lg">{intro}</p>
+        )}
       </Container>
     </section>
   );

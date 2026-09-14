@@ -69,7 +69,7 @@ function PostCard({
   const meta = [author, formatDate(updatedAt)].filter(Boolean).join(" · ");
 
   return (
-    <article className="group flex flex-col overflow-hidden border border-gray-200 bg-white transition-colors duration-300 hover:border-[#C9AB8B]/60">
+    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-[#C9AB8B]/40 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12)]">
       <Link href={slug} className="relative block aspect-[16/10] w-full overflow-hidden bg-gray-100">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element -- output:"export"/images.unoptimized, jak wszędzie indziej w projekcie
@@ -81,20 +81,23 @@ function PostCard({
         )}
       </Link>
 
-      <div className="flex flex-1 flex-col p-6 md:p-8">
-        {meta && <span className="font-poppins text-[13px] uppercase tracking-[0.08em] text-gray-500">{meta}</span>}
+      <div className="flex flex-1 flex-col p-6">
+        {meta && (
+          <span className="inline-flex w-fit items-center gap-1.5 font-poppins text-[11px] font-medium uppercase tracking-[0.08em] text-[#C9AB8B]">
+            <span className="h-1 w-1 rounded-full bg-[#C9AB8B]" />
+            {meta}
+          </span>
+        )}
 
-        <h2 className="mt-2 font-poppins text-lg font-semibold leading-snug text-[#1D1D1D]">
-          <Link href={slug} className="hover:underline">
+        <h2 className="mt-3 line-clamp-2 font-poppins text-lg font-semibold leading-snug text-[#1D1D1D]">
+          <Link href={slug} className="transition-colors duration-300 group-hover:text-[#C9AB8B]">
             {title}
           </Link>
         </h2>
 
-        <div className="my-4 h-[1px] w-10 bg-[#C9AB8B]" />
+        {excerpt && <p className="mt-2.5 line-clamp-3 flex-1 font-montserrat text-[15px]/[26px] font-light text-gray-500">{excerpt}</p>}
 
-        {excerpt && <p className="flex-1 font-montserrat text-[15px]/[26px] font-light text-gray-600">{excerpt}</p>}
-
-        <Link href={slug} className="mt-6 inline-flex items-center gap-2 font-poppins text-sm text-[#C9AB8B]">
+        <Link href={slug} className="mt-5 inline-flex items-center gap-2 font-poppins text-sm font-medium text-[#C9AB8B]">
           Czytaj więcej
           <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
         </Link>
