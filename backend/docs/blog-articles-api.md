@@ -60,16 +60,25 @@ a (atrybuty: href, title)
 table  thead  tbody  tr  th  td
 ```
 
+Każdy z tych tagów może mieć atrybut `class` (patrz [Stylowanie](#stylowanie)).
+
 **Zasady sanityzacji:**
 
 - Wszystkie inne tagi są usuwane, a ich tekst zostaje (np. `<span>tekst</span>` → `tekst`).
 - Tagi `script`, `style`, `iframe`, `object`, `embed`, `noscript`, `template` są usuwane **razem z zawartością**.
-- Wszystkie atrybuty poza wymienionymi są usuwane (w tym `style`, `class`, `id` i wszystkie handlery `on*`, np. `onclick`).
+- Wszystkie atrybuty poza `class` (na każdym tagu) oraz `href`/`title` (na `a`) są usuwane — w tym `style`, `id`, `data-*` i wszystkie handlery `on*`, np. `onclick`.
 - W `href` dozwolone są protokoły `https:`, `http:`, `mailto:` oraz adresy względne (`/kontakt`, `#kotwica`). Adresy `javascript:`, `data:`, `vbscript:` i inne - atrybut `href` jest usuwany, a tekst linku zostaje.
 - Komentarze HTML są usuwane.
 - Treść zawierająca elementy struktury dokumentu - `html`, `head`, `body`, `title`, `meta`, `link`, `base`, `main`, `article` - jest **odrzucana** (422), a nie czyszczona.
 
 Jeśli sanityzacja usunęła cały widoczny tekst, żądanie jest odrzucane (422).
+
+### Stylowanie
+
+Atrybut `class` jest zachowywany na wszystkich dozwolonych tagach. Atrybut `style` jest usuwany.
+
+- Klasa daje efekt tylko wtedy, gdy strona ma dla niej regułę CSS. Klasy Tailwind, których serwis nigdzie nie używa, nie mają reguł i nie zadziałają.
+- Dozwolone są tylko tagi z listy powyżej. Elementy takie jak `div`, `span`, `img` czy `figure` są usuwane (zostaje ich tekst), więc klasy można nadawać wyłącznie na dozwolonych tagach.
 
 ## Odpowiedzi
 
@@ -138,7 +147,7 @@ Po dodaniu artykułów wywołaj ten endpoint, żeby przebudować i wdrożyć str
 | Adres | `https://DOMAIN_PLACEHOLDER/api/build` |
 | Body | brak |
 
-Wywołanie tylko **zleca** build w GitHub Actions — odpowiedź wraca od razu, a build i wdrożenie trwają zwykle kilka minut. Artykuły są widoczne na stronie dopiero po jego zakończeniu.
+Wywołanie tylko **zleca** build w GitHub Actions - odpowiedź wraca od razu, a build i wdrożenie trwają zwykle kilka minut. Artykuły są widoczne na stronie dopiero po jego zakończeniu.
 
 ```bash
 curl -i -X POST "https://DOMAIN_PLACEHOLDER/api/build" \
@@ -158,7 +167,7 @@ curl -i -X POST "https://DOMAIN_PLACEHOLDER/api/build" \
 | 502 | `BUILD_TRIGGER_FAILED` | GitHub odrzucił zlecenie (np. wygasły token GitHub po naszej stronie) |
 | 500 | `BUILD_TRIGGER_FAILED` | Serwer nie ma skonfigurowanego dostępu do GitHuba |
 
-Zalecenia: dodaj wiele artykułów, a build wywołaj **raz na końcu** — każde wywołanie uruchamia osobny build i wdrożenie, więc wywoływanie go po każdym artykule niepotrzebnie mnoży przebiegi. Nie wywołuj go częściej niż raz na kilka minut.
+Zalecenia: dodaj wiele artykułów, a build wywołaj **raz na końcu** - każde wywołanie uruchamia osobny build i wdrożenie, więc wywoływanie go po każdym artykule niepotrzebnie mnoży przebiegi. Nie wywołuj go częściej niż raz na kilka minut.
 
 ## Przykłady curl
 
