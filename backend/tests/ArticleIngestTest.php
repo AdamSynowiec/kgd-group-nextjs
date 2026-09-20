@@ -63,16 +63,30 @@ function valid(array $override = []): array
 
 check('keeps allowed markup', HtmlSanitizer::sanitize('<p>a <strong>b</strong> <em>c</em></p><h2>H</h2>'), '<p>a <strong>b</strong> <em>c</em></p><h2>H</h2>');
 check('drops script with its content', HtmlSanitizer::sanitize('<p>x</p><script>alert(1)</script>'), '<p>x</p>');
-check('drops iframe/object/embed/style with content', HtmlSanitizer::sanitize('<iframe src="x">i</iframe><object>o</object><embed src="x"><style>p{}</style><p>ok</p>'), '<p>ok</p>');
+check('drops iframe/object/embed/noscript/template with content', HtmlSanitizer::sanitize('<iframe src="x">i</iframe><object>o</object><embed src="x"><noscript>n</noscript><template>t</template><p>ok</p>'), '<p>ok</p>');
 check('unwraps form/input/button, keeps text', HtmlSanitizer::sanitize('<form><input value="v"><button>Klik</button></form>'), 'Klik');
 check('removes event handlers', HtmlSanitizer::sanitize('<p onclick="x()" onmouseover="y()">t</p>'), '<p>t</p>');
-check('keeps class and safe style', HtmlSanitizer::sanitize('<p style="color:red;margin-top:4px" class="c">t</p>'), '<p class="c" style="color:red; margin-top:4px">t</p>');
+check('keeps class and safe style', HtmlSanitizer::sanitize('<p class="c" style="color:red;margin-top:4px">t</p>'), '<p class="c" style="color:red; margin-top:4px">t</p>');
 check('style: drops url() declaration, keeps the rest', HtmlSanitizer::sanitize('<p style="color:red;background:url(https://x.pl/t.png)">t</p>'), '<p style="color:red">t</p>');
 check('style: drops expression()/javascript:/@import/backslash', HtmlSanitizer::sanitize('<p style="width:expression(alert(1));background:javascript:x;behavior:url(a);color:\\72ed">t</p>'), '<p>t</p>');
 check('style: fully unsafe style attribute removed', HtmlSanitizer::sanitize('<p style="background-image:url(x)">t</p>'), '<p>t</p>');
 check('keeps layout elements with classes', HtmlSanitizer::sanitize('<section class="a"><div class="b"><span class="c">t</span></div></section>'), '<section class="a"><div class="b"><span class="c">t</span></div></section>');
 check('keeps h1', HtmlSanitizer::sanitize('<h1 class="x">T</h1>'), '<h1 class="x">T</h1>');
-check('drops svg/math with content', HtmlSanitizer::sanitize('<p>a</p><svg onload="x()"><script>x</script><path d="M0"/></svg><math><mi>x</mi></math>'), '<p>a</p>');
+check('<style> block: kept, ">" selectors and @media intact', HtmlSanitizer::sanitize('<style>.a > p{color:red}@media (min-width:640px){.a{margin:0}}</style><p>x</p>'), '<style>.a > p{color:red}@media (min-width:640px){.a{margin:0}}</style><p>x</p>');
+check('<style> block with url() dropped entirely', HtmlSanitizer::sanitize('<style>a{background:url(https://x.pl/t.png)}</style><p>x</p>'), '<p>x</p>');
+check('<style> block with @import dropped entirely', HtmlSanitizer::sanitize('<style>@import "https://x.pl/a.css";</style><p>x</p>'), '<p>x</p>');
+check('<style> block with backslash escape dropped entirely', HtmlSanitizer::sanitize('<style>a{background:u\\72l(x)}</style><p>x</p>'), '<p>x</p>');
+check('<style> inside svg cannot smuggle markup', str_contains(HtmlSanitizer::sanitize('<svg><style><a title="</style><img src=x onerror=alert(1)>">x</style></svg>'), 'onerror'), false);
+$svgIcon = HtmlSanitizer::sanitize('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor"><path stroke-linecap="round" d="M5 13l4 4L19 7"/></svg>');
+foreach (['<svg ', 'class="h-6 w-6"', 'stroke="currentColor"', 'd="M5 13l4 4L19 7"', '</svg>'] as $part) {
+    check("svg icon keeps: {$part}", str_contains($svgIcon, $part), true);
+}
+$svgUnsafe = HtmlSanitizer::sanitize('<svg onload="x()"><script>x</script><use href="#a"></use><foreignObject><p>t</p></foreignObject><a xlink:href="javascript:x">l</a><path d="M0" fill="url(javascript:x)" onclick="y()"/></svg>');
+foreach (['onload', 'onclick', '<script', '<use', 'javascript', 'xlink', 'foreignobject', 'url('] as $part) {
+    check("svg unsafe parts removed: {$part}", str_contains(strtolower($svgUnsafe), $part), false);
+}
+check('math still dropped with content', HtmlSanitizer::sanitize('<p>a</p><math><mi>x</mi></math>'), '<p>a</p>');
+check('article is kept', HtmlSanitizer::sanitize('<article class="a"><p>x</p></article>'), '<article class="a"><p>x</p></article>');
 check('keeps tailwind classes incl. variants and arbitrary values', HtmlSanitizer::sanitize('<h2 class="text-3xl md:text-4xl w-[calc(100%-2rem)] hover:bg-red-500/50">t</h2>'), '<h2 class="text-3xl md:text-4xl w-[calc(100%-2rem)] hover:bg-red-500/50">t</h2>');
 check('keeps class on links, lists and tables', HtmlSanitizer::sanitize('<ul class="a"><li class="b"><a class="c" href="/x">t</a></li></ul><table class="d"><tr><td class="e">1</td></tr></table>'), '<ul class="a"><li class="b"><a class="c" href="/x">t</a></li></ul><table class="d"><tr><td class="e">1</td></tr></table>');
 check('class value cannot break out of the attribute', HtmlSanitizer::sanitize('<p class="a&quot; onclick=&quot;x()">t</p>'), '<p class="a&quot; onclick=&quot;x()">t</p>');
@@ -142,7 +156,10 @@ check('non-existent date rejected', array_keys(fieldErrors(valid(['publish_date'
 check('empty content rejected', array_keys(fieldErrors(valid(['content' => '']))), ['content']);
 check('content empty after sanitization rejected', array_keys(fieldErrors(valid(['content' => '<script>alert(1)</script>']))), ['content']);
 check('full html document rejected', array_keys(fieldErrors(valid(['content' => '<html><body><p>x</p></body></html>']))), ['content']);
-check('<main>/<article> wrapper rejected', array_keys(fieldErrors(valid(['content' => '<article><p>x</p></article>']))), ['content']);
+check('style-only content counts as empty', array_keys(fieldErrors(valid(['content' => '<style>.a{color:red}</style>']))), ['content']);
+check('<main> wrapper rejected', array_keys(fieldErrors(valid(['content' => '<main><p>x</p></main>']))), ['content']);
+check('<article> wrapper accepted', fieldErrors(valid(['content' => '<article><p>x</p></article>'])), []);
+check('<style> + svg content accepted', fieldErrors(valid(['content' => '<style>.a{color:red}</style><svg viewBox="0 0 1 1"><path d="M0"/></svg><p>x</p>'])), []);
 check('oversized content rejected', array_keys(fieldErrors(valid(['content' => str_repeat('a', 200001)]))), ['content']);
 
 // --- normalizacja i dokument strony ------------------------------------------

@@ -24,7 +24,7 @@ final class ArticleValidator
     private const MAX_CONTENT_BYTES = 200000;
 
     /** Elementy struktury strony — content to sam fragment artykułu. Regex tylko WYKRYWA (odrzuca), nie czyści. */
-    private const DOCUMENT_TAGS = '~<\s*/?\s*(!doctype|html|head|body|title|meta|link|base|main|article)\b~i';
+    private const DOCUMENT_TAGS = '~<\s*/?\s*(!doctype|html|head|body|title|meta|link|base|main)\b~i';
 
     /** ISO 8601 z jawnym offsetem — data bez strefy jest niejednoznaczna, więc jej nie zgadujemy. */
     private const ISO_DATE = '~^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$~';
@@ -190,13 +190,16 @@ final class ArticleValidator
         }
 
         if (preg_match(self::DOCUMENT_TAGS, $raw) === 1) {
-            $errors['content'] = 'Must be an HTML fragment, without html/head/body/title/meta/main/article elements';
+            $errors['content'] = 'Must be an HTML fragment, without html/head/body/title/meta/main elements';
             return null;
         }
 
         $sanitized = HtmlSanitizer::sanitize($raw);
 
-        if (trim(strip_tags($sanitized)) === '') {
+        // Bloki <style> to nie treść dla czytelnika, więc nie liczą się jako tekst artykułu.
+        $withoutStyles = preg_replace('~<style\b.*?</style>~is', '', $sanitized) ?? $sanitized;
+
+        if (trim(strip_tags($withoutStyles)) === '') {
             $errors['content'] = 'Content is empty after sanitization';
             return null;
         }

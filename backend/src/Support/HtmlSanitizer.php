@@ -18,15 +18,16 @@ if (!defined('APP_ENTRY')) {
  * Sanityzacja fragmentu HTML: parsujemy do drzewa DOM i budujemy wynik OD ZERA,
  * kopiując wyłącznie znane tagi i atrybuty. Tekst jest zawsze escapowany, więc nic
  * spoza list poniżej nie ma jak trafić na wyjście. Lista jest szeroka (układ, tekst,
- * listy, tabele, obrazki, "class" i "style"), bo artykuły są pisane jako gotowy HTML
- * ze stylami — blokujemy to, co wykonuje kod albo ładuje cudze zasoby. Nowy tag =
- * wpis w ALLOWED_TAGS, nowy atrybut = wpis w GLOBAL_ATTRIBUTES / TAG_ATTRIBUTES.
+ * listy, tabele, obrazki, podstawowe SVG, "class", "style" i blok <style>), bo artykuły
+ * są pisane jako gotowy HTML ze stylami — blokujemy to, co wykonuje kod albo ładuje
+ * cudze zasoby. Nowy tag = wpis w ALLOWED_TAGS / SVG_TAGS, nowy atrybut = wpis w
+ * GLOBAL_ATTRIBUTES / TAG_ATTRIBUTES / SVG_ATTRIBUTES.
  */
 final class HtmlSanitizer
 {
     private const ALLOWED_TAGS = [
         // układ
-        'div', 'section', 'header', 'footer', 'nav', 'aside', 'figure', 'figcaption',
+        'div', 'section', 'article', 'header', 'footer', 'nav', 'aside', 'figure', 'figcaption',
         // tekst
         'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'blockquote', 'pre', 'code', 'br', 'hr',
         'strong', 'b', 'em', 'i', 'u', 's', 'small', 'mark', 'sub', 'sup',
@@ -36,6 +37,22 @@ final class HtmlSanitizer
         'ul', 'ol', 'li', 'dl', 'dt', 'dd',
         // tabele
         'table', 'caption', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+    ];
+
+    /**
+     * Podstawowe kształty SVG (ikony, ilustracje). Bez elementów odwołujących się do innych zasobów lub
+     * wykonujących kod: use, image, foreignObject, animate/set, a, script — te są rozpakowywane lub usuwane.
+     * Bez defs/gradientów/clipPath, bo wymagają "id", którego nie przepuszczamy.
+     */
+    private const SVG_TAGS = ['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'text', 'tspan'];
+
+    /** Nazwy małymi literami — parser HTML zmniejsza litery atrybutów (viewBox → viewbox), przeglądarka to odwraca. */
+    private const SVG_ATTRIBUTES = [
+        'xmlns', 'viewbox', 'preserveaspectratio', 'width', 'height', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry',
+        'd', 'points', 'transform',
+        'fill', 'fill-rule', 'fill-opacity', 'clip-rule', 'opacity',
+        'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-opacity',
+        'role', 'aria-hidden', 'focusable',
     ];
 
     /** Tagi bez zawartości i znacznika zamykającego. */
@@ -51,20 +68,17 @@ final class HtmlSanitizer
         'td' => ['colspan', 'rowspan'],
     ];
 
-    /**
-     * Tagi usuwane RAZEM z zawartością: wykonują kod, osadzają cudze strony/obiekty albo (svg, math)
-     * mają własne reguły parsowania, na których opierają się ataki typu mutation XSS.
-     */
-    private const DROP_WITH_CONTENT = ['script', 'style', 'iframe', 'object', 'embed', 'noscript', 'template', 'svg', 'math'];
+    /** Tagi usuwane RAZEM z zawartością: wykonują kod, osadzają cudze strony/obiekty albo mają własne reguły parsowania (math). */
+    private const DROP_WITH_CONTENT = ['script', 'iframe', 'object', 'embed', 'noscript', 'template', 'math'];
 
     private const SAFE_URL_SCHEMES = ['http', 'https', 'mailto'];
 
     /**
-     * Konstrukcje CSS, przez które "style" mógłby wykonać kod albo ładować cudze zasoby (url(), image-set(),
-     * expression(), @import, backslash i komentarze służące do obchodzenia filtrów). Deklaracja z takim
-     * fragmentem jest usuwana w całości; reszta stylu zostaje.
+     * Konstrukcje CSS, przez które styl mógłby wykonać kod albo ładować cudze zasoby: url(), image-set(),
+     * expression(), @import, javascript:, backslash (zapis obchodzący filtr, np. u\72l()). Dotyczy atrybutu
+     * "style", bloku <style> i wartości atrybutów SVG.
      */
-    private const UNSAFE_CSS = '~url\s*\(|image-set\s*\(|expression\s*\(|javascript:|vbscript:|behavior\s*:|-moz-binding|[@\\\\]|/\*~i';
+    private const UNSAFE_CSS = '~url\s*\(|image-set\s*\(|expression\s*\(|javascript:|vbscript:|behavior\s*:|-moz-binding|@import|\\\\~i';
 
     public static function sanitize(string $html): string
     {
@@ -105,6 +119,10 @@ final class HtmlSanitizer
             return '';
         }
 
+        if ($tag === 'style') {
+            return self::renderStyleBlock($element);
+        }
+
         // Obrazek bez bezpiecznego src nie ma sensu — usuwamy go w całości.
         if ($tag === 'img' && !self::isSafeUrl($element->getAttribute('src'))) {
             return '';
@@ -112,15 +130,35 @@ final class HtmlSanitizer
 
         $inner = self::renderChildren($element);
 
-        // Nieznany tag: rozpakowujemy (zostaje sam tekst).
-        if (!in_array($tag, self::ALLOWED_TAGS, true)) {
+        if (in_array($tag, self::ALLOWED_TAGS, true)) {
+            $allowed = [...self::GLOBAL_ATTRIBUTES, ...(self::TAG_ATTRIBUTES[$tag] ?? [])];
+        } elseif (in_array($tag, self::SVG_TAGS, true)) {
+            $allowed = [...self::GLOBAL_ATTRIBUTES, ...self::SVG_ATTRIBUTES];
+        } else {
+            // Nieznany tag: rozpakowujemy (zostaje sam tekst).
             return $inner;
         }
 
-        $attributes = [...self::GLOBAL_ATTRIBUTES, ...(self::TAG_ATTRIBUTES[$tag] ?? [])];
-        $open = "<{$tag}" . self::renderAttributes($element, $attributes) . '>';
+        $open = "<{$tag}" . self::renderAttributes($element, $allowed) . '>';
 
         return in_array($tag, self::VOID_TAGS, true) ? $open : "{$open}{$inner}</{$tag}>";
+    }
+
+    /**
+     * Blok <style> przechodzi w całości albo wcale: odrzucamy go, gdy zawiera "<" (jedyny sposób, by
+     * treść bloku mogła stać się znacznikiem — w SVG przeglądarka parsuje ją inaczej niż ten parser)
+     * albo niebezpieczną konstrukcję (UNSAFE_CSS). Zawartość wypisujemy bez escapowania, bo
+     * escapowanie zepsułoby selektory (">").
+     */
+    private static function renderStyleBlock(DOMElement $element): string
+    {
+        $css = $element->textContent;
+
+        if (trim($css) === '' || str_contains($css, '<') || preg_match(self::UNSAFE_CSS, $css) === 1) {
+            return '';
+        }
+
+        return "<style>{$css}</style>";
     }
 
     /** @param list<string> $allowed */
@@ -128,12 +166,13 @@ final class HtmlSanitizer
     {
         $html = '';
 
-        foreach ($allowed as $name) {
-            if (!$element->hasAttribute($name)) {
+        foreach ($element->attributes as $attribute) {
+            $name = strtolower($attribute->nodeName);
+            $value = $attribute->value;
+
+            if (!in_array($name, $allowed, true)) {
                 continue;
             }
-
-            $value = $element->getAttribute($name);
 
             if ($name === 'href' && !self::isSafeUrl($value)) {
                 continue;
@@ -141,9 +180,12 @@ final class HtmlSanitizer
 
             if ($name === 'style') {
                 $value = self::sanitizeStyle($value);
+
                 if ($value === '') {
                     continue;
                 }
+            } elseif (in_array($name, self::SVG_ATTRIBUTES, true) && preg_match(self::UNSAFE_CSS, $value) === 1) {
+                continue;
             }
 
             $html .= sprintf(' %s="%s"', $name, htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
@@ -152,7 +194,7 @@ final class HtmlSanitizer
         return $html;
     }
 
-    /** Zostawia deklaracje CSS bez niebezpiecznych konstrukcji (patrz UNSAFE_CSS). */
+    /** Zostawia deklaracje CSS bez niebezpiecznych konstrukcji (patrz UNSAFE_CSS) i bez komentarzy. */
     private static function sanitizeStyle(string $style): string
     {
         $safe = [];
@@ -160,7 +202,12 @@ final class HtmlSanitizer
         foreach (explode(';', $style) as $declaration) {
             $declaration = trim($declaration);
 
-            if ($declaration !== '' && str_contains($declaration, ':') && preg_match(self::UNSAFE_CSS, $declaration) !== 1) {
+            if (
+                $declaration !== ''
+                && str_contains($declaration, ':')
+                && !str_contains($declaration, '/*')
+                && preg_match(self::UNSAFE_CSS, $declaration) !== 1
+            ) {
                 $safe[] = $declaration;
             }
         }

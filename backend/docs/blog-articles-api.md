@@ -9,7 +9,7 @@ Endpoint do dodawania nowych wpisów na blog. Zapisuje artykuł w bazie danych -
 | Metoda | `POST` |
 | Adres | `https://DOMAIN_PLACEHOLDER/api/blog/articles` |
 
-Adresu zapasowego używaj tylko wtedy, gdy główny zwraca 404 z serwera WWW (hosting bez obsługi przepisywania adresów). Oba działają identycznie. Wymagane jest **HTTPS**.
+Wymagane jest **HTTPS** (żądanie przez `http://` jest odrzucane).
 
 > Domenę zamień na docelową, gdy API zostanie przeniesione na produkcję.
 
@@ -32,7 +32,7 @@ Maksymalny rozmiar żądania: **256 KB**. Nieznane pola są odrzucane (422).
 | `meta_title` | string | tak | 3–160 znaków. Zwykły tekst (bez `<`, `>` i podziałów linii). Służy też jako nagłówek artykułu |
 | `meta_desc` | string | tak | 20–320 znaków. Zwykły tekst |
 | `keyword` | string | nie | 1–120 znaków. Zwykły tekst |
-| `cover_image` | string | nie | Zdjęcie tytułowe: pełny adres `http(s)://…` albo ścieżka `/uploads/foto.jpg`. Max 500 znaków. Adres musi być zakodowany (bez spacji i polskich liter). API zapisuje sam adres, nie pobiera pliku |
+| `cover_image` | string | nie | Zdjęcie tytułowe: pełny adres `http(s)://…` albo ścieżka od korzenia serwisu, np. `/uploads/foto.jpg`. Max 500 znaków. Adres musi być zakodowany (bez spacji i polskich liter). API zapisuje sam adres, nie pobiera pliku |
 | `publish_date` | string | tak | ISO 8601 **z jawnym offsetem strefy**, np. `2026-09-20T10:00:00+02:00` lub `2026-09-20T08:00:00Z`. Data bez strefy jest odrzucana |
 | `content` | string | tak | Fragment HTML (max 200 000 bajtów), nie cały dokument. Po sanityzacji musi zawierać jakiś tekst |
 
@@ -45,7 +45,7 @@ Maksymalny rozmiar żądania: **256 KB**. Nieznane pola są odrzucane (422).
 ### `publish_date`
 
 - Data w przeszłości lub teraźniejszości → artykuł zapisany jako **opublikowany**.
-- Data w przyszłości → artykuł zapisany jako **szkic** (`draft`) i nie pojawi się na stronie, dopóki nie zostanie opublikowany osobno.
+- Data w przyszłości → artykuł zapisany jako **szkic** (`draft`) i nie pojawi się na stronie, dopóki administrator nie opublikuje go w panelu (API nie ma operacji publikacji).
 - Data służy też do sortowania listy bloga (najnowsze pierwsze) i jest wyświetlana czytelnikom jako data artykułu (dzień w czasie polskim).
 
 ### `content` - dozwolone HTML
@@ -55,33 +55,37 @@ Wysyłaj wyłącznie fragment treści artykułu (np. `<section class="…"><h1>�
 **Dozwolone tagi:**
 
 ```
-układ:    div  section  header  footer  nav  aside  figure  figcaption
+układ:    div  section  article  header  footer  nav  aside  figure  figcaption
 tekst:    h1 h2 h3 h4 h5 h6  p  span  blockquote  pre  code  br  hr
           strong  b  em  i  u  s  small  mark  sub  sup
 linki:    a   (href, title)
 obrazki:  img (src, alt, width, height)
 listy:    ul  ol  li  dl  dt  dd
 tabele:   table  caption  thead  tbody  tfoot  tr  th  td  (colspan, rowspan na th/td)
+style:    <style> (blok CSS, patrz Stylowanie)
+svg:      svg  g  path  circle  ellipse  rect  line  polyline  polygon  text  tspan
 ```
 
-Na każdym z tych tagów dozwolone są atrybuty `class` i `style` (patrz [Stylowanie](#stylowanie)).
+Na tagach HTML i SVG dozwolone są atrybuty `class` i `style` (patrz [Stylowanie](#stylowanie)). Dodatkowo na `svg` i jego elementach dozwolone są atrybuty rysunkowe: `xmlns`, `viewBox`, `preserveAspectRatio`, `width`, `height`, `x`, `y`, `x1`, `y1`, `x2`, `y2`, `cx`, `cy`, `r`, `rx`, `ry`, `d`, `points`, `transform`, `fill`, `fill-rule`, `fill-opacity`, `clip-rule`, `opacity`, `stroke`, `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`, `stroke-dasharray`, `stroke-dashoffset`, `stroke-opacity`, `role`, `aria-hidden`, `focusable`.
 
 **Zasady sanityzacji:**
 
 - Tagi spoza listy są usuwane, a ich tekst zostaje (np. `<button>Klik</button>` → `Klik`).
-- Tagi `script`, `style`, `iframe`, `object`, `embed`, `noscript`, `template`, `svg`, `math` są usuwane **razem z zawartością**.
+- Tagi `script`, `iframe`, `object`, `embed`, `noscript`, `template`, `math` są usuwane **razem z zawartością**. (Tag `<style>` i `<svg>` są dozwolone — patrz niżej.)
+- Wewnątrz `svg` elementy spoza listy (m.in. `use`, `image`, `foreignObject`, `animate`, `set`, `defs`, gradienty) są rozpakowywane, a `script` usuwany. Atrybuty SVG o wartościach zawierających `url(`, `javascript:` itp. są usuwane. Elementy `title` i `desc` w `svg` nie są obsługiwane, a `<title>` w treści powoduje odrzucenie (patrz ostatni punkt).
 - Atrybuty poza wymienionymi (w tym `id`, `data-*` i wszystkie handlery `on*`, np. `onclick`) są usuwane.
-- W `href` i `src` dozwolone są protokoły `https:`, `http:`, `mailto:` (tylko `href`) oraz adresy względne (`/kontakt`, `#kotwica`). Adresy `javascript:`, `data:`, `vbscript:` i inne — atrybut `href` jest usuwany (tekst linku zostaje), a obrazek z niebezpiecznym lub brakującym `src` jest usuwany w całości.
+- W `href` i `src` dozwolone są protokoły `https:`, `http:`, `mailto:` oraz adresy względne (`/kontakt`, `#kotwica`). Przy adresach `javascript:`, `data:`, `vbscript:` i innych atrybut `href` jest usuwany (tekst linku zostaje), a obrazek z niebezpiecznym lub brakującym `src` jest usuwany w całości.
 - Komentarze HTML są usuwane.
-- Treść zawierająca elementy struktury dokumentu - `html`, `head`, `body`, `title`, `meta`, `link`, `base`, `main`, `article` - jest **odrzucana** (422), a nie czyszczona.
+- Treść zawierająca elementy struktury dokumentu - `html`, `head`, `body`, `title`, `meta`, `link`, `base`, `main` - jest **odrzucana** (422), a nie czyszczona. Tag `article` jest dozwolony.
 
-Jeśli sanityzacja usunęła cały widoczny tekst, żądanie jest odrzucane (422).
+Jeśli po sanityzacji w treści nie zostaje żaden tekst (np. sam obrazek, sam `svg` albo sam blok `<style>`), żądanie jest odrzucane (422).
 
 ### Stylowanie
 
-Atrybuty `class` i `style` są zachowywane.
+Do stylowania służą trzy mechanizmy: atrybut `class`, atrybut `style` i blok `<style>`.
 
-- **`style`:** deklaracje zawierające `url()`, `image-set()`, `expression()`, `@import`, `javascript:`, `behavior`, backslash lub komentarz CSS są usuwane pojedynczo, reszta stylu zostaje.
+- **Atrybut `style`:** deklaracje zawierające `url()`, `image-set()`, `expression()`, `@import`, `javascript:`, `vbscript:`, `behavior:`, `-moz-binding`, backslash lub komentarz CSS są usuwane pojedynczo, reszta stylu zostaje. Jeśli żadna deklaracja nie przejdzie, atrybut jest usuwany.
+- **Blok `<style>`:** przechodzi w całości albo wcale. Cały blok jest usuwany, jeśli zawiera znak `<`, `url()`, `image-set()`, `expression()`, `@import`, `javascript:`, `vbscript:`, `behavior:`, `-moz-binding` lub backslash. Reguły `@media` i `@keyframes` oraz selektory z `>` są dozwolone. Blok `<style>` działa na całą stronę artykułu, więc selektory pisz ostrożnie (np. `.moj-artykul p`, a nie `p` ani `body`).
 - **`class`:** klasa daje efekt tylko wtedy, gdy strona ma dla niej regułę CSS. Klasy Tailwind, których serwis nigdzie nie używa, nie mają reguł i nie zadziałają. Wygląd, który ma być pewny, opieraj na `style`.
 
 ## Odpowiedzi
@@ -139,7 +143,7 @@ Inna metoda niż `POST` zwraca 405, a nieznana ścieżka 404 w prostszym formaci
 
 ## Publikacja
 
-Odpowiedź `201` oznacza **zapis do bazy danych**. Strona jest statyczna, więc artykuł pojawi się pod adresem `/blog/<slug>/` dopiero po kolejnym buildzie serwisu, który uruchamiany jest osobno (patrz niżej). Artykuł z datą w przyszłości (`draft`) wymaga dodatkowo opublikowania.
+Odpowiedź `201` oznacza **zapis do bazy danych**. Strona jest statyczna, więc artykuł pojawi się pod adresem `/blog/<slug>/` dopiero po kolejnym buildzie serwisu, który uruchamiany jest osobno (patrz niżej). Artykuł z datą w przyszłości (`draft`) wymaga dodatkowo opublikowania przez administratora w panelu.
 
 ## Uruchomienie builda
 
