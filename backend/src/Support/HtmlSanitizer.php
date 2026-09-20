@@ -31,6 +31,13 @@ final class HtmlSanitizer
         'table' => [], 'thead' => [], 'tbody' => [], 'tr' => [], 'th' => [], 'td' => [],
     ];
 
+    /**
+     * Atrybuty dozwolone na każdym dozwolonym tagu. "class" przepuszczamy w całości — CSS dla klas Tailwind
+     * powstaje przy buildzie ze skanowania treści (scripts/collect-article-classes.mjs). Wartość jest
+     * escapowana jak każdy atrybut, więc nie da się z niej wyjść; "style" i "on*" nadal są usuwane.
+     */
+    private const GLOBAL_ATTRIBUTES = ['class'];
+
     /** Tagi usuwane RAZEM z zawartością — ich tekst (kod, CSS) nie ma sensu jako treść artykułu. */
     private const DROP_WITH_CONTENT = ['script', 'style', 'iframe', 'object', 'embed', 'noscript', 'template'];
 
@@ -85,7 +92,9 @@ final class HtmlSanitizer
             return '<br>';
         }
 
-        return "<{$tag}" . self::renderAttributes($element, self::ALLOWED_TAGS[$tag]) . ">{$inner}</{$tag}>";
+        $attributes = [...self::GLOBAL_ATTRIBUTES, ...self::ALLOWED_TAGS[$tag]];
+
+        return "<{$tag}" . self::renderAttributes($element, $attributes) . ">{$inner}</{$tag}>";
     }
 
     /** @param list<string> $allowed */

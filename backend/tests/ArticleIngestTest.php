@@ -66,7 +66,11 @@ check('drops script with its content', HtmlSanitizer::sanitize('<p>x</p><script>
 check('drops iframe/object/embed/style with content', HtmlSanitizer::sanitize('<iframe src="x">i</iframe><object>o</object><embed src="x"><style>p{}</style><p>ok</p>'), '<p>ok</p>');
 check('unwraps form/input/button, keeps text', HtmlSanitizer::sanitize('<form><input value="v"><button>Klik</button></form>'), 'Klik');
 check('removes event handlers', HtmlSanitizer::sanitize('<p onclick="x()" onmouseover="y()">t</p>'), '<p>t</p>');
-check('removes style/class attributes', HtmlSanitizer::sanitize('<p style="color:red" class="c">t</p>'), '<p>t</p>');
+check('removes style but keeps class', HtmlSanitizer::sanitize('<p style="color:red" class="c">t</p>'), '<p class="c">t</p>');
+check('keeps tailwind classes incl. variants and arbitrary values', HtmlSanitizer::sanitize('<h2 class="text-3xl md:text-4xl w-[calc(100%-2rem)] hover:bg-red-500/50">t</h2>'), '<h2 class="text-3xl md:text-4xl w-[calc(100%-2rem)] hover:bg-red-500/50">t</h2>');
+check('keeps class on links, lists and tables', HtmlSanitizer::sanitize('<ul class="a"><li class="b"><a class="c" href="/x">t</a></li></ul><table class="d"><tr><td class="e">1</td></tr></table>'), '<ul class="a"><li class="b"><a class="c" href="/x">t</a></li></ul><table class="d"><tr><td class="e">1</td></tr></table>');
+check('class value cannot break out of the attribute', HtmlSanitizer::sanitize('<p class="a&quot; onclick=&quot;x()">t</p>'), '<p class="a&quot; onclick=&quot;x()">t</p>');
+check('other attributes (id, data-*) still removed', HtmlSanitizer::sanitize('<p id="i" data-x="1" class="c">t</p>'), '<p class="c">t</p>');
 check('keeps https/http/mailto links', HtmlSanitizer::sanitize('<a href="https://a.pl" title="t">x</a>'), '<a href="https://a.pl" title="t">x</a>');
 check('keeps mailto link', HtmlSanitizer::sanitize('<a href="mailto:a@b.pl">x</a>'), '<a href="mailto:a@b.pl">x</a>');
 check('keeps relative link', HtmlSanitizer::sanitize('<a href="/kontakt">x</a>'), '<a href="/kontakt">x</a>');
