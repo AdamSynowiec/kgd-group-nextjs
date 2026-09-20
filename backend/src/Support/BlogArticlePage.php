@@ -19,7 +19,7 @@ if (!defined('APP_ENTRY')) {
  */
 final class BlogArticlePage
 {
-    /** @param array{slug: string, meta_title: string, meta_desc: string, keyword: ?string, publish_date: DateTimeImmutable, content: string} $article */
+    /** @param array{slug: string, meta_title: string, meta_desc: string, keyword: ?string, cover_image: ?string, publish_date: DateTimeImmutable, content: string} $article */
     public static function build(array $article): array
     {
         $publishDate = $article['publish_date'];
@@ -49,7 +49,7 @@ final class BlogArticlePage
                 'component' => 'BlogPost',
                 'fields' => [
                     'excerpt' => self::field('', 'Zajawka (widoczna na liście)', 'string'),
-                    'coverImage' => self::field('', 'Zdjęcie główne', 'asset'),
+                    'coverImage' => self::field($article['cover_image'] ?? '', 'Zdjęcie główne', 'asset'),
                     'author' => self::field('', 'Autor', 'string'),
                     'body' => self::field($article['content'], 'Treść artykułu', 'richtext'),
                     'tags' => self::field([], 'Tagi', 'table'),

@@ -20,7 +20,7 @@ if (!defined('APP_ENTRY')) {
  */
 final class ArticleValidator
 {
-    private const FIELDS = ['slug', 'meta_title', 'meta_desc', 'keyword', 'publish_date', 'content'];
+    private const FIELDS = ['slug', 'meta_title', 'meta_desc', 'keyword', 'cover_image', 'publish_date', 'content'];
     private const MAX_CONTENT_BYTES = 200000;
 
     /** Elementy struktury strony — content to sam fragment artykułu. Regex tylko WYKRYWA (odrzuca), nie czyści. */
@@ -31,7 +31,7 @@ final class ArticleValidator
 
     /**
      * @param array<string, mixed> $body
-     * @return array{slug: string, meta_title: string, meta_desc: string, keyword: ?string, publish_date: DateTimeImmutable, content: string}
+     * @return array{slug: string, meta_title: string, meta_desc: string, keyword: ?string, cover_image: ?string, publish_date: DateTimeImmutable, content: string}
      */
     public static function validate(array $body): array
     {
@@ -46,6 +46,7 @@ final class ArticleValidator
             'meta_title' => self::text($body, 'meta_title', 3, 160, true, $errors),
             'meta_desc' => self::text($body, 'meta_desc', 20, 320, true, $errors),
             'keyword' => self::text($body, 'keyword', 1, 120, false, $errors),
+            'cover_image' => self::imageUrl($body, $errors),
             'publish_date' => self::publishDate($body, $errors),
             'content' => self::content($body, $errors),
         ];
@@ -110,6 +111,30 @@ final class ArticleValidator
         }
 
         return $slug;
+    }
+
+    /**
+     * Zdjęcie tytułowe: pełny adres http(s) albo ścieżka od korzenia serwisu ("/uploads/x.jpg").
+     * Adres musi być zakodowany (bez spacji i polskich liter) — inaczej filter_var go odrzuci.
+     * @param array<string, string> $errors
+     */
+    private static function imageUrl(array $body, array &$errors): ?string
+    {
+        $url = self::text($body, 'cover_image', 1, 500, false, $errors);
+        if ($url === null) {
+            return null;
+        }
+
+        $isAbsolute = filter_var($url, FILTER_VALIDATE_URL) !== false
+            && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true);
+        $isSitePath = preg_match('~^/(?!/)\S*$~', $url) === 1;
+
+        if (!$isAbsolute && !$isSitePath) {
+            $errors['cover_image'] = 'Must be an http(s) URL or a site path like /uploads/photo.jpg';
+            return null;
+        }
+
+        return $url;
     }
 
     /** @param array<string, string> $errors */

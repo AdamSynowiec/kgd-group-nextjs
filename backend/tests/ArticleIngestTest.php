@@ -93,6 +93,12 @@ check('slug outside /blog rejected', array_keys(fieldErrors(valid(['slug' => '/o
 check('nested slug rejected', array_keys(fieldErrors(valid(['slug' => '/blog/a/b']))), ['slug']);
 check('slug with polish letters rejected', array_keys(fieldErrors(valid(['slug' => '/blog/żółć']))), ['slug']);
 check('reserved slug /blog/page rejected', array_keys(fieldErrors(valid(['slug' => '/blog/page']))), ['slug']);
+check('cover_image absolute https accepted', fieldErrors(valid(['cover_image' => 'https://cdn.example.com/a/foto.jpg'])), []);
+check('cover_image site path accepted', fieldErrors(valid(['cover_image' => '/uploads/foto.jpg'])), []);
+check('cover_image javascript: rejected', array_keys(fieldErrors(valid(['cover_image' => 'javascript:alert(1)']))), ['cover_image']);
+check('cover_image data: rejected', array_keys(fieldErrors(valid(['cover_image' => 'data:image/png;base64,AAAA']))), ['cover_image']);
+check('cover_image protocol-relative rejected', array_keys(fieldErrors(valid(['cover_image' => '//evil.example/x.jpg']))), ['cover_image']);
+check('cover_image plain text rejected', array_keys(fieldErrors(valid(['cover_image' => 'foto.jpg']))), ['cover_image']);
 check('meta_title too short', array_keys(fieldErrors(valid(['meta_title' => 'ab']))), ['meta_title']);
 check('meta_title with html rejected', array_keys(fieldErrors(valid(['meta_title' => 'Tytuł <b>x</b>']))), ['meta_title']);
 check('non-string meta_desc rejected', array_keys(fieldErrors(valid(['meta_desc' => 123]))), ['meta_desc']);
@@ -115,6 +121,8 @@ $page = BlogArticlePage::build($article);
 check('past publish_date -> published', $page['status'], 'published');
 check('future publish_date -> draft', BlogArticlePage::build(ArticleValidator::validate(valid(['publish_date' => '2099-01-01T00:00:00Z'])))['status'], 'draft');
 check('updatedAt is the Warsaw calendar day', BlogArticlePage::build(ArticleValidator::validate(valid(['publish_date' => '2026-09-20T23:30:00Z'])))['updatedAt'], '2026-09-21');
+check('cover_image lands in coverImage field', BlogArticlePage::build(ArticleValidator::validate(valid(['cover_image' => '/uploads/foto.jpg'])))['sections'][0]['fields']['coverImage']['value'], '/uploads/foto.jpg');
+check('missing cover_image -> empty coverImage', $page['sections'][0]['fields']['coverImage']['value'], '');
 check('page is a blog child with editor acl', [$page['parent'], $page['template'], $page['acl']['role']], ['/blog', 'blog-post', 'blog']);
 check('body is a richtext field', $page['sections'][0]['fields']['body']['type'], 'richtext');
 
