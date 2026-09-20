@@ -50,24 +50,28 @@ Maksymalny rozmiar żądania: **256 KB**. Nieznane pola są odrzucane (422).
 
 ### `content` - dozwolone HTML
 
-Wysyłaj wyłącznie fragment treści artykułu, np. `<p>Wprowadzenie</p><h2>Nagłówek</h2><p>Treść</p>`. Tytuł artykułu (`<h1>`) generuje strona z `meta_title`, więc treść zaczynaj od `<h2>`.
+Wysyłaj wyłącznie fragment treści artykułu (np. `<section class="…"><h1>…</h1><p>…</p></section>`), a nie cały dokument. Tytuł strony jest wyświetlany osobno z `meta_title`.
 
 **Dozwolone tagi:**
 
 ```
-p  h2  h3  h4  ul  ol  li  strong  em  br  blockquote
-a (atrybuty: href, title)
-table  thead  tbody  tr  th  td
+układ:    div  section  header  footer  nav  aside  figure  figcaption
+tekst:    h1 h2 h3 h4 h5 h6  p  span  blockquote  pre  code  br  hr
+          strong  b  em  i  u  s  small  mark  sub  sup
+linki:    a   (href, title)
+obrazki:  img (src, alt, width, height)
+listy:    ul  ol  li  dl  dt  dd
+tabele:   table  caption  thead  tbody  tfoot  tr  th  td  (colspan, rowspan na th/td)
 ```
 
-Każdy z tych tagów może mieć atrybut `class` (patrz [Stylowanie](#stylowanie)).
+Na każdym z tych tagów dozwolone są atrybuty `class` i `style` (patrz [Stylowanie](#stylowanie)).
 
 **Zasady sanityzacji:**
 
-- Wszystkie inne tagi są usuwane, a ich tekst zostaje (np. `<span>tekst</span>` → `tekst`).
-- Tagi `script`, `style`, `iframe`, `object`, `embed`, `noscript`, `template` są usuwane **razem z zawartością**.
-- Wszystkie atrybuty poza `class` (na każdym tagu) oraz `href`/`title` (na `a`) są usuwane — w tym `style`, `id`, `data-*` i wszystkie handlery `on*`, np. `onclick`.
-- W `href` dozwolone są protokoły `https:`, `http:`, `mailto:` oraz adresy względne (`/kontakt`, `#kotwica`). Adresy `javascript:`, `data:`, `vbscript:` i inne - atrybut `href` jest usuwany, a tekst linku zostaje.
+- Tagi spoza listy są usuwane, a ich tekst zostaje (np. `<button>Klik</button>` → `Klik`).
+- Tagi `script`, `style`, `iframe`, `object`, `embed`, `noscript`, `template`, `svg`, `math` są usuwane **razem z zawartością**.
+- Atrybuty poza wymienionymi (w tym `id`, `data-*` i wszystkie handlery `on*`, np. `onclick`) są usuwane.
+- W `href` i `src` dozwolone są protokoły `https:`, `http:`, `mailto:` (tylko `href`) oraz adresy względne (`/kontakt`, `#kotwica`). Adresy `javascript:`, `data:`, `vbscript:` i inne — atrybut `href` jest usuwany (tekst linku zostaje), a obrazek z niebezpiecznym lub brakującym `src` jest usuwany w całości.
 - Komentarze HTML są usuwane.
 - Treść zawierająca elementy struktury dokumentu - `html`, `head`, `body`, `title`, `meta`, `link`, `base`, `main`, `article` - jest **odrzucana** (422), a nie czyszczona.
 
@@ -75,10 +79,10 @@ Jeśli sanityzacja usunęła cały widoczny tekst, żądanie jest odrzucane (422
 
 ### Stylowanie
 
-Atrybut `class` jest zachowywany na wszystkich dozwolonych tagach. Atrybut `style` jest usuwany.
+Atrybuty `class` i `style` są zachowywane.
 
-- Klasa daje efekt tylko wtedy, gdy strona ma dla niej regułę CSS. Klasy Tailwind, których serwis nigdzie nie używa, nie mają reguł i nie zadziałają.
-- Dozwolone są tylko tagi z listy powyżej. Elementy takie jak `div`, `span`, `img` czy `figure` są usuwane (zostaje ich tekst), więc klasy można nadawać wyłącznie na dozwolonych tagach.
+- **`style`:** deklaracje zawierające `url()`, `image-set()`, `expression()`, `@import`, `javascript:`, `behavior`, backslash lub komentarz CSS są usuwane pojedynczo, reszta stylu zostaje.
+- **`class`:** klasa daje efekt tylko wtedy, gdy strona ma dla niej regułę CSS. Klasy Tailwind, których serwis nigdzie nie używa, nie mają reguł i nie zadziałają. Wygląd, który ma być pewny, opieraj na `style`.
 
 ## Odpowiedzi
 
