@@ -8,7 +8,7 @@ RewriteRule ^(\.env|src/) - [F,L]
 # Część hostingów (CGI/FastCGI) nie przekazuje nagłówka Authorization do PHP.
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-# Ładny adres API dla zewnętrznego systemu: /api/blog/articles zamiast
+# Ładne adresy API dla zewnętrznego systemu: /api/blog/articles zamiast
 # /api/ingest.php?route=/blog/articles (ta druga forma nadal działa, gdy
-# hosting ignoruje .htaccess). Kolejne endpointy ingestu dopisuj tu analogicznie.
-RewriteRule ^blog/articles/?$ ingest.php?route=/blog/articles [L,QSA]
+# hosting ignoruje .htaccess). Kolejne endpointy ingestu dopisuj do listy w nawiasie.
+RewriteRule ^(blog/articles|build)/?$ ingest.php?route=/$1 [L,QSA]

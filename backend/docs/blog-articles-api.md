@@ -126,7 +126,39 @@ Inna metoda niż `POST` zwraca 405, a nieznana ścieżka 404 w prostszym formaci
 
 ## Publikacja
 
-Odpowiedź `201` oznacza **zapis do bazy danych**. Strona jest statyczna, więc artykuł pojawi się pod adresem `/blog/<slug>/` dopiero po kolejnym buildzie serwisu, który uruchamiany jest osobno. Artykuł z datą w przyszłości (`draft`) wymaga dodatkowo opublikowania.
+Odpowiedź `201` oznacza **zapis do bazy danych**. Strona jest statyczna, więc artykuł pojawi się pod adresem `/blog/<slug>/` dopiero po kolejnym buildzie serwisu, który uruchamiany jest osobno (patrz niżej). Artykuł z datą w przyszłości (`draft`) wymaga dodatkowo opublikowania.
+
+## Uruchomienie builda
+
+Po dodaniu artykułów wywołaj ten endpoint, żeby przebudować i wdrożyć stronę. Używa **tego samego tokenu** i tych samych nagłówków co dodawanie artykułów.
+
+| | |
+|---|---|
+| Metoda | `POST` |
+| Adres | `https://DOMAIN_PLACEHOLDER/api/build` |
+| Body | brak |
+
+Wywołanie tylko **zleca** build w GitHub Actions — odpowiedź wraca od razu, a build i wdrożenie trwają zwykle kilka minut. Artykuły są widoczne na stronie dopiero po jego zakończeniu.
+
+```bash
+curl -i -X POST "https://DOMAIN_PLACEHOLDER/api/build" \
+  -H "Authorization: Bearer TWOJ_TOKEN"
+```
+
+**202 Accepted:**
+
+```json
+{"success":true,"status":"build_triggered","dispatched_at":"2026-09-20T08:15:30Z"}
+```
+
+| HTTP | `error.code` | Kiedy |
+|---|---|---|
+| 401 | `UNAUTHORIZED` | Brak tokenu lub token nieprawidłowy |
+| 403 | `INSECURE_TRANSPORT` | Żądanie przez `http://` |
+| 502 | `BUILD_TRIGGER_FAILED` | GitHub odrzucił zlecenie (np. wygasły token GitHub po naszej stronie) |
+| 500 | `BUILD_TRIGGER_FAILED` | Serwer nie ma skonfigurowanego dostępu do GitHuba |
+
+Zalecenia: dodaj wiele artykułów, a build wywołaj **raz na końcu** — każde wywołanie uruchamia osobny build i wdrożenie, więc wywoływanie go po każdym artykule niepotrzebnie mnoży przebiegi. Nie wywołuj go częściej niż raz na kilka minut.
 
 ## Przykłady curl
 
