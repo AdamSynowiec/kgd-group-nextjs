@@ -91,15 +91,19 @@ final class MysqlPageRepository implements PageRepositoryInterface
         }
     }
 
-    public function create(string $slug, array $content): array
+    public function create(string $slug, array $content, ?string $createdAt = null): array
     {
-        $statement = $this->pdo->prepare('INSERT INTO pages (slug, content) VALUES (:slug, :content)');
+        $statement = $this->pdo->prepare(
+            'INSERT INTO pages (slug, content, created_at) VALUES (:slug, :content, COALESCE(:created_at, CURRENT_TIMESTAMP))'
+        );
         $statement->execute([
             'slug' => $slug,
             'content' => $this->encode($content),
+            'created_at' => $createdAt,
         ]);
 
         return [
+            'id' => (int) $this->pdo->lastInsertId(),
             'slug' => $slug,
             'content' => $content,
             'updatedAt' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),

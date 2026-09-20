@@ -87,7 +87,7 @@ final class SessionAuth
         }
     }
 
-    private static function tokenFromRequest(): ?string
+    public static function tokenFromRequest(): ?string
     {
         $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
 

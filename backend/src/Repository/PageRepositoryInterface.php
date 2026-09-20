@@ -40,10 +40,11 @@ interface PageRepositoryInterface
      * Tworzy nowy wiersz. Rzuca (PDOException kod 23000), jeśli slug już
      * istnieje — kontroler zamienia to na czytelną odpowiedź 409 (mirror
      * dawnego CollectionItemRepositoryInterface::create()).
+     * $createdAt ("Y-m-d H:i:s") nadpisuje domyślne "teraz" — lista bloga sortuje po created_at.
      * @param array<string, mixed> $content
-     * @return array{slug: string, content: array<string, mixed>, updatedAt: string}
+     * @return array{id: int, slug: string, content: array<string, mixed>, updatedAt: string}
      */
-    public function create(string $slug, array $content): array;
+    public function create(string $slug, array $content, ?string $createdAt = null): array;
 
     /** Rzuca NotFoundException, jeśli slug nie istnieje. */
     public function delete(string $slug): void;

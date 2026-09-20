@@ -4,3 +4,6 @@
 # .htaccess w ogóle jest respektowany (na nginx nie jest).
 RewriteEngine On
 RewriteRule ^(\.env|src/) - [F,L]
+
+# Część hostingów (CGI/FastCGI) nie przekazuje nagłówka Authorization do PHP.
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

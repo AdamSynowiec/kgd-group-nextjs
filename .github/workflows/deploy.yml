@@ -60,7 +60,7 @@ jobs:
       - name: Assemble backend into out/api
         run: |
           mkdir -p out/api
-          cp -r backend/index.php backend/admin.php backend/.htaccess backend/src out/api/
+          cp -r backend/index.php backend/admin.php backend/ingest.php backend/.htaccess backend/src out/api/
           # ŚWIADOMIE bez .env tutaj. To plik konfiguracji SERWERA (dane do bazy,
           # sekrety), nie kod — wgrywasz go RAZ ręcznie przez FTP i zostaje tam
           # na stałe (patrz "exclude" w kroku "Deploy to FTP" niżej, który chroni
