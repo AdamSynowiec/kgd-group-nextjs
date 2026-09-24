@@ -19,6 +19,9 @@ if (!defined('APP_ENTRY')) {
  */
 final class BlogArticlePage
 {
+    /** Pola sekcji BlogPost, których API nie ustawia — przy aktualizacji zostają z panelu. */
+    private const PANEL_ONLY_FIELDS = ['excerpt', 'author', 'tags'];
+
     /** @param array{slug: string, meta_title: string, meta_desc: string, keyword: ?string, cover_image: ?string, publish_date: DateTimeImmutable, content: string} $article */
     public static function build(array $article): array
     {
@@ -56,6 +59,44 @@ final class BlogArticlePage
                 ],
             ]],
         ];
+    }
+
+    /**
+     * Dokument strony dla aktualizacji (PUT /blog/articles): wszystko, co wysyła API, jest budowane
+     * od nowa jak w build(), a pola, których API nie zna i które redaktor mógł ustawić w panelu
+     * (zajawka, autor, tagi, uprawnienia "acl"), są przenoszone z istniejącej strony.
+     *
+     * @param array{slug: string, meta_title: string, meta_desc: string, keyword: ?string, cover_image: ?string, publish_date: DateTimeImmutable, content: string} $article
+     * @param array<string, mixed> $existing dotychczasowe pages.content
+     */
+    public static function rebuild(array $article, array $existing): array
+    {
+        $page = self::build($article);
+
+        if (isset($existing['acl']) && is_array($existing['acl'])) {
+            $page['acl'] = $existing['acl'];
+        }
+
+        $oldFields = self::postFields($existing);
+        foreach (self::PANEL_ONLY_FIELDS as $name) {
+            if (is_array($oldFields[$name] ?? null) && array_key_exists('value', $oldFields[$name])) {
+                $page['sections'][0]['fields'][$name]['value'] = $oldFields[$name]['value'];
+            }
+        }
+
+        return $page;
+    }
+
+    /** @return array<string, mixed> pola sekcji "BlogPost" albo [] */
+    private static function postFields(array $content): array
+    {
+        foreach ((array) ($content['sections'] ?? []) as $section) {
+            if (is_array($section) && ($section['component'] ?? null) === 'BlogPost') {
+                return is_array($section['fields'] ?? null) ? $section['fields'] : [];
+            }
+        }
+
+        return [];
     }
 
     private static function field(mixed $value, string $label, string $type): array

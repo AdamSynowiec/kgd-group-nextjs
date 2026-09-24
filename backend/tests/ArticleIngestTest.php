@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  * Test bez frameworka (projekt nie ma composer.json/PHPUnit), uruchamiany ręcznie:
  *   php backend/tests/ArticleIngestTest.php
- * Sprawdza sanityzację HTML (XSS) i walidację payloadu POST /blog/articles.
+ * Sprawdza sanityzację HTML (XSS), walidację payloadu POST/PUT /blog/articles i budowę dokumentu strony (także przy aktualizacji).
  */
 
 define('APP_ENTRY', true);
@@ -179,6 +179,33 @@ check('cover_image lands in coverImage field', BlogArticlePage::build(ArticleVal
 check('missing cover_image -> empty coverImage', $page['sections'][0]['fields']['coverImage']['value'], '');
 check('page is a blog child with editor acl', [$page['parent'], $page['template'], $page['acl']['role']], ['/blog', 'blog-post', 'blog']);
 check('body is a richtext field', $page['sections'][0]['fields']['body']['type'], 'richtext');
+
+// --- aktualizacja (PUT) --------------------------------------------------------
+
+$existing = $page;
+$existing['acl'] = ['role' => 'redakcja', 'permission' => 'read/write'];
+$existing['sections'][0]['fields']['excerpt']['value'] = 'Zajawka z panelu';
+$existing['sections'][0]['fields']['author']['value'] = 'Jan Kowalski';
+$existing['sections'][0]['fields']['tags']['value'] = ['a', 'b'];
+$existing['sections'][0]['fields']['body']['value'] = '<p>Stara treść</p>';
+
+$updated = BlogArticlePage::rebuild(ArticleValidator::validate(valid([
+    'slug' => '/blog/moj-wpis',
+    'meta_title' => 'Nowy tytuł',
+    'content' => '<h2 id="nowa">Nowa</h2><p>Nowa treść</p>',
+    'cover_image' => '/uploads/nowe.jpg',
+])), $existing);
+$fields = $updated['sections'][0]['fields'];
+check('update: body replaced', $fields['body']['value'], '<h2 id="nowa">Nowa</h2><p>Nowa treść</p>');
+check('update: title and seo replaced', [$updated['title']['value'], $updated['seo']['title']['value']], ['Nowy tytuł', 'Nowy tytuł']);
+check('update: cover replaced', $fields['coverImage']['value'], '/uploads/nowe.jpg');
+check('update: panel-only fields kept', [$fields['excerpt']['value'], $fields['author']['value'], $fields['tags']['value']], ['Zajawka z panelu', 'Jan Kowalski', ['a', 'b']]);
+check('update: acl kept', $updated['acl'], ['role' => 'redakcja', 'permission' => 'read/write']);
+check('update: status recomputed from publish_date', BlogArticlePage::rebuild(ArticleValidator::validate(valid(['publish_date' => '2099-01-01T00:00:00Z'])), $existing)['status'], 'draft');
+check('update: missing cover_image clears cover', BlogArticlePage::rebuild(ArticleValidator::validate(valid()), $existing)['sections'][0]['fields']['coverImage']['value'], '');
+check('update: keyword omitted -> no keywords', array_key_exists('keywords', BlogArticlePage::rebuild(ArticleValidator::validate(array_diff_key(valid(), ['keyword' => 1])), $existing)['seo']), false);
+check('update: page without BlogPost section falls back to defaults', BlogArticlePage::rebuild(ArticleValidator::validate(valid()), ['template' => 'blog-post'])['sections'][0]['fields']['excerpt']['value'], '');
+check('update: page without acl gets default blog acl', BlogArticlePage::rebuild(ArticleValidator::validate(valid()), [])['acl']['role'], 'blog');
 
 echo "\n" . (count($failures) === 0 ? "ALL PASS" : count($failures) . " FAILED: " . implode(', ', $failures)) . "\n";
 exit(count($failures) === 0 ? 0 : 1);

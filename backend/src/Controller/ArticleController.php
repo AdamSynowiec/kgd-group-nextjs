@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Exception\IngestException;
+use App\Exception\NotFoundException;
 use App\Http\JsonResponse;
 use App\Repository\ActivityLogRepositoryInterface;
 use App\Repository\PageRepositoryInterface;
@@ -19,7 +20,7 @@ if (!defined('APP_ENTRY')) {
     exit;
 }
 
-/** Endpointy artykułów bloga dla zewnętrznego systemu (ingest.php). Tylko zapis do bazy — nic nie buduje ani nie publikuje strony. */
+/** Endpointy artykułów bloga dla zewnętrznego systemu (ingest.php): tworzenie i aktualizacja. Tylko zapis do bazy — nic nie buduje ani nie publikuje strony. */
 final class ArticleController
 {
     private const MAX_BODY_BYTES = 262144;
@@ -58,6 +59,46 @@ final class ArticleController
             'status' => 'created',
             'publish_status' => $page['status'],
         ], 201);
+    }
+
+    /**
+     * PUT /blog/articles — nadpisuje istniejący artykuł (to samo body co create, slug wskazuje wpis).
+     * Tylko aktualizacja, nie upsert: nieistniejący slug to 404, żeby literówka w slugu nie tworzyła
+     * po cichu nowego wpisu. Treść, SEO, zdjęcie, data i status są liczone od nowa z body; zajawka,
+     * autor, tagi i "acl" z panelu zostają (patrz BlogArticlePage::rebuild).
+     */
+    public function update(string $tokenId): void
+    {
+        $article = ArticleValidator::validate($this->readJsonBody());
+
+        $existing = $this->pages->findBySlug($article['slug']);
+        if ($existing === null) {
+            throw new IngestException(404, 'ARTICLE_NOT_FOUND', 'No article with this slug exists.');
+        }
+
+        // Slug "/blog/x" mógł zostać założony w panelu z innego szablonu — takiej strony API nie nadpisuje.
+        if (($existing['content']['template'] ?? null) !== 'blog-post') {
+            throw new IngestException(409, 'NOT_A_BLOG_ARTICLE', 'The page with this slug is not a blog article.');
+        }
+
+        $page = BlogArticlePage::rebuild($article, $existing['content']);
+        $createdAt = $article['publish_date']->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+
+        try {
+            $this->pages->save($article['slug'], $page, $createdAt);
+        } catch (NotFoundException) {
+            // Wpis usunięty w panelu między odczytem a zapisem.
+            throw new IngestException(404, 'ARTICLE_NOT_FOUND', 'No article with this slug exists.');
+        }
+
+        $this->activity->log(null, "api:{$tokenId}", 'blog.article.update', $article['slug']);
+
+        JsonResponse::send([
+            'success' => true,
+            'slug' => $article['slug'],
+            'status' => 'updated',
+            'publish_status' => $page['status'],
+        ], 200);
     }
 
     /** @return array<string, mixed> */

@@ -57,6 +57,7 @@ try {
 
     $router = new Router();
     $router->post('/blog/articles', $exact('/blog/articles', static fn () => $articles->create($tokenId)));
+    $router->put('/blog/articles', $exact('/blog/articles', static fn () => $articles->update($tokenId)));
     $router->post('/build', $exact('/build', static fn () => $build->trigger($tokenId)));
 
     $router->dispatch(Request::fromGlobals());

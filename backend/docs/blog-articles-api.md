@@ -1,13 +1,15 @@
 # API artykułów bloga (dla zewnętrznego systemu)
 
-Endpoint do dodawania nowych wpisów na blog. Zapisuje artykuł w bazie danych - **nie buduje ani nie publikuje strony** (patrz [Publikacja](#publikacja)).
+Endpointy do dodawania i aktualizowania wpisów na blogu. Zapisują artykuł w bazie danych - **nie buduje ani nie publikuje strony** (patrz [Publikacja](#publikacja)).
 
 ## Endpoint
 
-| | |
-|---|---|
-| Metoda | `POST` |
-| Adres | `https://DOMAIN_PLACEHOLDER/api/blog/articles` |
+| Operacja | Metoda | Adres |
+|---|---|---|
+| Nowy artykuł | `POST` | `https://DOMAIN_PLACEHOLDER/api/blog/articles` |
+| Aktualizacja artykułu | `PUT` | `https://DOMAIN_PLACEHOLDER/api/blog/articles` |
+
+Obie operacje przyjmują to samo body (patrz niżej). Przy `PUT` slug w body wskazuje artykuł do aktualizacji - szczegóły w [Aktualizacja artykułu](#aktualizacja-artykułu).
 
 Wymagane jest **HTTPS** (żądanie przez `http://` jest odrzucane).
 
@@ -40,7 +42,7 @@ Maksymalny rozmiar żądania: **256 KB**. Nieznane pola są odrzucane (422).
 
 - Poprawne: `/blog/przykladowy-artykul`, `blog/przykladowy-artykul` (bez początkowego `/` też przejdzie, zapisany zostanie z `/`).
 - Niepoprawne: `/o-nas` (poza blogiem), `/blog/a/b` (zagnieżdżony), `/blog/Zażółć` (wielkie litery i polskie znaki), `/blog/page` (zarezerwowany).
-- Slug jest kluczem artykułu i **nie można go zmienić** po utworzeniu. Ponowne wysłanie istniejącego sluga nigdy nie nadpisuje artykułu (409).
+- Slug jest kluczem artykułu i **nie można go zmienić** po utworzeniu. `POST` z istniejącym slugiem nigdy nie nadpisuje artykułu (409) - do zmiany treści służy `PUT` (patrz [Aktualizacja artykułu](#aktualizacja-artykułu)).
 
 ### `publish_date`
 
@@ -104,6 +106,17 @@ Do stylowania służą trzy mechanizmy: atrybut `class`, atrybut `style` i blok 
 
 `publish_status`: `published` (data w przeszłości) lub `draft` (data w przyszłości).
 
+### 200 OK (aktualizacja, `PUT`)
+
+```json
+{
+  "success": true,
+  "slug": "/blog/przykladowy-artykul",
+  "status": "updated",
+  "publish_status": "published"
+}
+```
+
 ### Błędy
 
 Każdy błąd ma ten sam kształt:
@@ -128,26 +141,62 @@ Pole `fields` występuje tylko przy `VALIDATION_ERROR`. Błędy walidacji są zw
 | 401 | `UNAUTHORIZED` | Brak tokenu lub token nieprawidłowy |
 | 403 | `INSECURE_TRANSPORT` | Żądanie przez `http://` zamiast `https://` |
 | 404 | `NOT_FOUND` | Nieznany adres pod `/blog/articles/...` |
-| 409 | `SLUG_CONFLICT` | Artykuł o tym slugu już istnieje |
+| 404 | `ARTICLE_NOT_FOUND` | `PUT`: artykuł o tym slugu nie istnieje |
+| 409 | `SLUG_CONFLICT` | `POST`: artykuł o tym slugu już istnieje |
+| 409 | `NOT_A_BLOG_ARTICLE` | `PUT`: pod tym slugiem jest strona, która nie jest wpisem bloga (np. założona w panelu z innego szablonu) |
 | 413 | `PAYLOAD_TOO_LARGE` | Body większe niż 256 KB |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` inny niż `application/json` |
 | 422 | `VALIDATION_ERROR` | Poprawny JSON, ale złe wartości pól (szczegóły w `fields`) |
 | 500 | `INTERNAL_ERROR` | Błąd serwera (szczegóły tylko w logach serwera) |
 
-Inna metoda niż `POST` zwraca 405, a nieznana ścieżka 404 w prostszym formacie: `{"error":{"status":405,"message":"..."}}`.
+Inna metoda niż `POST`/`PUT` (dla `/blog/articles`) lub `POST` (dla `/build`) zwraca 405, a nieznana ścieżka 404 w prostszym formacie: `{"error":{"status":405,"message":"..."}}`.
 
 ### Ponawianie żądań
 
 - `POST` jest tworzeniem, nie upsertem: powtórzenie tego samego żądania zwróci `409 SLUG_CONFLICT`. Jeśli poprzednie żądanie skończyło się timeoutem, traktuj `409` jako „artykuł już istnieje”.
+- `PUT` jest idempotentny: ponowne wysłanie tego samego body daje ten sam stan artykułu, więc po timeoucie można go bezpiecznie powtórzyć.
 - Ponawiaj tylko przy `500` i timeoucie (z rosnącym odstępem). Błędów `4xx` nie ponawiaj bez poprawienia żądania.
+
+## Aktualizacja artykułu
+
+`PUT https://DOMAIN_PLACEHOLDER/api/blog/articles` z **pełnym** body, takim samym jak przy tworzeniu (te same pola, reguły i sanityzacja). Artykuł jest wskazywany przez `slug` w body.
+
+- **Tylko istniejący artykuł.** `PUT` nie tworzy nowego wpisu - dla nieistniejącego sluga zwraca `404 ARTICLE_NOT_FOUND` (literówka w slugu nie założy po cichu drugiego artykułu). Nowy artykuł zawsze przez `POST`.
+- **Całość jest zastępowana, nie łatana.** Pola z body (`meta_title`, `meta_desc`, `keyword`, `cover_image`, `publish_date`, `content`) nadpisują poprzednie wartości. Pole opcjonalne pominięte w `PUT` jest czyszczone - np. brak `cover_image` usuwa zdjęcie tytułowe, a brak `keyword` usuwa słowo kluczowe. Wysyłaj zawsze komplet.
+- **`publish_date` jest liczona od nowa** tak jak przy tworzeniu: data w przeszłości → `published`, w przyszłości → `draft`. Zmiana daty zmienia też pozycję artykułu na liście bloga. Uwaga: jeśli administrator opublikował w panelu szkic z przyszłą datą, `PUT` z tą samą przyszłą datą z powrotem zrobi z niego szkic.
+- **Zostaje to, czego API nie ustawia:** zajawka, autor i tagi wpisane w panelu oraz uprawnienia redakcji do strony.
+- Slug jest niezmienny - nie da się go zmienić przez `PUT`.
+- Jak przy tworzeniu, zmiana jest widoczna na stronie dopiero po buildzie (patrz [Uruchomienie builda](#uruchomienie-builda)).
+
+```bash
+curl -i -X PUT "https://DOMAIN_PLACEHOLDER/api/blog/articles" \
+  -H "Authorization: Bearer TWOJ_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "slug": "/blog/przykladowy-artykul",
+    "meta_title": "Przykładowy tytuł artykułu (poprawiony)",
+    "meta_desc": "Meta description artykułu, opisująca w skrócie jego treść.",
+    "keyword": "przykładowe słowo kluczowe",
+    "publish_date": "2026-09-20T10:00:00+02:00",
+    "content": "<p>Poprawione wprowadzenie</p><h2 id=\"pierwszy\">Pierwszy nagłówek</h2><p>Nowa treść sekcji.</p>"
+  }'
+```
+
+Odpowiedź: `200 OK`
+
+```json
+{"success":true,"slug":"/blog/przykladowy-artykul","status":"updated","publish_status":"published"}
+```
+
+W PowerShellu wystarczy w przykładzie niżej zmienić `-Method Post` na `-Method Put`.
 
 ## Publikacja
 
-Odpowiedź `201` oznacza **zapis do bazy danych**. Strona jest statyczna, więc artykuł pojawi się pod adresem `/blog/<slug>/` dopiero po kolejnym buildzie serwisu, który uruchamiany jest osobno (patrz niżej). Artykuł z datą w przyszłości (`draft`) wymaga dodatkowo opublikowania przez administratora w panelu.
+Odpowiedź `201` (i `200` przy aktualizacji) oznacza **zapis do bazy danych**. Strona jest statyczna, więc artykuł pojawi się pod adresem `/blog/<slug>/` dopiero po kolejnym buildzie serwisu, który uruchamiany jest osobno (patrz niżej). Artykuł z datą w przyszłości (`draft`) wymaga dodatkowo opublikowania przez administratora w panelu.
 
 ## Uruchomienie builda
 
-Po dodaniu artykułów wywołaj ten endpoint, żeby przebudować i wdrożyć stronę. Używa **tego samego tokenu** i tych samych nagłówków co dodawanie artykułów.
+Po dodaniu lub aktualizacji artykułów wywołaj ten endpoint, żeby przebudować i wdrożyć stronę. Używa **tego samego tokenu** i tych samych nagłówków co operacje na artykułach.
 
 | | |
 |---|---|

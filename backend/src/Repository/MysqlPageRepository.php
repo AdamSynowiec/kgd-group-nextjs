@@ -78,12 +78,15 @@ final class MysqlPageRepository implements PageRepositoryInterface
         return $pages;
     }
 
-    public function save(string $slug, array $content): void
+    public function save(string $slug, array $content, ?string $createdAt = null): void
     {
-        $statement = $this->pdo->prepare('UPDATE pages SET content = :content WHERE slug = :slug');
+        $statement = $this->pdo->prepare(
+            'UPDATE pages SET content = :content, created_at = COALESCE(:created_at, created_at) WHERE slug = :slug'
+        );
         $statement->execute([
             'slug' => $slug,
             'content' => $this->encode($content),
+            'created_at' => $createdAt,
         ]);
 
         if ($statement->rowCount() === 0) {

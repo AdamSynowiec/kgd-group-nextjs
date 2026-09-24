@@ -33,8 +33,9 @@ interface PageRepositoryInterface
     /**
      * Nadpisuje "content" strony o podanym slugu. Nie tworzy nowego wiersza —
      * rzuca, jeśli taki slug jeszcze nie istnieje.
+     * $createdAt ("Y-m-d H:i:s") nadpisuje też created_at (sortowanie listy bloga); null = bez zmian.
      */
-    public function save(string $slug, array $content): void;
+    public function save(string $slug, array $content, ?string $createdAt = null): void;
 
     /**
      * Tworzy nowy wiersz. Rzuca (PDOException kod 23000), jeśli slug już
