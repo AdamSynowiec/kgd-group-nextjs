@@ -18,7 +18,7 @@ if (!defined('APP_ENTRY')) {
  * Sanityzacja fragmentu HTML: parsujemy do drzewa DOM i budujemy wynik OD ZERA,
  * kopiując wyłącznie znane tagi i atrybuty. Tekst jest zawsze escapowany, więc nic
  * spoza list poniżej nie ma jak trafić na wyjście. Lista jest szeroka (układ, tekst,
- * listy, tabele, obrazki, podstawowe SVG, "class", "style" i blok <style>), bo artykuły
+ * listy, tabele, obrazki, podstawowe SVG, "class", "id", "style" i blok <style>), bo artykuły
  * są pisane jako gotowy HTML ze stylami — blokujemy to, co wykonuje kod albo ładuje
  * cudze zasoby. Nowy tag = wpis w ALLOWED_TAGS / SVG_TAGS, nowy atrybut = wpis w
  * GLOBAL_ATTRIBUTES / TAG_ATTRIBUTES / SVG_ATTRIBUTES.
@@ -42,7 +42,7 @@ final class HtmlSanitizer
     /**
      * Podstawowe kształty SVG (ikony, ilustracje). Bez elementów odwołujących się do innych zasobów lub
      * wykonujących kod: use, image, foreignObject, animate/set, a, script — te są rozpakowywane lub usuwane.
-     * Bez defs/gradientów/clipPath, bo wymagają "id", którego nie przepuszczamy.
+     * Bez defs/gradientów/clipPath — odwołuje się do nich url(#id), a url() jest blokowane (UNSAFE_CSS).
      */
     private const SVG_TAGS = ['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'text', 'tspan'];
 
@@ -59,7 +59,7 @@ final class HtmlSanitizer
     private const VOID_TAGS = ['br', 'hr', 'img'];
 
     /** Atrybuty dozwolone na każdym dozwolonym tagu. */
-    private const GLOBAL_ATTRIBUTES = ['class', 'style'];
+    private const GLOBAL_ATTRIBUTES = ['class', 'id', 'style'];
 
     private const TAG_ATTRIBUTES = [
         'a' => ['href', 'title'],

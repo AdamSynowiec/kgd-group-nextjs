@@ -66,14 +66,14 @@ style:    <style> (blok CSS, patrz Stylowanie)
 svg:      svg  g  path  circle  ellipse  rect  line  polyline  polygon  text  tspan
 ```
 
-Na tagach HTML i SVG dozwolone są atrybuty `class` i `style` (patrz [Stylowanie](#stylowanie)). Dodatkowo na `svg` i jego elementach dozwolone są atrybuty rysunkowe: `xmlns`, `viewBox`, `preserveAspectRatio`, `width`, `height`, `x`, `y`, `x1`, `y1`, `x2`, `y2`, `cx`, `cy`, `r`, `rx`, `ry`, `d`, `points`, `transform`, `fill`, `fill-rule`, `fill-opacity`, `clip-rule`, `opacity`, `stroke`, `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`, `stroke-dasharray`, `stroke-dashoffset`, `stroke-opacity`, `role`, `aria-hidden`, `focusable`.
+Na tagach HTML i SVG dozwolone są atrybuty `class`, `id` i `style` (patrz [Stylowanie](#stylowanie)). `id` przydaje się np. jako cel kotwicy (`<a href="#sekcja">` → `<h2 id="sekcja">`). Dodatkowo na `svg` i jego elementach dozwolone są atrybuty rysunkowe: `xmlns`, `viewBox`, `preserveAspectRatio`, `width`, `height`, `x`, `y`, `x1`, `y1`, `x2`, `y2`, `cx`, `cy`, `r`, `rx`, `ry`, `d`, `points`, `transform`, `fill`, `fill-rule`, `fill-opacity`, `clip-rule`, `opacity`, `stroke`, `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`, `stroke-dasharray`, `stroke-dashoffset`, `stroke-opacity`, `role`, `aria-hidden`, `focusable`.
 
 **Zasady sanityzacji:**
 
 - Tagi spoza listy są usuwane, a ich tekst zostaje (np. `<button>Klik</button>` → `Klik`).
 - Tagi `script`, `iframe`, `object`, `embed`, `noscript`, `template`, `math` są usuwane **razem z zawartością**. (Tag `<style>` i `<svg>` są dozwolone — patrz niżej.)
 - Wewnątrz `svg` elementy spoza listy (m.in. `use`, `image`, `foreignObject`, `animate`, `set`, `defs`, gradienty) są rozpakowywane, a `script` usuwany. Atrybuty SVG o wartościach zawierających `url(`, `javascript:` itp. są usuwane. Elementy `title` i `desc` w `svg` nie są obsługiwane, a `<title>` w treści powoduje odrzucenie (patrz ostatni punkt).
-- Atrybuty poza wymienionymi (w tym `id`, `data-*` i wszystkie handlery `on*`, np. `onclick`) są usuwane.
+- Atrybuty poza wymienionymi (w tym `data-*`, `name` i wszystkie handlery `on*`, np. `onclick`) są usuwane.
 - W `href` i `src` dozwolone są protokoły `https:`, `http:`, `mailto:` oraz adresy względne (`/kontakt`, `#kotwica`). Przy adresach `javascript:`, `data:`, `vbscript:` i innych atrybut `href` jest usuwany (tekst linku zostaje), a obrazek z niebezpiecznym lub brakującym `src` jest usuwany w całości.
 - Komentarze HTML są usuwane.
 - Treść zawierająca elementy struktury dokumentu - `html`, `head`, `body`, `title`, `meta`, `link`, `base`, `main` - jest **odrzucana** (422), a nie czyszczona. Tag `article` jest dozwolony.

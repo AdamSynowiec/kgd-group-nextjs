@@ -90,7 +90,10 @@ check('article is kept', HtmlSanitizer::sanitize('<article class="a"><p>x</p></a
 check('keeps tailwind classes incl. variants and arbitrary values', HtmlSanitizer::sanitize('<h2 class="text-3xl md:text-4xl w-[calc(100%-2rem)] hover:bg-red-500/50">t</h2>'), '<h2 class="text-3xl md:text-4xl w-[calc(100%-2rem)] hover:bg-red-500/50">t</h2>');
 check('keeps class on links, lists and tables', HtmlSanitizer::sanitize('<ul class="a"><li class="b"><a class="c" href="/x">t</a></li></ul><table class="d"><tr><td class="e">1</td></tr></table>'), '<ul class="a"><li class="b"><a class="c" href="/x">t</a></li></ul><table class="d"><tr><td class="e">1</td></tr></table>');
 check('class value cannot break out of the attribute', HtmlSanitizer::sanitize('<p class="a&quot; onclick=&quot;x()">t</p>'), '<p class="a&quot; onclick=&quot;x()">t</p>');
-check('other attributes (id, data-*) still removed', HtmlSanitizer::sanitize('<p id="i" data-x="1" class="c">t</p>'), '<p class="c">t</p>');
+check('keeps id like class', HtmlSanitizer::sanitize('<h2 id="sekcja-1" class="c">t</h2>'), '<h2 id="sekcja-1" class="c">t</h2>');
+check('keeps id on svg elements', HtmlSanitizer::sanitize('<svg id="ikona"><path id="p1" d="M0"/></svg>'), '<svg id="ikona"><path id="p1" d="M0"></path></svg>');
+check('id value cannot break out of the attribute', HtmlSanitizer::sanitize('<p id="a&quot; onclick=&quot;x()">t</p>'), '<p id="a&quot; onclick=&quot;x()">t</p>');
+check('other attributes (data-*, name) still removed', HtmlSanitizer::sanitize('<p id="i" data-x="1" name="n" class="c">t</p>'), '<p id="i" class="c">t</p>');
 check('keeps https/http/mailto links', HtmlSanitizer::sanitize('<a href="https://a.pl" title="t">x</a>'), '<a href="https://a.pl" title="t">x</a>');
 check('keeps mailto link', HtmlSanitizer::sanitize('<a href="mailto:a@b.pl">x</a>'), '<a href="mailto:a@b.pl">x</a>');
 check('keeps relative link', HtmlSanitizer::sanitize('<a href="/kontakt">x</a>'), '<a href="/kontakt">x</a>');
