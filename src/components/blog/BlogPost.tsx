@@ -64,9 +64,10 @@ export default function BlogPost({
           wyłącznie przez zalogowanego redaktora; nie sanityzuje powtórnie przy
           renderze (build działa w Node bez DOM-u, a sanitizeHtml() wymaga
           DOMParser).
+          "blog-article" = zakres stylów artykułu z src/app/blog-article.css.
         */}
         <div
-          className={`${excerpt ? "mt-8" : ""} text-[17px] text-zinc-700 ${RICH_TEXT_CONTENT_CLASS}`}
+          className={`blog-article ${excerpt ? "mt-8" : ""} text-[17px] text-zinc-700 ${RICH_TEXT_CONTENT_CLASS}`}
           dangerouslySetInnerHTML={{ __html: body }}
         />
 
