@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { publicApiUrl } from "@/lib/publicApi";
+import { getUtm } from "@/lib/utm";
 
 type FieldLabels = { company: string; address: string; phone: string; email: string; krs: string; nip: string; regon: string };
 type Placeholders = { name: string; email: string; subject: string; message: string };
@@ -147,10 +149,12 @@ export default function Contact({ fields }: { fields: ContactFields }) {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("https://kgd-group.pl/server/mailer", {
+      // Wysyłka maila po stronie naszego backendu (ContactController.php, SMTP z backend/.env).
+      const res = await fetch(publicApiUrl("/contact"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, message, target: email }),
+        // utm — parametry kampanii z wejścia na stronę, trafiają do CRM (jak na starej stronie).
+        body: JSON.stringify({ ...formData, message, target: email, utm: getUtm() }),
       });
 
       if (!res.ok) throw new Error(errorsCopy.submitFailed);

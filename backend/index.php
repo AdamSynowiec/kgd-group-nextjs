@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 define('APP_ENTRY', true);
 
+use App\Controller\ContactController;
 use App\Controller\PageController;
 use App\Database\Connection;
 use App\Http\Cors;
 use App\Http\Request;
 use App\Http\Router;
 use App\Repository\MysqlPageRepository;
+use App\Support\ContactRateLimiter;
+use App\Support\CrmWebhook;
+use App\Support\SmtpMailer;
 
 /**
  * Jedyny plik, który ma być wywoływany bezpośrednio. Trasa przychodzi przez
@@ -31,5 +35,15 @@ $controller = new PageController(new MysqlPageRepository($pdo));
 $router = new Router();
 $router->get('/pages', [$controller, 'index']);
 $router->get('/page', [$controller, 'show']);
+
+// Formularze strony — wysyłka maila przez SMTP (konfiguracja SMTP_* / CONTACT_* w .env).
+$contact = new ContactController(
+    $config,
+    SmtpMailer::fromConfig($config),
+    new ContactRateLimiter($pdo, $config->get('SESSION_SECRET', 'kgd-contact')),
+    CrmWebhook::fromConfig($config)
+);
+$router->post('/contact', static fn () => $contact->contact());
+$router->post('/quick-contact', static fn () => $contact->quickContact());
 
 $router->dispatch(Request::fromGlobals());

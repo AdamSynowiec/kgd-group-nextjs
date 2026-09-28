@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { getSite } from "@/lib/content";
 import Analytics from "@/components/seo/Analytics";
+import UtmCapture from "@/components/seo/UtmCapture";
 import "./globals.css";
 import "./blog-article.css";
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col">
         <Analytics gtmId={analytics?.gtmId} gaId={analytics?.gaId} />
+        <UtmCapture />
         {children}
       </body>
     </html>

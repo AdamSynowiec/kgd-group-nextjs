@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { publicApiUrl } from "@/lib/publicApi";
 
 type PhoneNumber = { tel: string; display: string };
 type Errors = {
@@ -96,7 +97,8 @@ export default function CallToUs({ fields }: { fields: CallToUsFields }) {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("https://kgd-group.pl/server/pushbot", {
+      // Mail do biura sprzedaży przez nasz backend (ContactController::quickContact, SMTP z backend/.env).
+      const res = await fetch(publicApiUrl("/quick-contact"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
