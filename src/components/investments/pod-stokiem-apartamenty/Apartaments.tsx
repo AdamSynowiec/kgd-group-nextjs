@@ -165,7 +165,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
           loading="lazy"
           decoding="async"
           ref={imgRef}
-          src="/investments/pod-stokiem-apartamenty/vis/pod-stokiem-apartamenty-01.webp"
+          src="/investments/pod-stokiem-apartamenty/vis/pod-stokiem-apartamenty-01.png"
           alt={labels.mapAlt}
           className="max-w-full object-contain"
           onLoad={(e) => {

@@ -10,6 +10,7 @@ import H2 from "./H2";
 import P from "./P";
 import Card from "./Card";
 import Partners, { type PartnerCategory } from "./Partners";
+import LatestPosts from "./LatestPosts";
 import type { MenuItem } from "./NavMenuItem";
 
 type StatCard = { icon: string; header: string; lines: { value: string; label: string }[] };
@@ -312,6 +313,9 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
       </Section>
 
       {fields.featureImage4 && <FeatureImage {...fields.featureImage4} />}
+
+      {/* 3 ostatnie wpisy bloga — wyliczane przy buildzie z wpisów pod "/blog", nie z pól tej sekcji. */}
+      <LatestPosts />
 
       <Partners eyebrow={partnersEyebrow} header={partnersHeader} text={partnersText} categories={partnersCategories} />
     </Section>

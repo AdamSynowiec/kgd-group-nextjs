@@ -176,7 +176,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
             loading="lazy"
             decoding="async"
             ref={imgRef}
-            src="/investments/rudava-park/rudava-park-wizualizacja-06.webp"
+            src="/investments/rudava-park/rudava-park-wizualizacja-06.png"
             alt={labels.mapAlt}
             className="max-w-full object-contain block"
             onLoad={(e) => {

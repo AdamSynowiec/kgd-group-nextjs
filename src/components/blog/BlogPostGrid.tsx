@@ -48,20 +48,23 @@ export default async function BlogPostGrid({ page }: { page: number }) {
   );
 }
 
-function findBlogPostFields(page: { sections: { component: string; fields?: Record<string, unknown> }[] }): BlogPostCardFields {
+export function findBlogPostFields(page: { sections: { component: string; fields?: Record<string, unknown> }[] }): BlogPostCardFields {
   return (page.sections.find((section) => section.component === "BlogPost")?.fields ?? {}) as BlogPostCardFields;
 }
 
-function PostCard({
+/** Karta wpisu — współdzielona z sekcją ostatnich wpisów na stronie głównej (src/components/home/LatestPosts.tsx). "headingAs" = poziom nagłówka tytułu zależnie od miejsca: h2 na /blog, h3 pod nagłówkiem sekcji na stronie głównej. */
+export function PostCard({
   slug,
   title,
   updatedAt,
   fields,
+  headingAs: Heading = "h2",
 }: {
   slug: string;
   title: string;
   updatedAt?: string;
   fields: BlogPostCardFields;
+  headingAs?: "h2" | "h3";
 }) {
   const excerpt = unwrap(fields.excerpt);
   const cover = unwrap(fields.coverImage);
@@ -89,11 +92,11 @@ function PostCard({
           </span>
         )}
 
-        <h2 className="mt-3 line-clamp-2 font-poppins text-lg font-semibold leading-snug text-[#1D1D1D]">
+        <Heading className="mt-3 line-clamp-2 font-poppins text-lg font-semibold leading-snug text-[#1D1D1D]">
           <Link href={slug} className="transition-colors duration-300 group-hover:text-[#C9AB8B]">
             {title}
           </Link>
-        </h2>
+        </Heading>
 
         {excerpt && <p className="mt-2.5 line-clamp-3 flex-1 font-montserrat text-[15px]/[26px] font-light text-gray-500">{excerpt}</p>}
 
