@@ -18,8 +18,15 @@ type ApartmentUnit = {
   pdfUrl?: string;
   prospectusUrl?: string;
   finishStandardUrl?: string;
-  images?: ApartmentImage[];
+  /** Same adresy (tak zapisuje panel /admin — edytor tabeli obsługuje listę adresów) albo starszy format {url, title}. */
+  images?: (string | ApartmentImage)[];
 };
+
+function toGalleryImages(images: (string | ApartmentImage)[] | undefined, unit: string): ApartmentImage[] {
+  return (images ?? [])
+    .map((image) => (typeof image === "string" ? { url: image, title: unit } : image))
+    .filter((image) => Boolean(image?.url));
+}
 
 type Labels = {
   loading: string;
@@ -127,7 +134,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
                       {(item.images?.length ?? 0) > 0 && (
                         <button
                           type="button"
-                          onClick={() => setGallery(item.images ?? [])}
+                          onClick={() => setGallery(toGalleryImages(item.images, item.unit))}
                           className="cursor-pointer flex items-center justify-center w-full gap-2 text-[#7c8c65] hover:underline text-left"
                         >
                           <IconGallery /> <span>{labels.seeMore}</span>
