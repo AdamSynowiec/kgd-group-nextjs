@@ -19,5 +19,9 @@
     "themeColor": "#FFFFFF",
     "twitterSite": null,
     "author": "KGD Group"
+  },
+  "analytics": {
+    "gtmId": "GTM-PTSN6G6T",
+    "gaId": "G-0RZ7CB7DTB"
   }
 }

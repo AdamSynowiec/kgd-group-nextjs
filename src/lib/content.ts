@@ -34,6 +34,8 @@ export type SiteConfig = {
     twitterSite?: string | null;
     author?: string;
   };
+  /** Identyfikatory Google Tag Manager / Google Analytics 4 — patrz src/components/seo/Analytics.tsx. Brak = skrypt się nie ładuje. */
+  analytics?: { gtmId?: string; gaId?: string };
 };
 
 export type PageSection = {
