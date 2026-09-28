@@ -16,6 +16,7 @@ type House = {
   price: string;
   status: string;
   images?: string[];
+  pdfUrl?: string;
 };
 
 type Labels = {
@@ -289,13 +290,20 @@ export default function Houses({ fields }: { fields: HousesFields }) {
                     </td>
                     <td>
                       {!isHidden(house.status) ? (
-                        (house.images?.length ?? 0) > 0 ? (
-                          <span className="underline cursor-pointer hover:text-[#C8A35F]" onClick={() => setSelectedHouse(house)}>
-                            {labels.seeMore}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">{labels.none}</span>
-                        )
+                        <div className="flex items-center justify-center gap-3">
+                          {(house.images?.length ?? 0) > 0 ? (
+                            <span className="underline cursor-pointer hover:text-[#C8A35F]" onClick={() => setSelectedHouse(house)}>
+                              {labels.seeMore}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">{labels.none}</span>
+                          )}
+                          {house.pdfUrl && (
+                            <a href={house.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-black" title="Pobierz PDF">
+                              PDF
+                            </a>
+                          )}
+                        </div>
                       ) : (
                         <div />
                       )}
