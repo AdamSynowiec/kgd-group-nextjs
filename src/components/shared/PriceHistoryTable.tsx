@@ -42,6 +42,14 @@ export default function PriceHistoryTable({
 
   return (
     <div>
+      <div className="bg-black">
+        <button
+          onClick={handleExportXLSX}
+          className="w-full bg-neutral-600 hover:bg-neutral-700 text-white px-4 py-2 cursor-pointer"
+        >
+          Pobierz raport
+        </button>
+      </div>
       <div className="overflow-auto border border-gray-300 bg-white">
         <table className="text-sm border-collapse min-w-[1400px]">
           <thead className="sticky top-0 z-20 bg-gray-100">
@@ -68,15 +76,6 @@ export default function PriceHistoryTable({
             ))}
           </tbody>
         </table>
-      </div>
-
-      <div className="fixed bottom-4 right-4 z-50">
-        <button
-          onClick={handleExportXLSX}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md cursor-pointer"
-        >
-          Pobierz raport
-        </button>
       </div>
     </div>
   );

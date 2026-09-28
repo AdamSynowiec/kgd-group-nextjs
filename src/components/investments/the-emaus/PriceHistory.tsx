@@ -13,7 +13,7 @@ export default function PriceHistory({ fields }: { fields: PriceHistoryFields })
   const exportFileName = unwrap(fields.exportFileName) || "the-emaus-historia-cen.xlsx";
 
   return (
-    <section className="pt-[150px] pb-[100px] px-4">
+    <section>
       <PriceHistoryTable columns={columns} rows={rows} exportFileName={exportFileName} />
     </section>
   );
