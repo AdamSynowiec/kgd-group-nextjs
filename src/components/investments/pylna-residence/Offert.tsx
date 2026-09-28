@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { withoutSold } from "@/lib/investments/status";
 import Container from "./Container";
 
 type House = {
@@ -121,7 +122,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
   const prospectusHeader = unwrap(fields.prospectusHeader);
   const prospectusText = unwrap(fields.prospectusText);
   const prospectusFile = unwrap(fields.prospectusFile);
-  const houses = unwrap(fields.houses) ?? [];
+  const houses = withoutSold(unwrap(fields.houses) ?? []);
   const labels = unwrap(fields.labels);
 
   const mappedHouses = houses.map((h) => {

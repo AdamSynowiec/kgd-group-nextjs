@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { withoutSold } from "@/lib/investments/status";
 
 type Apartment = {
   unit: string;
@@ -58,7 +59,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
   const header = unwrap(fields.header) ?? "";
   const disclaimer1 = unwrap(fields.disclaimer1) ?? "";
   const disclaimer2 = unwrap(fields.disclaimer2) ?? "";
-  const apartments = unwrap(fields.apartments) ?? [];
+  const apartments = withoutSold(unwrap(fields.apartments) ?? []);
   const labels = unwrap(fields.labels);
 
   const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(null);

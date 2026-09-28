@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { withoutSold } from "@/lib/investments/status";
 import Container from "./Container";
 
 type Apartment = {
@@ -107,7 +108,7 @@ const isHiddenStatus = (status: string) => {
 export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
   const header = unwrap(fields.header);
   const subHeader = unwrap(fields.subHeader);
-  const apartments = unwrap(fields.apartments) ?? [];
+  const apartments = withoutSold(unwrap(fields.apartments) ?? []);
   const prospectusHeader = unwrap(fields.prospectusHeader);
   const prospectusText = unwrap(fields.prospectusText);
   const prospectusFile = unwrap(fields.prospectusFile);
@@ -313,7 +314,6 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
                 <option value="all">{labels.statusAll}</option>
                 <option value="Wolny">{labels.statusFree}</option>
                 <option value="Rezerwacja">{labels.statusReserved}</option>
-                <option value="Sprzedany">{labels.statusSold}</option>
               </select>
             </div>
           </div>

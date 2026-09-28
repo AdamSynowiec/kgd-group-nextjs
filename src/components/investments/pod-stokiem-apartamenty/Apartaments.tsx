@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { withoutSold } from "@/lib/investments/status";
 import Container from "./Container";
 import Header from "./Header";
 
@@ -102,7 +103,7 @@ const isHiddenStatus = (status: string) => {
 export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
   const offerHeader = unwrap(fields.offerHeader);
   const downloadsHeader = unwrap(fields.downloadsHeader);
-  const apartments = unwrap(fields.apartments) ?? [];
+  const apartments = withoutSold(unwrap(fields.apartments) ?? []);
   const prospectusHeader = unwrap(fields.prospectusHeader);
   const prospectusText = unwrap(fields.prospectusText);
   const prospectusFile = unwrap(fields.prospectusFile);

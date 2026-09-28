@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { withoutSold } from "@/lib/investments/status";
 import Container from "./Container";
 
 type House = {
@@ -114,7 +115,8 @@ export default function Houses({ fields }: { fields: HousesFields }) {
   const houses = unwrap(fields.houses) ?? [];
   const labels = unwrap(fields.labels);
 
-  const mappedHouses = houses.map((h, i) => ({ ...h, points: housesPoints[i] || null }));
+  // Obszary na mapie są przypisane po KOLEJNOŚCI wierszy — sprzedane odfiltrowujemy dopiero po przypisaniu, inaczej mapa by się przesunęła.
+  const mappedHouses = withoutSold(houses.map((h, i) => ({ ...h, points: housesPoints[i] || null })));
 
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
