@@ -104,5 +104,25 @@ check('crm: missing target -> default target', CrmWebhook::buildPayload($crmData
 check('crm: invalid target and no default -> null', CrmWebhook::buildPayload($crmData, ['target' => 'nie-mail'])['target'], null);
 check('crm: disabled without url', (new CrmWebhook(''))->isEnabled(), false);
 
+// --- szybki kontakt jak stary moduł ext_push_bot ------------------------------
+check('quick: source = last path segment', ContactForm::quickSource('https://kgd-group.pl/inwestycja/rudava-park/'), 'rudava-park');
+check('quick: source of homepage = host', ContactForm::quickSource('https://kgd-group.pl/'), 'kgd-group.pl');
+check('quick: domain /inwestycja/{slug}', ContactForm::quickDomain('https://kgd-group.pl/inwestycja/rudava-park/'), 'rudava-park.pl');
+check('quick: domain of kgd-building', ContactForm::quickDomain('https://kgd-group.pl/kgd-building/x/'), 'kgd-building.pl');
+check('quick: domain of homepage', ContactForm::quickDomain('https://kgd-group.pl/'), 'kgd-group.pl');
+check('quick: domain of other page', ContactForm::quickDomain('https://kgd-group.pl/blog/wpis/'), 'kgd-group.pl');
+check('quick: kgd-building detected', ContactForm::isKgdBuildingSite('https://kgd-group.pl/kgd-building/'), true);
+$quickBody = ['phone' => '600700800', 'name' => '', 'email' => '', 'message' => 'KONTAKT TELEFONICZNY', 'utm' => ['utm_source' => 'google']];
+$quickData = ['phone' => '+48 600700800', 'site' => 'https://kgd-group.pl/inwestycja/rudava-park/'];
+$quick = CrmWebhook::buildQuickPayload($quickData, $quickBody);
+check('quick crm: key order like ext_push_bot', array_keys($quick), ['name', 'email', 'phone', 'message', 'target', 'site', 'utm', 'domain']);
+check('quick crm: empty name/email -> null', [$quick['name'], $quick['email']], [null, null]);
+check('quick crm: phone digits as typed', $quick['phone'], '600700800');
+check('quick crm: default target', $quick['target'], 'kontakt@kgd-group.pl');
+check('quick crm: domain from site', $quick['domain'], 'rudava-park.pl');
+check('quick crm: utm', $quick['utm'], ['source' => 'google', 'medium' => null, 'campaign' => null]);
+check('quick crm: kgd-building target', CrmWebhook::buildQuickPayload(['phone' => '1', 'site' => 'https://kgd-group.pl/kgd-building/'], $quickBody)['target'], 'kontakt@kgd-building.pl');
+check('quick mail body has phone, source and ip', str_contains(ContactForm::quickContactBody($quickData, 'rudava-park', '1.2.3.4'), "Telefon: +48 600700800\n"), true);
+
 echo "\n" . (count($failures) === 0 ? 'ALL PASS' : count($failures) . ' FAILED: ' . implode(', ', $failures)) . "\n";
 exit(count($failures) === 0 ? 0 : 1);

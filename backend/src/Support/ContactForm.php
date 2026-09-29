@@ -146,18 +146,69 @@ final class ContactForm
     }
 
     /** @param array{phone: string, site: string} $data */
-    public static function quickContactBody(array $data): string
+    public static function quickContactBody(array $data, string $source = '', string $ip = ''): string
     {
         return implode("\n", [
-            'Prośba o kontakt telefoniczny (formularz "szybki kontakt").',
+            'Prośba o kontakt',
             '',
             'Telefon: ' . $data['phone'],
+            '',
+            'Źródło: ' . ($source !== '' ? $source : '-'),
             'Strona: ' . ($data['site'] !== '' ? $data['site'] : '-'),
+            'Adres IP: ' . ($ip !== '' ? $ip : '-'),
+            'Data: ' . self::now(),
             '',
             '---',
             'Zgoda na kontakt: zaznaczona.',
-            'Wysłano: ' . self::now(),
         ]);
+    }
+
+    /**
+     * Źródło zgłoszenia jak w starym module szybkiego kontaktu (ext_push_bot,
+     * UrlParser::extractSource): ostatni segment ścieżki strony, a gdy go nie ma — host.
+     * Trafia do tematu i nazwy nadawcy maila ("Prośba o kontakt – rudava-park").
+     */
+    public static function quickSource(string $site): string
+    {
+        $parsed = parse_url($site);
+        $host = is_array($parsed) ? ($parsed['host'] ?? '') : '';
+        $path = is_array($parsed) ? ($parsed['path'] ?? '') : '';
+        $parts = explode('/', trim($path, '/'));
+
+        return end($parts) ?: $host;
+    }
+
+    /**
+     * Domena inwestycji dla CRM jak w starym module (ext_push_bot, Request::extractDomain):
+     * /kgd-building/* => kgd-building.pl, /inwestycja/{slug} => {slug}.pl, reszta => kgd-group.pl.
+     */
+    public static function quickDomain(string $site): ?string
+    {
+        $path = parse_url($site, PHP_URL_PATH);
+        if ($path === false || $path === null) {
+            return null;
+        }
+
+        $segments = array_values(array_filter(explode('/', trim($path, '/'))));
+        if ($segments === []) {
+            return 'kgd-group.pl';
+        }
+        if ($segments[0] === 'kgd-building') {
+            return 'kgd-building.pl';
+        }
+
+        $index = array_search('inwestycja', $segments, true);
+        if ($index !== false && isset($segments[$index + 1])) {
+            return $segments[$index + 1] . '.pl';
+        }
+
+        return 'kgd-group.pl';
+    }
+
+    /** Strona /kgd-building — ma własnego odbiorcę i adres w CRM (jak w starym module). */
+    public static function isKgdBuildingSite(string $site): bool
+    {
+        return str_contains($site, 'kgd-group.pl/kgd-building');
     }
 
     /** Czas w strefie biura (serwer bywa ustawiony na UTC). */

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { publicApiUrl } from "@/lib/publicApi";
+import { getUtm } from "@/lib/utm";
 
 type PhoneNumber = { tel: string; display: string };
 type Errors = {
@@ -109,6 +110,7 @@ export default function CallToUs({ fields }: { fields: CallToUsFields }) {
           consent: formData.consent,
           site: window.location.href,
           country: formData.country,
+          utm: getUtm(),
         }),
       });
 

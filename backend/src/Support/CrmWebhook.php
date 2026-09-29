@@ -85,6 +85,54 @@ final class CrmWebhook
     }
 
     /**
+     * Payload szybkiego kontaktu 1:1 z modułem ext_push_bot (Request::validate()):
+     * kolejność kluczy name, email, phone, message, target, site, utm, domain;
+     * puste name/email/message => null; wartości przez htmlspecialchars; domena z adresu strony
+     * (nie z target jak w formularzu kontaktowym); target domyślny "kontakt@kgd-group.pl",
+     * a dla strony /kgd-building "kontakt@kgd-building.pl".
+     *
+     * @param array{phone: string, site: string} $data zwalidowane pola (ContactForm::validateQuickContact)
+     * @param array<string, mixed> $body surowe body żądania
+     * @return array<string, mixed>
+     */
+    public static function buildQuickPayload(array $data, array $body, string $defaultTarget = 'kontakt@kgd-group.pl', string $buildingTarget = 'kontakt@kgd-building.pl'): array
+    {
+        $site = $data['site'];
+
+        $target = is_string($body['target'] ?? null) ? trim($body['target']) : '';
+        if (filter_var($target, FILTER_VALIDATE_EMAIL) === false) {
+            $target = $defaultTarget;
+        }
+        if (ContactForm::isKgdBuildingSite($site)) {
+            $target = $buildingTarget;
+        }
+
+        $phone = is_string($body['phone'] ?? null) ? (preg_replace('/[\s-]/', '', $body['phone']) ?? '') : '';
+        $utm = is_array($body['utm'] ?? null) ? $body['utm'] : [];
+        // Stary moduł czytał też utm_* z korzenia body.
+        foreach (['source', 'medium', 'campaign'] as $key) {
+            if (!isset($utm[$key]) && !isset($utm['utm_' . $key]) && is_string($body['utm_' . $key] ?? null)) {
+                $utm['utm_' . $key] = $body['utm_' . $key];
+            }
+        }
+
+        return [
+            'name' => self::optional($body['name'] ?? null),
+            'email' => self::optional($body['email'] ?? null),
+            'phone' => self::escape($phone),
+            'message' => self::optional($body['message'] ?? null),
+            'target' => self::escape($target),
+            'site' => $site !== '' ? self::escape($site) : null,
+            'utm' => [
+                'source' => self::utm($utm, 'source'),
+                'medium' => self::utm($utm, 'medium'),
+                'campaign' => self::utm($utm, 'campaign'),
+            ],
+            'domain' => ContactForm::quickDomain($site),
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $payload
      * @throws RuntimeException przy błędzie połączenia albo odpowiedzi innej niż 2xx
      */
@@ -122,6 +170,13 @@ final class CrmWebhook
         }
 
         return $status;
+    }
+
+    private static function optional(mixed $value): ?string
+    {
+        $value = is_string($value) ? trim($value) : '';
+
+        return $value === '' ? null : self::escape($value);
     }
 
     private static function escape(string $value): string

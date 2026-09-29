@@ -87,19 +87,43 @@ final class ContactController
         $this->failOnErrors($errors);
         $this->guardRate('quick');
 
-        $recipients = $this->recipients('QUICK_CONTACT_MAIL_TO');
+        // Jak stary moduł szybkiego kontaktu (ext_push_bot): źródło = ostatni segment adresu strony,
+        // temat "Prośba o kontakt – {źródło}", nadawca podpisany źródłem, po mailu zgłoszenie idzie do CRM.
+        $site = $data['site'];
+        $source = ContactForm::quickSource($site);
+
+        $recipients = [];
+        if (ContactForm::isKgdBuildingSite($site)) {
+            $recipients = $this->recipients('QUICK_CONTACT_MAIL_TO_KGD_BUILDING');
+        }
+        if ($recipients === []) {
+            $recipients = $this->recipients('QUICK_CONTACT_MAIL_TO');
+        }
         if ($recipients === []) {
             $recipients = $this->recipients('CONTACT_MAIL_TO');
         }
 
-        $this->deliver('quick', $recipients, 'Prośba o kontakt telefoniczny: ' . $data['phone'], ContactForm::quickContactBody($data), null);
+        $this->deliver(
+            'quick',
+            $recipients,
+            'Prośba o kontakt – ' . $source,
+            ContactForm::quickContactBody($data, $source, $this->clientIp()),
+            null,
+            fn () => $this->notifyCrm(CrmWebhook::buildQuickPayload(
+                $data,
+                $body,
+                $this->config->get('CRM_QUICK_DEFAULT_TARGET', 'kontakt@kgd-group.pl'),
+                $this->config->get('CRM_QUICK_KGD_BUILDING_TARGET', 'kontakt@kgd-building.pl'),
+            )),
+            $source
+        );
     }
 
     /**
      * @param list<string> $recipients
      * @param (callable(): void)|null $afterSend wywoływane tylko po udanej wysyłce maila
      */
-    private function deliver(string $kind, array $recipients, string $subject, string $text, ?string $replyTo, ?callable $afterSend = null): void
+    private function deliver(string $kind, array $recipients, string $subject, string $text, ?string $replyTo, ?callable $afterSend = null, ?string $fromName = null): void
     {
         $from = $this->config->get('SMTP_FROM', $this->config->get('SMTP_USER'));
 
@@ -109,7 +133,7 @@ final class ContactController
         }
 
         try {
-            $this->mailer->send($from, $this->config->get('SMTP_FROM_NAME', 'Formularz strony'), $recipients, $subject, $text, $replyTo);
+            $this->mailer->send($from, ($fromName !== null && $fromName !== '' ? $fromName : $this->config->get('SMTP_FROM_NAME', 'Formularz strony')), $recipients, $subject, $text, $replyTo);
         } catch (MailException $exception) {
             // Odpowiedź serwera SMTP tylko do logu — przeglądarka dostaje ogólny komunikat.
             FileLog::write('contact', $exception->getMessage());
