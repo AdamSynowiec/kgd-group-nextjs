@@ -10,6 +10,7 @@ use App\Http\JsonResponse;
 use App\Support\ContactForm;
 use App\Support\ContactRateLimiter;
 use App\Support\CrmWebhook;
+use App\Support\FileLog;
 use App\Support\SmtpMailer;
 use JsonException;
 use Throwable;
@@ -103,7 +104,7 @@ final class ContactController
         $from = $this->config->get('SMTP_FROM', $this->config->get('SMTP_USER'));
 
         if (!$this->mailer->isConfigured() || $recipients === [] || $from === '') {
-            error_log('[contact] mail not configured (SMTP_HOST / SMTP_FROM / CONTACT_MAIL_TO)');
+            FileLog::write('contact', 'mail not configured (SMTP_HOST / SMTP_FROM / CONTACT_MAIL_TO)');
             JsonResponse::error(503, 'Wysyłka wiadomości jest chwilowo niedostępna.');
         }
 
@@ -111,7 +112,7 @@ final class ContactController
             $this->mailer->send($from, $this->config->get('SMTP_FROM_NAME', 'Formularz strony'), $recipients, $subject, $text, $replyTo);
         } catch (MailException $exception) {
             // Odpowiedź serwera SMTP tylko do logu — przeglądarka dostaje ogólny komunikat.
-            error_log('[contact] ' . $exception->getMessage());
+            FileLog::write('contact', $exception->getMessage());
             JsonResponse::error(502, 'Nie udało się wysłać wiadomości. Spróbuj ponownie później.');
         }
 
@@ -128,14 +129,16 @@ final class ContactController
     private function notifyCrm(array $payload): void
     {
         if (!$this->crm->isEnabled()) {
+            FileLog::write('contact', 'CRM disabled (CRM_WEBHOOK_URL empty)');
             return;
         }
 
         try {
-            $this->crm->send($payload);
+            $status = $this->crm->send($payload);
+            FileLog::write('contact', 'CRM OK (HTTP ' . $status . ', target=' . ($payload['target'] ?? '-') . ')');
         } catch (Throwable $exception) {
             // Jak na starym serwerze: CRM nie może zepsuć formularza — mail już wysłany.
-            error_log('[contact] CRM ERROR: ' . $exception->getMessage());
+            FileLog::write('contact', 'CRM ERROR: ' . $exception->getMessage());
         }
     }
 
@@ -150,7 +153,7 @@ final class ContactController
     private function guardRate(string $kind): void
     {
         if ($this->limiter->tooMany($this->clientIp())) {
-            error_log("[contact] rate limit hit ({$kind})");
+            FileLog::write('contact', "rate limit hit ({$kind})");
             JsonResponse::error(429, 'Zbyt wiele wiadomości. Spróbuj ponownie za kilka minut.');
         }
     }
