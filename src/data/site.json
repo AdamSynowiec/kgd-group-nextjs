@@ -13,7 +13,7 @@
     "siteName": "KGD Group",
     "title": "KGD Group",
     "description": "Opis firmy widoczny domyślnie w wyszukiwarkach, gdy podstrona nie poda własnego.",
-    "metadataBase": "https://testkgddemo.ct8.pl",
+    "metadataBase": "https://kgd-group.pl",
     "ogImage": "/og/default.png",
     "ogLocale": "pl_PL",
     "themeColor": "#FFFFFF",
