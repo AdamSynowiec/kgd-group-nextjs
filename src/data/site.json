@@ -5,8 +5,14 @@
   },
   "nav": {
     "primary": [
-      { "label": "Strona główna", "href": "/" },
-      { "label": "O nas", "href": "/o-nas" }
+      {
+        "label": "Strona główna",
+        "href": "/"
+      },
+      {
+        "label": "O nas",
+        "href": "/o-nas"
+      }
     ]
   },
   "seoDefaults": {
