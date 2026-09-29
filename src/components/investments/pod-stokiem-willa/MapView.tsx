@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MapContainer, TileLayer, Marker, Circle, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { CARTO_TILE_URL, CARTO_ATTRIBUTION } from "@/lib/carto";
 
 export type MapPoint = { name: string; position: [number, number]; type: string };
 
@@ -69,7 +70,7 @@ export default function MapView({ points, center }: { points: MapPoint[]; center
       doubleClickZoom={true}
       className="w-full h-full grayscale-[60%] brightness-[90%]"
     >
-      <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" attribution='&copy; <a href="https://carto.com/">Carto</a>' />
+      <TileLayer url={CARTO_TILE_URL} attribution={CARTO_ATTRIBUTION} />
 
       <Circle center={center} radius={1000} pathOptions={{ color: "#557452ff", fillColor: "#557452ff", fillOpacity: 0.2, weight: 1 }} />
       <Circle center={center} radius={2000} pathOptions={{ color: "#557452ff", fillColor: "#557452ff", fillOpacity: 0.2, weight: 1 }} />
