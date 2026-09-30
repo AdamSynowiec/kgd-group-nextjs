@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
-import { withoutSold } from "@/lib/investments/status";
+import { isSold } from "@/lib/investments/status";
 import Container from "./Container";
 
 type House = {
@@ -79,6 +79,7 @@ function getPolygonCenter(points: string): [number, number] {
 }
 
 function getStatusColorFill(status: string) {
+  if (isSold(status)) return "rgba(255, 0, 0, 0.5)";
   switch (status?.toLowerCase()) {
     case "sprzedany":
       return "rgba(255, 0, 0, 0.5)";
@@ -92,6 +93,7 @@ function getStatusColorFill(status: string) {
 }
 
 function getStatusTextColor(status: string) {
+  if (isSold(status)) return "text-red-600";
   switch (status?.toLowerCase()) {
     case "sprzedany":
       return "text-red-600";
@@ -106,7 +108,7 @@ function getStatusTextColor(status: string) {
 
 const isHiddenStatus = (status: string) => {
   const s = status?.toLowerCase();
-  return s === "sprzedany" || s === "rezerwacja";
+  return isSold(status) || s === "rezerwacja";
 };
 
 export default function Offert({ fields }: { fields: OffertFields }) {
@@ -123,13 +125,16 @@ export default function Offert({ fields }: { fields: OffertFields }) {
   const prospectusHeader = unwrap(fields.prospectusHeader);
   const prospectusText = unwrap(fields.prospectusText);
   const prospectusFile = unwrap(fields.prospectusFile);
-  const houses = withoutSold(unwrap(fields.houses) ?? []);
+  // Mapa pokazuje także sprzedane (na czerwono); tabela ukrywa sprzedane.
+  const houses = unwrap(fields.houses) ?? [];
   const labels = unwrap(fields.labels);
 
   const mappedHouses = houses.map((h) => {
     const pointData = housesPoints.find((p) => p.number === h.unit) || null;
     return { ...h, points: pointData?.points || null };
   });
+
+  const tableHouses = mappedHouses.filter((h) => !isSold(h.status));
 
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
@@ -218,7 +223,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
                     setTooltipPos({ x: cx * scaleX + svgRect.left, y: cy * scaleY + svgRect.top });
                   }}
                   onMouseLeave={() => setHoveredUnit(null)}
-                  onClick={() => setSelectedHouse(house)}
+                  onClick={() => { if (!isSold(house.status)) setSelectedHouse(house); }}
                 />
               );
             })}
@@ -291,7 +296,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
           </thead>
 
           <tbody>
-            {mappedHouses.map((house) => (
+            {tableHouses.map((house) => (
               <tr key={house.unit} className="text-[16px] border-t border-gray-200 text-center">
                 <td className="h-[80px]">{house.unit || "-"}</td>
                 <td>{house.rooms || "-"}</td>

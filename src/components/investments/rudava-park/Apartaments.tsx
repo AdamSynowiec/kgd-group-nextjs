@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
-import { withoutSold } from "@/lib/investments/status";
+import { isSold } from "@/lib/investments/status";
 import Container from "./Container";
 
 type Apartment = {
@@ -88,6 +88,7 @@ function getPolygonCenter(points: string): [number, number] {
 }
 
 function getStatusColorFill(status: string) {
+  if (isSold(status)) return "rgba(255, 0, 0, 0.5)";
   switch (status?.toLowerCase()) {
     case "sprzedany":
       return "rgba(255,0,0,0.5)";
@@ -102,13 +103,14 @@ function getStatusColorFill(status: string) {
 
 const isHiddenStatus = (status: string) => {
   const s = status?.toLowerCase();
-  return s === "sprzedany" || s === "rezerwacja";
+  return isSold(status) || s === "rezerwacja";
 };
 
 export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
   const header = unwrap(fields.header);
   const subHeader = unwrap(fields.subHeader);
-  const apartments = withoutSold(unwrap(fields.apartments) ?? []);
+  // Mapa pokazuje także sprzedane (na czerwono); tabela ukrywa sprzedane.
+  const apartments = unwrap(fields.apartments) ?? [];
   const prospectusHeader = unwrap(fields.prospectusHeader);
   const prospectusText = unwrap(fields.prospectusText);
   const prospectusFile = unwrap(fields.prospectusFile);
@@ -121,6 +123,8 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
     const pointData = housesPoints.find((p) => p.number.includes(apt.unit)) || null;
     return { ...apt, points: pointData?.points || null };
   });
+
+  const tableHouses = houses.filter((h) => !isSold(h.status));
 
   const [selectedHouse, setSelectedHouse] = useState<Apartment | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
@@ -334,7 +338,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
               </thead>
 
               <tbody>
-                {houses
+                {tableHouses
                   .filter((h) => statusFilter === "all" || h.status === statusFilter)
                   .filter((h) => {
                     if (floorFilter === "all") return true;

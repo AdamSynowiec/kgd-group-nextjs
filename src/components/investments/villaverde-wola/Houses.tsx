@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
-import { withoutSold } from "@/lib/investments/status";
+import { isSold } from "@/lib/investments/status";
 import Container from "./Container";
 
 type House = {
@@ -72,6 +72,7 @@ function getPolygonCenter(points: string): [number, number] {
 }
 
 function getStatusColorFill(status: string) {
+  if (isSold(status)) return "rgba(255, 0, 0, 0.5)";
   switch (status?.toLowerCase()) {
     case "sprzedany":
       return "rgba(255, 0, 0, 0.5)";
@@ -85,6 +86,7 @@ function getStatusColorFill(status: string) {
 }
 
 function getStatusTextColor(status: string) {
+  if (isSold(status)) return "text-red-600";
   switch (status?.toLowerCase()) {
     case "sprzedany":
       return "text-red-600";
@@ -99,7 +101,7 @@ function getStatusTextColor(status: string) {
 
 const isHidden = (status: string) => {
   const s = status?.toLowerCase();
-  return s === "sprzedany" || s === "rezerwacja";
+  return isSold(status) || s === "rezerwacja";
 };
 
 export default function Houses({ fields }: { fields: HousesFields }) {
@@ -116,8 +118,9 @@ export default function Houses({ fields }: { fields: HousesFields }) {
   const houses = unwrap(fields.houses) ?? [];
   const labels = unwrap(fields.labels);
 
-  // Obszary na mapie są przypisane po KOLEJNOŚCI wierszy — sprzedane odfiltrowujemy dopiero po przypisaniu, inaczej mapa by się przesunęła.
-  const mappedHouses = withoutSold(houses.map((h, i) => ({ ...h, points: housesPoints[i] || null })));
+  // Obszary na mapie są przypisane po KOLEJNOŚCI wierszy. Mapa pokazuje także sprzedane (na czerwono); tabela ukrywa sprzedane.
+  const mappedHouses = houses.map((h, i) => ({ ...h, points: housesPoints[i] || null }));
+  const tableHouses = mappedHouses.filter((h) => !isSold(h.status));
 
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
@@ -208,7 +211,7 @@ export default function Houses({ fields }: { fields: HousesFields }) {
                     setTooltipPos({ x: cx * scaleX + svgRect.left, y: cy * scaleY + svgRect.top });
                   }}
                   onMouseLeave={() => setHoveredUnit(null)}
-                  onClick={() => setSelectedHouse(house)}
+                  onClick={() => { if (!isSold(house.status)) setSelectedHouse(house); }}
                 />
               );
             })}
@@ -277,7 +280,7 @@ export default function Houses({ fields }: { fields: HousesFields }) {
                 </tr>
               </thead>
               <tbody>
-                {mappedHouses.map((house) => (
+                {tableHouses.map((house) => (
                   <tr key={house.unit} className="border-b border-[#4D4B4B] h-[60px] md:h-[100px] text-center text-white font-ebgaramond-regular text-[18px] md:text-[24px]">
                     <td>{house.unit || "-"}</td>
                     <td>{house.rooms || "-"}</td>
