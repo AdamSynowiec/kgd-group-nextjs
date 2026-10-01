@@ -27,12 +27,12 @@ SET @path = (SELECT REPLACE(JSON_UNQUOTE(JSON_SEARCH(content, 'one', 'M 11-2', N
              FROM pages WHERE slug = '/inwestycja/morelife-apartments');
 UPDATE pages SET content = JSON_SET(content,
   CONCAT(@path, '.images'), JSON_ARRAY(
-    'https://kgd-group.pl/admin/storage/uploads/2026/06/18/m11-b_uid_6a33b599cbe10.png',
-    'https://kgd-group.pl/admin/storage/uploads/2026/06/18/md-11b_uid_6a33b599be3fd.jpg'
+    'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/m11-b_uid_6a33b599cbe10.png',
+    'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/md-11b_uid_6a33b599be3fd.jpg'
   ),
-  CONCAT(@path, '.pdfUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/m11-b_uid_6a33f7adb0184.pdf',
-  CONCAT(@path, '.prospectusUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/prospekt-budynki-m9-m12-1_uid_6a33c60b02b56.pdf',
-  CONCAT(@path, '.finishStandardUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/morelife-standard-wykonczenia_uid_6a33b1c49afd7.pdf'
+  CONCAT(@path, '.pdfUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/m11-b_uid_6a33f7adb0184.pdf',
+  CONCAT(@path, '.prospectusUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/prospekt-budynki-m9-m12-1_uid_6a33c60b02b56.pdf',
+  CONCAT(@path, '.finishStandardUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/morelife-standard-wykonczenia_uid_6a33b1c49afd7.pdf'
 ) WHERE slug = '/inwestycja/morelife-apartments' AND @path IS NOT NULL;
 
 -- M 13-2
@@ -40,12 +40,12 @@ SET @path = (SELECT REPLACE(JSON_UNQUOTE(JSON_SEARCH(content, 'one', 'M 13-2', N
              FROM pages WHERE slug = '/inwestycja/morelife-apartments');
 UPDATE pages SET content = JSON_SET(content,
   CONCAT(@path, '.images'), JSON_ARRAY(
-    'https://kgd-group.pl/admin/storage/uploads/2026/06/18/m13-b_uid_6a33b79a88dcb.png',
-    'https://kgd-group.pl/admin/storage/uploads/2026/06/18/md-13-b_uid_6a33b79abba8d.png'
+    'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/m13-b_uid_6a33b79a88dcb.png',
+    'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/md-13-b_uid_6a33b79abba8d.png'
   ),
-  CONCAT(@path, '.pdfUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/m13-b_uid_6a33f879e2afa.pdf',
-  CONCAT(@path, '.prospectusUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/prospekt-budynki-m13-m16-1_uid_6a33c60aee724.pdf',
-  CONCAT(@path, '.finishStandardUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/morelife-standard-wykonczenia_uid_6a33b1c49afd7.pdf'
+  CONCAT(@path, '.pdfUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/m13-b_uid_6a33f879e2afa.pdf',
+  CONCAT(@path, '.prospectusUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/prospekt-budynki-m13-m16-1_uid_6a33c60aee724.pdf',
+  CONCAT(@path, '.finishStandardUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/morelife-standard-wykonczenia_uid_6a33b1c49afd7.pdf'
 ) WHERE slug = '/inwestycja/morelife-apartments' AND @path IS NOT NULL;
 
 -- MP 11-2
@@ -53,10 +53,10 @@ SET @path = (SELECT REPLACE(JSON_UNQUOTE(JSON_SEARCH(content, 'one', 'MP 11-2', 
              FROM pages WHERE slug = '/inwestycja/morelife-apartments');
 UPDATE pages SET content = JSON_SET(content,
   CONCAT(@path, '.images'), JSON_ARRAY(
-    'https://kgd-group.pl/admin/storage/uploads/2026/06/18/mp-11b_uid_6a33b9a2dba78.jpg'
+    'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/mp-11b_uid_6a33b9a2dba78.jpg'
   ),
-  CONCAT(@path, '.pdfUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/mp-11b_uid_6a33f9e0022a0.pdf',
-  CONCAT(@path, '.finishStandardUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/morelife-standard-wykonczenia_uid_6a33b1c49afd7.pdf'
+  CONCAT(@path, '.pdfUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/mp-11b_uid_6a33f9e0022a0.pdf',
+  CONCAT(@path, '.finishStandardUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/morelife-standard-wykonczenia_uid_6a33b1c49afd7.pdf'
 ) WHERE slug = '/inwestycja/morelife-apartments' AND @path IS NOT NULL;
 
 -- MP 13-2
@@ -64,8 +64,8 @@ SET @path = (SELECT REPLACE(JSON_UNQUOTE(JSON_SEARCH(content, 'one', 'MP 13-2', 
              FROM pages WHERE slug = '/inwestycja/morelife-apartments');
 UPDATE pages SET content = JSON_SET(content,
   CONCAT(@path, '.images'), JSON_ARRAY(
-    'https://kgd-group.pl/admin/storage/uploads/2026/06/18/mp-13b_uid_6a33b9a2be399.jpg'
+    'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/mp-13b_uid_6a33b9a2be399.jpg'
   ),
-  CONCAT(@path, '.pdfUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/mp-13b_uid_6a33f7adb3b16.pdf',
-  CONCAT(@path, '.finishStandardUrl'), 'https://kgd-group.pl/admin/storage/uploads/2026/06/18/morelife-standard-wykonczenia_uid_6a33b1c49afd7.pdf'
+  CONCAT(@path, '.pdfUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/mp-13b_uid_6a33f7adb3b16.pdf',
+  CONCAT(@path, '.finishStandardUrl'), 'https://kgd-group.pl/OLD/admin/storage/uploads/2026/06/18/morelife-standard-wykonczenia_uid_6a33b1c49afd7.pdf'
 ) WHERE slug = '/inwestycja/morelife-apartments' AND @path IS NOT NULL;
