@@ -316,6 +316,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
                 <option value="all">{labels.statusAll}</option>
                 <option value="Wolny">{labels.statusFree}</option>
                 <option value="Rezerwacja">{labels.statusReserved}</option>
+                <option value="Sprzedany">{labels.statusSold}</option>
               </select>
             </div>
           </div>
@@ -340,8 +341,10 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
                   .filter((h) => statusFilter === "all" || h.status === statusFilter)
                   .filter((h) => {
                     if (floorFilter === "all") return true;
-                    if (floorFilter === "A") return h.unit.endsWith("A");
-                    if (floorFilter === "B") return h.unit.endsWith("B");
+                    // Lokale: "M1A"; miejsca postojowe: "Miejsce Parkingowe M1 A-MP".
+                    const floor = h.unit.match(/M\d+\s*([AB])/)?.[1];
+                    if (floorFilter === "A") return floor === "A";
+                    if (floorFilter === "B") return floor === "B";
                     return true;
                   })
                   .map((house, i) => (
