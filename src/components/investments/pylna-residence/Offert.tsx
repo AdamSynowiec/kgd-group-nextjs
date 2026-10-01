@@ -125,7 +125,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
   const prospectusHeader = unwrap(fields.prospectusHeader);
   const prospectusText = unwrap(fields.prospectusText);
   const prospectusFile = unwrap(fields.prospectusFile);
-  // Mapa pokazuje także sprzedane (na czerwono); tabela ukrywa sprzedane.
+  // Mapa i tabela pokazują także sprzedane (na czerwono) i rezerwacje; ukrywamy je tylko w historii cen.
   const houses = unwrap(fields.houses) ?? [];
   const labels = unwrap(fields.labels);
 
@@ -133,8 +133,6 @@ export default function Offert({ fields }: { fields: OffertFields }) {
     const pointData = housesPoints.find((p) => p.number === h.unit) || null;
     return { ...h, points: pointData?.points || null };
   });
-
-  const tableHouses = mappedHouses.filter((h) => !isSold(h.status));
 
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
@@ -296,7 +294,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
           </thead>
 
           <tbody>
-            {tableHouses.map((house) => (
+            {mappedHouses.map((house) => (
               <tr key={house.unit} className="text-[16px] border-t border-gray-200 text-center">
                 <td className="h-[80px]">{house.unit || "-"}</td>
                 <td>{house.rooms || "-"}</td>

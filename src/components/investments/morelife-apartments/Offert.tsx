@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { unwrap, type EditableValue } from "@/lib/editable";
-import { withoutSold } from "@/lib/investments/status";
 
 type ApartmentImage = { url: string; title?: string };
 
@@ -86,7 +85,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
   const standardEyebrow = unwrap(fields.standardEyebrow);
   const standardHeader = unwrap(fields.standardHeader);
   const standardText = unwrap(fields.standardText);
-  const apartments = withoutSold(unwrap(fields.apartments) ?? []);
+  const apartments = unwrap(fields.apartments) ?? [];
   const labels = unwrap(fields.labels);
 
   const [gallery, setGallery] = useState<ApartmentImage[]>([]);

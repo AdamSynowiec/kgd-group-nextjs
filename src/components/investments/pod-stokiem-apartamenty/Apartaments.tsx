@@ -105,7 +105,7 @@ const isHiddenStatus = (status: string) => {
 export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
   const offerHeader = unwrap(fields.offerHeader);
   const downloadsHeader = unwrap(fields.downloadsHeader);
-  // Mapa pokazuje także sprzedane (na czerwono); tabela ukrywa sprzedane.
+  // Mapa i tabela pokazują także sprzedane (na czerwono) i rezerwacje; ukrywamy je tylko w historii cen.
   const apartments = unwrap(fields.apartments) ?? [];
   const prospectusHeader = unwrap(fields.prospectusHeader);
   const prospectusText = unwrap(fields.prospectusText);
@@ -119,8 +119,6 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
     const pointData = housesPoints.find((p) => p.number === apt.unit) || null;
     return { ...apt, points: pointData?.points || null };
   });
-
-  const tableHouses = houses.filter((h) => !isSold(h.status));
 
   const [selectedHouse, setSelectedHouse] = useState<Apartment | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
@@ -258,7 +256,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
             </thead>
 
             <tbody>
-              {tableHouses.map((house) => (
+              {houses.map((house) => (
                 <tr key={house.unit} className="text-[16px] border-t border-gray-200 text-center">
                   <td className="h-[80px]">{house.unit || "-"}</td>
                   <td>{house.rooms || "-"}</td>

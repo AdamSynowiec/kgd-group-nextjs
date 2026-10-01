@@ -118,9 +118,8 @@ export default function Houses({ fields }: { fields: HousesFields }) {
   const houses = unwrap(fields.houses) ?? [];
   const labels = unwrap(fields.labels);
 
-  // Obszary na mapie są przypisane po KOLEJNOŚCI wierszy. Mapa pokazuje także sprzedane (na czerwono); tabela ukrywa sprzedane.
+  // Obszary na mapie są przypisane po KOLEJNOŚCI wierszy. Mapa i tabela pokazują także sprzedane (na czerwono) i rezerwacje; ukrywamy je tylko w historii cen.
   const mappedHouses = houses.map((h, i) => ({ ...h, points: housesPoints[i] || null }));
-  const tableHouses = mappedHouses.filter((h) => !isSold(h.status));
 
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
@@ -280,7 +279,7 @@ export default function Houses({ fields }: { fields: HousesFields }) {
                 </tr>
               </thead>
               <tbody>
-                {tableHouses.map((house) => (
+                {mappedHouses.map((house) => (
                   <tr key={house.unit} className="border-b border-[#4D4B4B] h-[60px] md:h-[100px] text-center text-white font-ebgaramond-regular text-[18px] md:text-[24px]">
                     <td>{house.unit || "-"}</td>
                     <td>{house.rooms || "-"}</td>

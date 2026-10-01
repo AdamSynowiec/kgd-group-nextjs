@@ -1,5 +1,7 @@
 "use client";
 
+import { isSold } from "@/lib/investments/status";
+
 export type PriceHistoryColumn = { key: string; label: string };
 export type PriceHistoryRow = Record<string, string | number>;
 
@@ -11,13 +13,17 @@ export type PriceHistoryRow = Record<string, string | number>;
  */
 export default function PriceHistoryTable({
   columns,
-  rows,
+  rows: allRows,
   exportFileName,
 }: {
   columns: PriceHistoryColumn[];
   rows: PriceHistoryRow[];
   exportFileName: string;
 }) {
+  // W rejestrze cen NIE pokazujemy lokali sprzedanych (w tabelach ofertowych są widoczne).
+  const statusCols = columns.filter((c) => /status/i.test(c.key) || /status/i.test(c.label));
+  const rows = allRows.filter((row) => !statusCols.some((c) => isSold(String(row[c.key] ?? ""))));
+
   const handleExportXLSX = async () => {
     const XLSX = await import("xlsx");
     const { saveAs } = await import("file-saver");
