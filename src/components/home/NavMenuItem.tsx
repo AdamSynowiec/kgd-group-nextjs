@@ -7,11 +7,13 @@ export type MenuItem = { label: string; to: string; children?: MenuItem[] };
 export default function NavMenuItem({ item, isMobile = false, onNavigate }: { item: MenuItem; isMobile?: boolean; onNavigate?: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const hasChildren = !!item.children?.length;
+  // Kotwice ("#kim_jestesmy") zawsze wskazują stronę główną — inaczej na /blog dawałyby /blog/#kim_jestesmy.
+  const href = item.to.startsWith("#") ? `/${item.to}` : item.to;
 
   return (
     <li className="relative group">
       <a
-        href={item.to}
+        href={href}
         className="hover:text-white hover:underline flex items-center justify-between p-2"
         onClick={() => {
           if (isMobile && hasChildren) {

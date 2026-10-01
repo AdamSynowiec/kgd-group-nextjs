@@ -17,7 +17,7 @@ export default function NavBar({ logo, menu, phone }: { logo: string; menu: Menu
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? "bg-[#1D1D1D] h-[80px]" : "h-[100px] md:h-[200px]"}`}>
       <div className="container max-w-[1596px] mx-auto h-full px-6 flex items-center justify-between">
         <div className="flex items-center">
-          <a href="#">
+          <a href="/">
             <img
               loading="eager"
               fetchPriority="high"
