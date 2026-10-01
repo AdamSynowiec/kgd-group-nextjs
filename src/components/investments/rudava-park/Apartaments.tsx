@@ -356,8 +356,8 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
                       <td>{house.rooms}</td>
                       <td>{house.area} m²</td>
                       <td>{house.gardenArea ? `${house.gardenArea} m²` : "-"}</td>
-                      <td>{!isHiddenStatus(house.status) && house.pricePerM2 !== "-" ? `${house.pricePerM2} zł` : "-"}</td>
-                      <td>{!isHiddenStatus(house.status) && house.price !== "-" ? `${house.price} zł` : "-"}</td>
+                      <td>{!isHiddenStatus(house.status) && house.pricePerM2 !== "-" ? `${house.pricePerM2.replace(/ /g, "\u00A0")} zł` : "-"}</td>
+                      <td>{!isHiddenStatus(house.status) && house.price !== "-" ? house.price.replace(/ /g, "\u00A0") : "-"}</td>
                       <td
                         className={
                           house.status === "Wolny"
@@ -372,23 +372,33 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
                         {house.status}
                       </td>
                       <td>
-                        {!isHiddenStatus(house.status) ? (
-                          (house.images?.length ?? 0) > 0 ? (
-                            <div className="flex items-center justify-center gap-3">
-                              <span className="cursor-pointer underline hover:no-underline" onClick={() => setSelectedHouse(house)}>
-                                {labels.seeMore}
-                              </span>
-                              {house.pdfUrl && (
-                                <a href={house.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-[#1F3D30]" title="Pobierz PDF">
-                                  PDF
-                                </a>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-gray-500">{labels.none}</span>
-                          )
-                        ) : (
+                        {isHiddenStatus(house.status) ? (
                           <span className="text-gray-400 italic">-</span>
+                        ) : (house.images?.length ?? 0) > 0 || house.pdfUrl ? (
+                          <div className="flex items-center justify-center gap-3">
+                            <span
+                              className="cursor-pointer underline hover:no-underline"
+                              onClick={() => {
+                                // Bez zdjęć "Zobacz" otwiera kartę lokalu (PDF).
+                                if ((house.images?.length ?? 0) > 0) setSelectedHouse(house);
+                                else if (house.pdfUrl) window.open(house.pdfUrl, "_blank", "noopener,noreferrer");
+                              }}
+                            >
+                              {labels.seeMore}
+                            </span>
+                            {house.pdfUrl && (
+                              <a href={house.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-[#1F3D30]" title="Pobierz PDF" aria-label="Pobierz PDF">
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 512 512" stroke="currentColor" strokeWidth={10.24} aria-hidden="true">
+                                  <path d="M385.766,403.567c-3.337-3.337-8.73-3.337-12.066,0l-19.567,19.567v-98.867c0-4.71-3.823-8.533-8.533-8.533c-4.71,0-8.533,3.823-8.533,8.533v98.867L317.5,403.567c-3.337-3.337-8.73-3.337-12.066,0c-3.336,3.336-3.336,8.73,0,12.066l34.133,34.133c1.664,1.664,3.849,2.5,6.033,2.5c2.185,0,4.369-0.836,6.033-2.5l34.133-34.133C389.103,412.297,389.103,406.904,385.766,403.567z" />
+                                  <path d="M345.6,256c-70.579,0-128,57.421-128,128s57.421,128,128,128s128-57.421,128-128S416.179,256,345.6,256z M345.6,494.933c-61.167,0-110.933-49.766-110.933-110.933S284.433,273.067,345.6,273.067S456.533,322.833,456.533,384S406.767,494.933,345.6,494.933z" />
+                                  <path d="M226.133,469.333H55.467V409.6c0-4.71-3.823-8.533-8.533-8.533c-4.71,0-8.533,3.823-8.533,8.533v68.267c0,4.71,3.823,8.533,8.533,8.533h179.2c4.71,0,8.533-3.823,8.533-8.533S230.844,469.333,226.133,469.333z" />
+                                  <path d="M394.3,139.034L257.766,2.5c-1.596-1.604-3.772-2.5-6.033-2.5h-204.8C42.223,0,38.4,3.823,38.4,8.533v332.8c0,4.71,3.823,8.533,8.533,8.533c4.71,0,8.533-3.823,8.533-8.533V17.067H243.2v128c0,4.71,3.823,8.533,8.533,8.533h128v76.8c0,4.71,3.823,8.533,8.533,8.533s8.533-3.823,8.533-8.533v-85.333C396.8,142.805,395.904,140.629,394.3,139.034z M260.267,136.533V29.133l107.401,107.401H260.267z" />
+                                </svg>
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">{labels.none}</span>
                         )}
                       </td>
                     </tr>
