@@ -26,7 +26,7 @@ export default function Deweloper({ fields }: { fields: DeweloperFields }) {
 
             {buttonLabel && (
               <Link
-                href="/#kontakt"
+                href="/"
                 className="w-full md:w-auto group inline-flex items-center justify-center px-5 md:px-6 py-3 rounded-full font-light tracking-wide bg-[#C9AB8B] text-white border border-[#C9AB8B] transition-all duration-300 hover:bg-transparent hover:text-[#C9AB8B] hover:shadow-[0_10px_30px_rgba(201,171,139,0.25)] text-center text-sm md:text-base"
               >
                 {buttonLabel}
