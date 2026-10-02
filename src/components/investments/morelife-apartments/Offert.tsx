@@ -63,8 +63,8 @@ const statusStyles: Record<string, string> = {
   Wolny: "text-[#7c8c65]",
   Wolne: "text-[#7c8c65]",
   Rezerwacja: "text-[#b39b6a]",
-  Sprzedany: "text-black/30 line-through",
-  Sprzedane: "text-black/30 line-through",
+  Sprzedany: "text-black/30",
+  Sprzedane: "text-black/30",
 };
 
 function Status({ status }: { status: string }) {
