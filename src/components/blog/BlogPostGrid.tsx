@@ -3,7 +3,7 @@ import { getChildPages, getPageBySlug } from "@/lib/content";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "@/components/home/Container";
 
-export const BLOG_PAGE_SIZE = 10;
+export const BLOG_PAGE_SIZE = 9;
 
 type BlogPostCardFields = {
   excerpt?: EditableValue<string> | string;
