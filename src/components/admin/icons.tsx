@@ -32,3 +32,20 @@ export function ChevronDownIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function SearchIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className={className} aria-hidden>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-3.8-3.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function FolderIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className={className} aria-hidden>
+      <path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h3.6a1.5 1.5 0 0 1 1.2.6l1 1.4a1.5 1.5 0 0 0 1.2.6H19a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
