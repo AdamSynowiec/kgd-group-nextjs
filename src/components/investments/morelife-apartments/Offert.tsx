@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { isSold } from "@/lib/investments/status";
 
 type ApartmentImage = { url: string; title?: string };
 
@@ -70,6 +71,10 @@ function Status({ status }: { status: string }) {
   return <span className={`uppercase tracking-[0.25em] text-[10px] ${statusStyles[status] || ""}`}>{status}</span>;
 }
 
+// Karta lokalu (galeria + dokumenty) jest dostępna tylko dla wolnych lokali —
+// przy rezerwacji/sprzedaży nie pokazujemy już zdjęć ani dokumentów.
+const isHiddenStatus = (status: string) => isSold(status) || status?.toLowerCase() === "rezerwacja";
+
 function IconGallery() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -131,7 +136,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
                       <Status status={item.status} />
                     </td>
                     <td className="py-5 px-4 text-[11px] uppercase tracking-[0.15em]">
-                      {(item.images?.length ?? 0) > 0 && (
+                      {!isHiddenStatus(item.status) && (item.images?.length ?? 0) > 0 && (
                         <button
                           type="button"
                           onClick={() => setGallery(toGalleryImages(item.images, item.unit))}
@@ -143,17 +148,23 @@ export default function Offert({ fields }: { fields: OffertFields }) {
                     </td>
 
                     <td className="py-5 px-4 space-y-1 flex flex-col text-[11px] uppercase tracking-[0.15em]">
-                      {item.pdfUrl && (
-                        <a href={item.pdfUrl} target="_blank" rel="noreferrer" className="text-[#7c8c65] hover:underline">
-                          {labels.unitCard}
-                        </a>
+                      {isHiddenStatus(item.status) ? (
+                        "-"
+                      ) : (
+                        <>
+                          {item.pdfUrl && (
+                            <a href={item.pdfUrl} target="_blank" rel="noreferrer" className="text-[#7c8c65] hover:underline">
+                              {labels.unitCard}
+                            </a>
+                          )}
+                          {item.prospectusUrl && (
+                            <a href={item.prospectusUrl} target="_blank" rel="noreferrer" className="text-[#7c8c65] hover:underline">
+                              {labels.prospectus}
+                            </a>
+                          )}
+                          {!item.pdfUrl && !item.prospectusUrl && !item.finishStandardUrl && !(item.images?.length ?? 0) && "-"}
+                        </>
                       )}
-                      {item.prospectusUrl && (
-                        <a href={item.prospectusUrl} target="_blank" rel="noreferrer" className="text-[#7c8c65] hover:underline">
-                          {labels.prospectus}
-                        </a>
-                      )}
-                      {!item.pdfUrl && !item.prospectusUrl && !item.finishStandardUrl && !(item.images?.length ?? 0) && "-"}
                     </td>
                   </tr>
                 ))}

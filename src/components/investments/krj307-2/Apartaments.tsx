@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { isSold } from "@/lib/investments/status";
 
 type Apartment = {
   unit: string;
@@ -59,6 +60,10 @@ const getStatusColor = (status: string) => {
       return "text-red-300";
   }
 };
+
+// Karta lokalu (galeria + PDF) jest dostępna tylko dla wolnych lokali — przy
+// rezerwacji/sprzedaży nie pokazujemy już zdjęć ani dokumentów.
+const isHiddenStatus = (status: string) => isSold(status) || status?.toLowerCase() === "zarezerwowany";
 
 export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
   const header = unwrap(fields.header) ?? "";
@@ -118,15 +123,19 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
                           <td className="py-2 px-4 text-[15px] text-center border-b border-[#FAF2E9] text-[#C9B29D]">{`${apt.price} zł`}</td>
                           <td className={`py-2 px-4 text-[15px] text-center border-b border-[#FAF2E9] ${getStatusColor(apt.status)}`}>{apt.status}</td>
                           <td className="py-2 px-4 text-[15px] text-center border-b border-[#FAF2E9] text-[#C9B29D]">
-                            <span
-                              className="flex flex-row items-center justify-center gap-4 hover:underline cursor-pointer"
-                              onClick={() => setSelectedApartment(apt)}
-                            >
-                              <IconGallery /> {labels.seeMore}
-                            </span>
+                            {isHiddenStatus(apt.status) ? (
+                              "-"
+                            ) : (
+                              <span
+                                className="flex flex-row items-center justify-center gap-4 hover:underline cursor-pointer"
+                                onClick={() => setSelectedApartment(apt)}
+                              >
+                                <IconGallery /> {labels.seeMore}
+                              </span>
+                            )}
                           </td>
                           <td className="text-[15px] text-center border-b border-[#FAF2E9] text-[#C9B29D]">
-                            {apt.pdfUrl ? (
+                            {!isHiddenStatus(apt.status) && apt.pdfUrl ? (
                               <a
                                 href={apt.pdfUrl}
                                 target="_blank"
