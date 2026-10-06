@@ -4,6 +4,7 @@ import NavBar from "./NavBar";
 import Hero from "./Hero";
 import Marquee from "./Marquee";
 import Highlights from "./Highlights";
+import FeatureImage from "./FeatureImage";
 import TextBlock from "./TextBlock";
 import FeatureGrid from "./FeatureGrid";
 import Steps from "./Steps";
@@ -25,6 +26,7 @@ const template: Record<string, ComponentType<SectionProps>> = {
   Hero: Hero as ComponentType<SectionProps>,
   Marquee: Marquee as ComponentType<SectionProps>,
   Highlights: Highlights as ComponentType<SectionProps>,
+  FeatureImage: FeatureImage as ComponentType<SectionProps>,
   TextBlock: TextBlock as ComponentType<SectionProps>,
   FeatureGrid: FeatureGrid as ComponentType<SectionProps>,
   Steps: Steps as ComponentType<SectionProps>,

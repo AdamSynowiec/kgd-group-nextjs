@@ -18,8 +18,12 @@
 -- do uzupełnienia w adminie, gdy klient potwierdzi: okres gwarancji, zasady
 -- stałości ceny, typowy termin realizacji, podmiot podpisujący umowę,
 -- możliwość 8% VAT, dostępność usługi dla nieruchomości spoza KGD, a także
--- 8–12 realnych zdjęć/case studies (Hero.fields.bg jest już gotowe na
--- podmianę placeholdera na zdjęcie — pole "asset").
+-- 8–12 realnych zdjęć/case studies. Dwa miejsca już gotowe na podmianę
+-- placeholdera na realne zdjęcie (pole "asset"): Hero.fields.bg oraz nowa
+-- sekcja "efekt-koncowy" (FeatureImage.fields.img) — pełnoszerokie zdjęcie
+-- wstawione między "Pełny zakres" a "Standard premium" jako wizualny oddech
+-- w środku strony. Nagłówek/podtytuł tej sekcji to PROPOZYCJA (nie z briefu)
+-- — do akceptacji lub zmiany przez klienta.
 --
 -- Import: mysql -u UZYTKOWNIK -p NAZWA_BAZY < db/wykonczenie-pod-klucz/wykonczenie-pod-klucz.sql
 -- =============================================================================
@@ -84,6 +88,8 @@ INSERT INTO pages (slug, content) VALUES
         {"title": "Stolarka i wyposażenie", "text": "Kuchnie, garderoby, szafy, meble, lustra, tekstylia i dodatki."},
         {"title": "AGD, odbiór i gwarancja", "text": "Dobór i montaż urządzeń, kontrola jakości, przekazanie wnętrza oraz opieka zgodnie z umową."}
       ]}},
+
+      {"id": "efekt-koncowy", "component": "FeatureImage", "fields": {"eyebrow": "Efekt końcowy", "title": "Gotowe wnętrze. Zero kompromisów.", "subtitle": "Tak wygląda mieszkanie, które odbierasz w pełni wykończone — zaprojektowane, umeblowane i gotowe do zamieszkania."}},
 
       {"id": "standard-premium", "component": "TextBlock", "fields": {"header": "Standard premium. Lepsze wykorzystanie budżetu.", "paragraphs": [
         "Od lat kupujemy hurtowe ilości płytek, armatury, podłóg, drzwi, oświetlenia, mebli i AGD. Dzięki stałej współpracy z producentami i dystrybutorami korzystamy z cen oraz rabatów często nieosiągalnych dla klienta indywidualnego. To pozwala uzyskać wyższy standard w założonym budżecie.",
