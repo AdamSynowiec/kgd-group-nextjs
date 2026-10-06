@@ -21,6 +21,8 @@ export async function buildPageSchema(page: Page): Promise<Record<string, unknow
           return buildWebPage(page, base);
         case "FAQPage":
           return buildFaqPage(page, entry.from);
+        case "Service":
+          return buildService(page, base, entry.areaServed);
         default:
           return null;
       }
@@ -51,6 +53,20 @@ function buildWebPage(page: Page, base: string) {
     "@type": "WebPage",
     name: unwrap(page.seo?.title) || unwrap(page.title),
     description: unwrap(page.seo?.description),
+    url: new URL(toUrlPath(page.slug), base).toString(),
+  };
+}
+
+function buildService(page: Page, base: string, areaServed?: string) {
+  const { seoDefaults } = getSite();
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: unwrap(page.seo?.title) || unwrap(page.title),
+    description: unwrap(page.seo?.description),
+    ...(areaServed ? { areaServed } : {}),
+    provider: { "@type": "Organization", name: seoDefaults.siteName, url: base },
     url: new URL(toUrlPath(page.slug), base).toString(),
   };
 }

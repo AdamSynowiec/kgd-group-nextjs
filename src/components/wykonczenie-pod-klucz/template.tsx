@@ -1,0 +1,35 @@
+import type { ComponentType } from "react";
+
+import NavBar from "./NavBar";
+import Hero from "./Hero";
+import Highlights from "./Highlights";
+import TextBlock from "./TextBlock";
+import FeatureGrid from "./FeatureGrid";
+import Steps from "./Steps";
+import Faq from "./Faq";
+import ClosingCta from "./ClosingCta";
+
+import Contact from "@/components/shared/Contact";
+import Footer from "@/components/shared/Footer";
+
+/**
+ * Rejestr sekcji dla szablonu "wykonczenie-pod-klucz" (/wykonczenie-pod-klucz) —
+ * mirror src/components/kgd-building/template.tsx. "Contact"/"Footer" — te
+ * same, naprawdę globalne komponenty co w każdej inwestycji (src/components/shared/*).
+ */
+type SectionProps = { fields: Record<string, unknown> };
+
+const template: Record<string, ComponentType<SectionProps>> = {
+  NavBar: NavBar as ComponentType<SectionProps>,
+  Hero: Hero as ComponentType<SectionProps>,
+  Highlights: Highlights as ComponentType<SectionProps>,
+  TextBlock: TextBlock as ComponentType<SectionProps>,
+  FeatureGrid: FeatureGrid as ComponentType<SectionProps>,
+  Steps: Steps as ComponentType<SectionProps>,
+  Faq: Faq as ComponentType<SectionProps>,
+  ClosingCta: ClosingCta as ComponentType<SectionProps>,
+  Contact: Contact as ComponentType<SectionProps>,
+  Footer: Footer as ComponentType<SectionProps>,
+};
+
+export default template;

@@ -56,7 +56,8 @@ export type PageSection = {
 export type StructuredDataEntry =
   | { type: "BreadcrumbList"; from: "parent" }
   | { type: "WebPage" }
-  | { type: "FAQPage"; from: `section:${string}` };
+  | { type: "FAQPage"; from: `section:${string}` }
+  | { type: "Service"; areaServed?: string };
 
 export type PageSeo = {
   /** Edytowalne z panelu /admin — patrz src/lib/editable.ts. Zwykły string dla starszej treści. */
