@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
 
@@ -11,7 +14,7 @@ type TextBlockFields = {
   tint?: EditableValue<boolean> | boolean;
 };
 
-/** Nagłówek + jeden lub więcej akapitów, opcjonalny przycisk CTA — blok tekstowy wielokrotnego użytku. */
+/** Nagłówek (Ranade) + jeden lub więcej akapitów, opcjonalny link CTA — blok tekstowy wielokrotnego użytku. */
 export default function TextBlock({ fields }: { fields: TextBlockFields }) {
   const header = unwrap(fields.header);
   const paragraphs = unwrap(fields.paragraphs) ?? [];
@@ -19,28 +22,31 @@ export default function TextBlock({ fields }: { fields: TextBlockFields }) {
   const tint = unwrap(fields.tint);
 
   return (
-    <section className={`py-16 md:py-20 font-poppins ${tint ? "bg-[#FBFBFB]" : ""}`}>
+    <section className={`py-20 md:py-28 font-poppins ${tint ? "bg-[#FBFBFB]" : "bg-white"}`}>
       <Container className="max-w-3xl text-center">
-        <h2 className="text-2xl md:text-4xl font-light">{header}</h2>
+        <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.4 }} transition={{ duration: 0.6 }}>
+          <h2 className="font-ranade-variable font-light text-[30px] md:text-[48px] leading-[1.1]">{header}</h2>
 
-        <div className="mt-6 space-y-5">
-          {paragraphs.map((paragraph) => (
-            <p key={paragraph} className="text-[#4a4a4a] font-light leading-relaxed">
-              {paragraph}
-            </p>
-          ))}
-        </div>
-
-        {cta && (
-          <div className="mt-8">
-            <Link
-              href={cta.href}
-              className="inline-flex items-center justify-center px-7 py-3 rounded-full font-light tracking-wide bg-[#C9AB8B] text-white border border-[#C9AB8B] transition-all duration-300 hover:bg-transparent hover:text-[#C9AB8B] hover:shadow-[0_10px_30px_rgba(201,171,139,0.25)]"
-            >
-              {cta.label}
-            </Link>
+          <div className="mt-7 space-y-5">
+            {paragraphs.map((paragraph) => (
+              <p key={paragraph} className="text-[#5a5a5a] font-light leading-relaxed text-[16px] md:text-[17px]">
+                {paragraph}
+              </p>
+            ))}
           </div>
-        )}
+
+          {cta && (
+            <div className="mt-9">
+              <Link
+                href={cta.href}
+                className="group inline-flex items-center gap-2 border-b border-[#C9AB8B]/50 pb-2 text-[13px] uppercase tracking-[0.2em] text-[#8a6b47] transition-colors duration-300 hover:border-[#C9AB8B] hover:text-[#C9AB8B]"
+              >
+                {cta.label}
+                <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+              </Link>
+            </div>
+          )}
+        </motion.div>
       </Container>
     </section>
   );

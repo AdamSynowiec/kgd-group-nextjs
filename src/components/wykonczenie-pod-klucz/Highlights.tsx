@@ -1,3 +1,6 @@
+"use client";
+
+import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
 import { AwardIcon, LayersIcon, UsersIcon, TagIcon } from "./icons";
@@ -11,30 +14,37 @@ type HighlightsFields = {
 
 const iconMap: Record<string, typeof AwardIcon> = { award: AwardIcon, layers: LayersIcon, users: UsersIcon, tag: TagIcon };
 
-/** Pasek "przewag" KGD — 4 kafelki ikona+nagłówek+tekst, tuż pod Hero. */
+/** Pas "przewag" KGD — płaska, dzielona siatka statystyk (mirror statCards na stronie głównej), bez kart. */
 export default function Highlights({ fields }: { fields: HighlightsFields }) {
   const header = unwrap(fields.header);
   const items = unwrap(fields.items) ?? [];
 
   return (
-    <section className="py-16 md:py-20 font-poppins">
+    <section className="relative py-20 md:py-24 font-poppins bg-white">
       <Container>
-        {header && <h2 className="text-center text-2xl md:text-3xl font-light">{header}</h2>}
+        {header && (
+          <div className="flex items-center gap-4 mb-14">
+            <span className="text-[11px] uppercase tracking-[0.25em] text-black/40 flex-none">{header}</span>
+            <div className="h-px flex-1 bg-black/10" />
+          </div>
+        )}
 
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {items.map((item) => {
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-black/[0.08] border border-black/[0.08]">
+          {items.map((item, index) => {
             const Icon = iconMap[item.icon] ?? AwardIcon;
             return (
-              <div
+              <motion.div
                 key={item.header}
-                className="group rounded-md bg-white border border-[#eee] p-6 lg:p-8 text-center transition-all duration-300 hover:shadow-[0_20px_50px_rgba(201,171,139,0.15)] hover:-translate-y-1"
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.4 }}
+                transition={{ duration: 0.5, delay: index * 0.08 }}
+                className="group flex flex-col items-center text-center px-6 py-12 transition-colors duration-500 hover:bg-[#FBFBFB]"
               >
-                <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#C9AB8B]/10 text-[#C9AB8B] transition-colors duration-300 group-hover:bg-[#C9AB8B] group-hover:text-white">
-                  <Icon />
-                </span>
-                <h3 className="mt-5 text-base font-medium">{item.header}</h3>
-                <p className="mt-2 text-sm text-[#4a4a4a] font-light leading-relaxed">{item.content}</p>
-              </div>
+                <Icon className="h-6 w-6 text-[#C9AB8B]/70 transition-colors duration-500 group-hover:text-[#C9AB8B]" />
+                <span className="mt-6 font-ranade-variable font-light text-[22px] md:text-[26px] leading-tight">{item.header}</span>
+                <p className="mt-3 text-[13px] text-black/45 font-light leading-relaxed max-w-[220px]">{item.content}</p>
+              </motion.div>
             );
           })}
         </div>

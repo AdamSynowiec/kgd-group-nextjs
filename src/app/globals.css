@@ -69,6 +69,20 @@ html {
   }
 }
 
+/* Pas przewijanych słów kluczowych (src/components/wykonczenie-pod-klucz/Marquee.tsx) */
+@keyframes kgdMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-kgd-marquee {
+  animation: kgdMarquee 28s linear infinite;
+}
+
 .animate-fadeInRight {
   animation: fadeInRight 0.3s ease-out;
 }

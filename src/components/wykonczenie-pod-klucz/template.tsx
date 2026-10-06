@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 
 import NavBar from "./NavBar";
 import Hero from "./Hero";
+import Marquee from "./Marquee";
 import Highlights from "./Highlights";
 import TextBlock from "./TextBlock";
 import FeatureGrid from "./FeatureGrid";
@@ -22,6 +23,7 @@ type SectionProps = { fields: Record<string, unknown> };
 const template: Record<string, ComponentType<SectionProps>> = {
   NavBar: NavBar as ComponentType<SectionProps>,
   Hero: Hero as ComponentType<SectionProps>,
+  Marquee: Marquee as ComponentType<SectionProps>,
   Highlights: Highlights as ComponentType<SectionProps>,
   TextBlock: TextBlock as ComponentType<SectionProps>,
   FeatureGrid: FeatureGrid as ComponentType<SectionProps>,

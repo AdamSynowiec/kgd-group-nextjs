@@ -59,6 +59,8 @@ INSERT INTO pages (slug, content) VALUES
 
       {"id": "hero", "component": "Hero", "fields": {"eyebrow": "Wykończenie pod klucz", "heading": "Od projektu po gotowe wnętrze", "lead": "Projekt, materiały, wykończenie, zabudowy, meble i AGD. Jeden zespół, jeden opiekun i pełna odpowiedzialność za efekt."}},
 
+      {"id": "marquee", "component": "Marquee", "fields": {"items": ["Projekt", "Materiały", "Wykończenie", "Zabudowy", "Meble", "AGD"]}},
+
       {"id": "przewagi", "component": "Highlights", "fields": {"header": "Najważniejsze przewagi KGD", "items": [
         {"icon": "award", "header": "400+ realizacji", "content": "Doświadczenie w remontach, aranżacjach i kompleksowych wykończeniach."},
         {"icon": "layers", "header": "Kompleksowo od A do Z", "content": "Projekt, zakupy, realizacja, stolarka, meble, oświetlenie i AGD."},

@@ -45,11 +45,11 @@ export default function NavBar({ fields }: { fields: NavBarFields }) {
           />
         </Link>
 
-        <nav className="hidden md:flex items-center gap-8 text-white text-[15px]">
-          <ul className="flex gap-6">
+        <nav className="hidden md:flex items-center gap-10 text-white text-[15px] font-ranade-variable">
+          <ul className="flex gap-8">
             {menu.map((item) => (
               <li key={item.label}>
-                <Link href={item.to} className="tracking-wide hover:text-[#C9AB8B] transition-colors">
+                <Link href={item.to} className="tracking-wide hover:text-[#C9AB8B] hover:underline transition-colors">
                   {item.label}
                 </Link>
               </li>
@@ -57,12 +57,9 @@ export default function NavBar({ fields }: { fields: NavBarFields }) {
           </ul>
 
           {phone && (
-            <a
-              href={`tel:${phone.replace(/\s+/g, "")}`}
-              className="group inline-flex items-center gap-3 px-5 py-2 rounded-full border border-white/15 bg-white/5 text-white font-light transition-all duration-300 hover:border-[#C9AB8B]/60 hover:bg-[#C9AB8B]/10"
-            >
-              <span className="w-2 h-2 rounded-full bg-[#C9AB8B] group-hover:scale-125 transition-transform duration-300" />
-              <span className="tracking-wide group-hover:text-[#C9AB8B] transition-colors duration-300">{phone}</span>
+            <a href={`tel:${phone.replace(/\s+/g, "")}`} className="group inline-flex items-center gap-2 tracking-wide hover:text-[#C9AB8B] transition-colors">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#C9AB8B] group-hover:scale-125 transition-transform duration-300" />
+              {phone}
             </a>
           )}
         </nav>

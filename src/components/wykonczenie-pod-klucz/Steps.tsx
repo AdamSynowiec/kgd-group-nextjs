@@ -1,3 +1,6 @@
+"use client";
+
+import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
 
@@ -8,30 +11,34 @@ type StepsFields = {
   steps?: EditableValue<Step[]> | Step[];
 };
 
-/** Mirror src/components/kgd-building/Timeline.tsx — pionowa oś z numerowanymi etapami ("Jak wygląda współpraca"). */
+/** Edytorialny spis etapów ("Jak wygląda współpraca") — numer + tytuł w jednej linii, cienka linia, opis pod spodem. */
 export default function Steps({ fields }: { fields: StepsFields }) {
   const header = unwrap(fields.header);
   const steps = unwrap(fields.steps) ?? [];
 
   return (
-    <section className="bg-[#FBFBFB] py-16 md:py-20 font-poppins">
-      <Container>
-        <h2 className="text-center text-2xl md:text-4xl font-light">{header}</h2>
+    <section className="relative bg-[#FBFBFB] py-20 md:py-28 font-poppins overflow-hidden">
+      <Container className="max-w-4xl">
+        <h2 className="font-ranade-variable font-light text-[30px] md:text-[48px] leading-[1.1]">{header}</h2>
 
-        <div className="mt-14 max-w-2xl mx-auto space-y-10">
+        <div className="mt-14 border-t border-black/[0.08]">
           {steps.map((step, index) => (
-            <div key={step.title} className="flex gap-6 md:gap-10">
-              <div className="flex flex-col items-center flex-none">
-                <span className="grid h-11 w-11 place-items-center rounded-full bg-[#C9AB8B]/10 text-[#C9AB8B] font-medium text-sm">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                {index < steps.length - 1 && <div className="mt-3 w-px flex-1 bg-[#ddd]" />}
+            <motion.div
+              key={step.title}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: 0.45, delay: index * 0.07 }}
+              className="group border-b border-black/[0.08] py-7 md:py-8 transition-colors duration-500 hover:bg-white"
+            >
+              <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                <span className="font-ranade-variable text-[13px] tracking-[0.25em] text-[#C9AB8B]">{String(index + 1).padStart(2, "0")}</span>
+                <h3 className="font-ranade-variable text-[20px] md:text-[27px] font-light transition-transform duration-500 group-hover:translate-x-1.5">
+                  {step.title}
+                </h3>
               </div>
-              <div className="pb-2">
-                <h3 className="text-lg md:text-xl font-light">{step.title}</h3>
-                <p className="mt-2 text-[#4a4a4a] font-light leading-relaxed">{step.text}</p>
-              </div>
-            </div>
+              <p className="mt-2 md:ml-[52px] text-[#6b6b6b] font-light leading-relaxed max-w-xl">{step.text}</p>
+            </motion.div>
           ))}
         </div>
       </Container>
