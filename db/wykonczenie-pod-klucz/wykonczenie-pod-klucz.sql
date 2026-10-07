@@ -20,9 +20,9 @@
 -- możliwość 8% VAT, dostępność usługi dla nieruchomości spoza KGD, a także
 -- 8–12 realnych zdjęć/case studies. Dwa miejsca już gotowe na podmianę
 -- placeholdera na realne zdjęcie (pole "asset"): Hero.fields.bg oraz nowa
--- sekcja "efekt-koncowy" (FeatureImage.fields.img) — pełnoszerokie zdjęcie
--- wstawione między "Pełny zakres" a "Standard premium" jako wizualny oddech
--- w środku strony. Nagłówek/podtytuł tej sekcji to PROPOZYCJA (nie z briefu)
+-- sekcja "efekt-koncowy" (FeatureImage.fields.images — lista zdjęć) —
+-- slider przewijany scrollem między "Pełny zakres" a "Standard premium".
+-- Bez pola "images" komponent pokazuje tymczasowe zdjęcia zaszyte w kodzie. Nagłówek/podtytuł tej sekcji to PROPOZYCJA (nie z briefu)
 -- — do akceptacji lub zmiany przez klienta.
 --
 -- Import: mysql -u UZYTKOWNIK -p NAZWA_BAZY < db/wykonczenie-pod-klucz/wykonczenie-pod-klucz.sql
@@ -59,8 +59,6 @@ INSERT INTO pages (slug, content) VALUES
       "structuredData": [{"type": "WebPage"}, {"type": "Service", "areaServed": "Kraków"}, {"type": "FAQPage", "from": "section:faq-wykonczenie-pod-klucz"}]
     },
     "sections": [
-      {"id": "navbar", "component": "NavBar", "fields": {"menu": [{"label": "Strona główna", "to": "/"}, {"label": "Kontakt", "to": "#kontakt"}], "phone": "12 352 15 00"}},
-
       {"id": "hero", "component": "Hero", "fields": {"eyebrow": "Wykończenie pod klucz", "heading": "Od projektu po gotowe wnętrze", "lead": "Projekt, materiały, wykończenie, zabudowy, meble i AGD. Jeden zespół, jeden opiekun i pełna odpowiedzialność za efekt."}},
 
       {"id": "marquee", "component": "Marquee", "fields": {"items": ["Projekt", "Materiały", "Wykończenie", "Zabudowy", "Meble", "AGD"]}},

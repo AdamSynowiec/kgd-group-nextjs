@@ -13,8 +13,14 @@ type NavBarFields = {
   phone?: EditableValue<string> | string;
 };
 
-/** Mirror src/components/kgd-building/NavBar.tsx — logo "KGD Group" (strona główna) zamiast sub-marki. */
-export default function NavBar({ fields }: { fields: NavBarFields }) {
+/**
+ * Minimalny, edytorialny nagłówek (Ranade, bez pigułki telefonu) — NIEUŻYWANY
+ * domyślnie: strona korzysta z nagłówka strony głównej (patrz layout.tsx).
+ * Zostawiony do ewentualnego użycia — wystarczy dodać sekcję
+ * {"component": "NavBarMinimal", "fields": {"menu": [...], "phone": "..."}}
+ * i usunąć NavBar strony głównej z layoutu.
+ */
+export default function NavBarMinimal({ fields }: { fields: NavBarFields }) {
   const menu = unwrap(fields.menu) ?? [];
   const phone = unwrap(fields.phone);
 

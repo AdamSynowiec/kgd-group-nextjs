@@ -79,6 +79,16 @@ html {
   }
 }
 
+/* Pasek postępu autoplay slidera (src/components/wykonczenie-pod-klucz/FeatureImage.tsx) */
+@keyframes kgdProgress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 .animate-kgd-marquee {
   animation: kgdMarquee 28s linear infinite;
 }

@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-import NavBar from "./NavBar";
+import NavBarMinimal from "./NavBarMinimal";
 import Hero from "./Hero";
 import Marquee from "./Marquee";
 import Highlights from "./Highlights";
@@ -22,7 +22,7 @@ import Footer from "@/components/shared/Footer";
 type SectionProps = { fields: Record<string, unknown> };
 
 const template: Record<string, ComponentType<SectionProps>> = {
-  NavBar: NavBar as ComponentType<SectionProps>,
+  NavBarMinimal: NavBarMinimal as ComponentType<SectionProps>,
   Hero: Hero as ComponentType<SectionProps>,
   Marquee: Marquee as ComponentType<SectionProps>,
   Highlights: Highlights as ComponentType<SectionProps>,
