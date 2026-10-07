@@ -4,8 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
 
+/** Wiersz tabeli w panelu (kolumna "image" = upload); dla wstecznej zgodności akceptujemy też gołe ścieżki. */
+type SlideRow = string | { image?: string };
+
 type FeatureImageFields = {
-  images?: EditableValue<string[]> | string[];
+  images?: EditableValue<SlideRow[]> | SlideRow[];
   eyebrow?: EditableValue<string> | string;
   title: EditableValue<string> | string;
   subtitle?: EditableValue<string> | string;
@@ -28,7 +31,9 @@ const SWIPE_THRESHOLD = 50;
  * scrolla strony, więc liczba zdjęć nie wpływa na długość/płynność przewijania.
  */
 export default function FeatureImage({ fields }: { fields: FeatureImageFields }) {
-  const fieldImages = unwrap(fields.images) ?? [];
+  const fieldImages = (unwrap(fields.images) ?? [])
+    .map((row) => (typeof row === "string" ? row : row.image))
+    .filter((src): src is string => Boolean(src));
   const images = fieldImages.length > 0 ? fieldImages : PLACEHOLDER_IMAGES;
   const eyebrow = unwrap(fields.eyebrow);
   const title = unwrap(fields.title);
