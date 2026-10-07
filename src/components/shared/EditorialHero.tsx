@@ -48,13 +48,7 @@ export default function EditorialHero({ heading, lead, eyebrow, video, poster, s
       <div className="hidden md:block absolute inset-6 md:inset-10 border border-white/[0.08] pointer-events-none" />
 
       <div className="container max-w-[1596px] mx-auto px-6 relative z-10 w-full pt-[120px] md:pt-[210px] pb-24 text-white">
-        <div className="flex items-center justify-end text-[11px] uppercase tracking-[0.25em] text-white/40 animate-[kgdFadeUp_0.7s_ease_forwards] opacity-0">
-          <span className="hidden sm:inline">Kraków</span>
-        </div>
-
-        <div className="mt-10 h-px w-full bg-white/10 animate-[kgdFadeUp_0.8s_ease_forwards] opacity-0" />
-
-        <div className="mt-12 max-w-5xl">
+        <div className="max-w-5xl">
           {eyebrow && (
             <span className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.25em] text-[#C9AB8B] animate-[kgdFadeUp_0.9s_ease_forwards] opacity-0">
               <span className="h-1.5 w-1.5 rounded-full bg-[#C9AB8B]" />
