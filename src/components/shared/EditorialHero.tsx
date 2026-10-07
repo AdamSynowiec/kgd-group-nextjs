@@ -48,8 +48,7 @@ export default function EditorialHero({ heading, lead, eyebrow, video, poster, s
       <div className="hidden md:block absolute inset-6 md:inset-10 border border-white/[0.08] pointer-events-none" />
 
       <div className="container max-w-[1596px] mx-auto px-6 relative z-10 w-full pt-[120px] md:pt-[210px] pb-24 text-white">
-        <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.25em] text-white/40 animate-[kgdFadeUp_0.7s_ease_forwards] opacity-0">
-          <span>KGD Group — 01</span>
+        <div className="flex items-center justify-end text-[11px] uppercase tracking-[0.25em] text-white/40 animate-[kgdFadeUp_0.7s_ease_forwards] opacity-0">
           <span className="hidden sm:inline">Kraków</span>
         </div>
 

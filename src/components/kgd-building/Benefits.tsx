@@ -1,6 +1,9 @@
+"use client";
+
+import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
-import { CheckCircleIcon } from "./icons";
+import SectionHeading from "./SectionHeading";
 
 type BenefitsFields = {
   eyebrow?: EditableValue<string> | string;
@@ -9,7 +12,7 @@ type BenefitsFields = {
   benefits?: EditableValue<string[]> | string[];
 };
 
-/** Mirror kgd-building/Benefits.jsx — lista korzyści w kartach 2 kolumny. */
+/** Korzyści jako lista w stylu FAQ z /wykonczenie-pod-klucz: cienkie linie, złoty numer, tekst przesuwa się na hover; dwie kolumny na desktopie. */
 export default function Benefits({ fields }: { fields: BenefitsFields }) {
   const eyebrow = unwrap(fields.eyebrow);
   const header = unwrap(fields.header);
@@ -17,26 +20,24 @@ export default function Benefits({ fields }: { fields: BenefitsFields }) {
   const benefits = unwrap(fields.benefits) ?? [];
 
   return (
-    <section id="korzysci" className="py-16 md:py-20 font-poppins">
+    <section id="korzysci" className="bg-white py-20 md:py-28 font-poppins">
       <Container>
-        <div className="text-center">
-          {eyebrow && <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#C9AB8B]">{eyebrow}</span>}
-          <h2 className="mt-3 text-3xl md:text-4xl font-light">{header}</h2>
-          {text && <p className="mt-4 text-[#4a4a4a] font-light">{text}</p>}
-        </div>
+        <SectionHeading eyebrow={eyebrow} header={header} text={text} />
 
-        <div className="mt-12 max-w-3xl mx-auto">
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {benefits.map((benefit) => (
-              <li
-                key={benefit}
-                className="group flex items-start gap-3 rounded-md bg-white border border-[#eee] p-5 transition-all duration-300 hover:shadow-[0_20px_50px_rgba(201,171,139,0.15)] hover:-translate-y-1"
-              >
-                <CheckCircleIcon className="mt-0.5 h-5 w-5 flex-none text-[#C9AB8B] transition-transform duration-300 group-hover:scale-110" />
-                <span className="text-sm sm:text-base text-[#4a4a4a]">{benefit}</span>
-              </li>
-            ))}
-          </ul>
+        <div className="mt-14 grid md:grid-cols-2 md:gap-x-16 border-t border-black/[0.08]">
+          {benefits.map((benefit, index) => (
+            <motion.div
+              key={benefit}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.5 }}
+              transition={{ duration: 0.4, delay: (index % 2) * 0.08 }}
+              className="group flex items-start gap-5 border-b border-black/[0.08] py-6"
+            >
+              <span className="font-ranade-variable text-[13px] tracking-[0.25em] text-[#C9AB8B] flex-none pt-1">{String(index + 1).padStart(2, "0")}</span>
+              <span className="font-ranade-variable text-[18px] md:text-[21px] font-light leading-snug transition-transform duration-500 group-hover:translate-x-1">{benefit}</span>
+            </motion.div>
+          ))}
         </div>
       </Container>
     </section>

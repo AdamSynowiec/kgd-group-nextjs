@@ -33,9 +33,10 @@ export default async function LatestPosts() {
           </H2>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
-            {posts.map((post) => (
+            {posts.map((post, index) => (
               <PostCard
                 key={post.slug}
+                index={index}
                 slug={post.slug}
                 title={unwrap(post.title) ?? post.slug}
                 updatedAt={post.updatedAt}

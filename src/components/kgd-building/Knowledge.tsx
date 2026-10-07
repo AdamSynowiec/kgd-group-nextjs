@@ -1,6 +1,10 @@
+"use client";
+
+import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
-import { FileDownIcon, ArrowRightIcon } from "./icons";
+import SectionHeading from "./SectionHeading";
+import { FileDownIcon } from "./icons";
 
 type Guide = { title: string; desc: string; href: string; cta: string };
 
@@ -11,7 +15,7 @@ type KnowledgeFields = {
   guides?: EditableValue<Guide[]> | Guide[];
 };
 
-/** Mirror kgd-building/Knowledge.jsx — karty z poradnikami do pobrania. */
+/** Poradniki do pobrania — kafelki w rotacji ciemny/jasny (jak FeatureGrid w /wykonczenie-pod-klucz) z przyciskiem outline ze strzałką. */
 export default function Knowledge({ fields }: { fields: KnowledgeFields }) {
   const eyebrow = unwrap(fields.eyebrow);
   const header = unwrap(fields.header);
@@ -19,38 +23,48 @@ export default function Knowledge({ fields }: { fields: KnowledgeFields }) {
   const guides = unwrap(fields.guides) ?? [];
 
   return (
-    <section id="baza-wiedzy" className="bg-[#FBFBFB] py-16 md:py-20 font-poppins">
+    <section id="baza-wiedzy" className="bg-white py-20 md:py-28 font-poppins">
       <Container>
-        <div className="text-center">
-          {eyebrow && <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#C9AB8B]">{eyebrow}</span>}
-          <h2 className="mt-3 text-3xl md:text-4xl font-light">{header}</h2>
-          {text && <p className="mt-4 text-[#4a4a4a] font-light">{text}</p>}
-        </div>
+        <SectionHeading eyebrow={eyebrow} header={header} text={text} />
 
-        <div className="mt-12 grid gap-6 md:grid-cols-2">
-          {guides.map((guide) => (
-            <article
-              key={guide.title}
-              className="group flex flex-col rounded-md bg-white border border-[#eee] p-8 transition-all duration-300 hover:shadow-[0_20px_50px_rgba(201,171,139,0.15)] hover:-translate-y-1"
-            >
-              <div className="grid h-11 w-11 place-items-center rounded-full bg-[#C9AB8B]/10 text-[#C9AB8B] transition-colors duration-300 group-hover:bg-[#C9AB8B] group-hover:text-white">
-                <FileDownIcon />
-              </div>
-
-              <h3 className="mt-6 text-xl leading-snug font-light">{guide.title}</h3>
-              <p className="mt-3 text-sm text-[#717171]">{guide.desc}</p>
-
-              <a
-                href={guide.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-8 inline-flex items-center gap-2 self-start rounded-full px-5 py-2.5 font-light tracking-wide text-sm bg-[#C9AB8B] text-white border border-[#C9AB8B] transition-all duration-300 hover:bg-transparent hover:text-[#C9AB8B] hover:shadow-[0_10px_30px_rgba(201,171,139,0.25)]"
+        <div className="mt-14 grid gap-5 md:grid-cols-2">
+          {guides.map((guide, index) => {
+            const dark = index % 2 === 0;
+            return (
+              <motion.article
+                key={guide.title}
+                initial={{ opacity: 0, y: 28 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.5, delay: (index % 2) * 0.1 }}
+                className={`group flex flex-col p-8 md:p-10 transition-all duration-500 hover:-translate-y-2 ${
+                  dark ? "bg-[#141414] text-white hover:shadow-[0_30px_60px_rgba(0,0,0,0.35)]" : "bg-[#FBF8F4] text-[#141414] hover:shadow-[0_30px_60px_rgba(201,171,139,0.3)]"
+                }`}
               >
-                {guide.cta}
-                <ArrowRightIcon className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </a>
-            </article>
-          ))}
+                <div className="flex items-start justify-between">
+                  <span className="h-[3px] w-10 bg-[#C9AB8B]" />
+                  <span className="text-[#C9AB8B]">
+                    <FileDownIcon />
+                  </span>
+                </div>
+
+                <h3 className="mt-8 font-ranade-variable font-light text-[22px] md:text-[28px] leading-snug">{guide.title}</h3>
+                <p className={`mt-3 text-sm font-light leading-relaxed ${dark ? "text-white/60" : "text-black/55"}`}>{guide.desc}</p>
+
+                <a
+                  href={guide.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`mt-10 inline-flex items-center gap-3 self-start rounded-full border px-7 py-3 text-[12px] uppercase tracking-[0.2em] transition-all duration-300 hover:border-[#C9AB8B] hover:text-[#C9AB8B] ${
+                    dark ? "border-white/25 text-white" : "border-[#141414] text-[#141414]"
+                  }`}
+                >
+                  {guide.cta}
+                  <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+                </a>
+              </motion.article>
+            );
+          })}
         </div>
       </Container>
     </section>

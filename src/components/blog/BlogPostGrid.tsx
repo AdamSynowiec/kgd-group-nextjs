@@ -32,13 +32,14 @@ export default async function BlogPostGrid({ page }: { page: number }) {
   const items = (await Promise.all(slice.map((child) => getPageBySlug(child.slug)))).filter((item) => item !== null);
 
   return (
-    <Container className="py-[48px] md:py-[80px]">
+    <Container className="py-[64px] md:py-[100px]">
+      <div id="wpisy" className="scroll-mt-24" />
       {items.length === 0 ? (
         <p className="py-16 text-center font-poppins text-gray-500">Brak wpisów.</p>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
-          {items.map((item) => (
-            <PostCard key={item.slug} slug={item.slug} title={unwrap(item.title) ?? item.slug} updatedAt={item.updatedAt} fields={findBlogPostFields(item)} />
+          {items.map((item, index) => (
+            <PostCard key={item.slug} index={(page - 1) * BLOG_PAGE_SIZE + index} slug={item.slug} title={unwrap(item.title) ?? item.slug} updatedAt={item.updatedAt} fields={findBlogPostFields(item)} />
           ))}
         </div>
       )}
@@ -52,59 +53,54 @@ export function findBlogPostFields(page: { sections: { component: string; fields
   return (page.sections.find((section) => section.component === "BlogPost")?.fields ?? {}) as BlogPostCardFields;
 }
 
-/** Karta wpisu — współdzielona z sekcją ostatnich wpisów na stronie głównej (src/components/home/LatestPosts.tsx). "headingAs" = poziom nagłówka tytułu zależnie od miejsca: h2 na /blog, h3 pod nagłówkiem sekcji na stronie głównej. */
+/**
+ * Karta wpisu (bez zdjęcia) — współdzielona z sekcją ostatnich wpisów na stronie głównej
+ * (src/components/home/LatestPosts.tsx). Język jak Steps/FeatureGrid w /wykonczenie-pod-klucz:
+ * biała karta z cienkim obrysem, złota kreska i duży numer w tle, tytuł Ranade, strzałka na dole.
+ * "headingAs" = poziom nagłówka: h2 na /blog, h3 pod nagłówkiem sekcji na stronie głównej.
+ */
 export function PostCard({
   slug,
   title,
   updatedAt,
   fields,
+  index = 0,
   headingAs: Heading = "h2",
 }: {
   slug: string;
   title: string;
   updatedAt?: string;
   fields: BlogPostCardFields;
+  index?: number;
   headingAs?: "h2" | "h3";
 }) {
   const excerpt = unwrap(fields.excerpt);
-  const cover = unwrap(fields.coverImage);
   const author = unwrap(fields.author);
   const meta = [author, formatDate(updatedAt)].filter(Boolean).join(" · ");
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-[#C9AB8B]/40 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12)]">
-      <Link href={slug} className="relative block aspect-[16/10] w-full overflow-hidden bg-gray-100">
-        {cover ? (
-          // eslint-disable-next-line @next/next/no-img-element -- output:"export"/images.unoptimized, jak wszędzie indziej w projekcie
-          <img src={cover} alt="" className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <span className="font-poppins text-xs uppercase tracking-[0.2em] text-gray-300">KGD Group</span>
-          </div>
-        )}
-      </Link>
-
-      <div className="flex flex-1 flex-col p-6">
-        {meta && (
-          <span className="inline-flex w-fit items-center gap-1.5 font-poppins text-[11px] font-medium uppercase tracking-[0.08em] text-[#C9AB8B]">
-            <span className="h-1 w-1 rounded-full bg-[#C9AB8B]" />
-            {meta}
-          </span>
-        )}
-
-        <Heading className="mt-3 line-clamp-2 font-poppins text-lg font-semibold leading-snug text-[#1D1D1D]">
-          <Link href={slug} className="transition-colors duration-300 group-hover:text-[#C9AB8B]">
-            {title}
-          </Link>
-        </Heading>
-
-        {excerpt && <p className="mt-2.5 line-clamp-3 flex-1 font-montserrat text-[15px]/[26px] font-light text-gray-500">{excerpt}</p>}
-
-        <Link href={slug} className="mt-5 inline-flex items-center gap-2 font-poppins text-sm font-medium text-[#C9AB8B]">
-          Czytaj więcej
-          <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
-        </Link>
+    <article className="group relative flex h-full flex-col overflow-hidden bg-white p-8 ring-1 ring-black/[0.06] shadow-[0_10px_30px_rgba(0,0,0,0.03)] transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_25px_55px_rgba(201,171,139,0.3)]">
+      <div className="flex items-start justify-between">
+        <span className="h-[3px] w-10 bg-[#C9AB8B] transition-all duration-500 group-hover:w-20" />
+        <span className="select-none font-ranade-variable text-[64px] font-thin leading-none text-black/[0.06] transition-colors duration-500 group-hover:text-[#C9AB8B]/30">
+          {String(index + 1).padStart(2, "0")}
+        </span>
       </div>
+
+      {meta && <span className="mt-6 font-poppins text-[11px] font-medium uppercase tracking-[0.2em] text-[#C9AB8B]">{meta}</span>}
+
+      <Heading className="mt-3 line-clamp-3 font-ranade-variable text-[22px] font-light leading-snug text-[#141414] md:text-[24px]">
+        <Link href={slug} className="after:absolute after:inset-0">
+          {title}
+        </Link>
+      </Heading>
+
+      {excerpt && <p className="mt-3 line-clamp-4 flex-1 font-poppins text-[14px] font-light leading-relaxed text-[#6b6b6b]">{excerpt}</p>}
+
+      <span className="mt-8 inline-flex items-center gap-3 font-poppins text-[12px] uppercase tracking-[0.2em] text-[#141414] transition-colors duration-300 group-hover:text-[#C9AB8B]">
+        Czytaj więcej
+        <span className="transition-transform duration-300 group-hover:translate-x-1.5">→</span>
+      </span>
     </article>
   );
 }
@@ -115,7 +111,7 @@ function Pagination({ page, totalPages }: { page: number; totalPages: number }) 
   const prevHref = page <= 2 ? "/blog" : `/blog/page/${page - 1}`;
   const nextHref = `/blog/page/${page + 1}`;
   const pillClass =
-    "inline-flex items-center gap-2 rounded-full border border-[#C9AB8B] px-5 py-2 font-poppins text-sm font-light text-[#C9AB8B] transition-all duration-300 hover:bg-[#C9AB8B] hover:text-white";
+    "inline-flex items-center gap-3 rounded-full border border-[#141414] px-7 py-3 font-poppins text-[12px] uppercase tracking-[0.2em] text-[#141414] transition-colors duration-300 hover:border-[#C9AB8B] hover:text-[#C9AB8B]";
 
   return (
     <nav className="mt-12 flex items-center justify-between md:mt-16">
@@ -126,7 +122,7 @@ function Pagination({ page, totalPages }: { page: number; totalPages: number }) 
       ) : (
         <span />
       )}
-      <span className="font-poppins text-sm text-gray-500">
+      <span className="font-ranade-variable text-[15px] tracking-[0.2em] text-black/50">
         Strona {page} z {totalPages}
       </span>
       {page < totalPages ? (

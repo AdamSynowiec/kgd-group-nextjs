@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import NavMenuItem, { type MenuItem } from "./NavMenuItem";
 
-export default function NavBar({ logo, menu, phone }: { logo: string; menu: MenuItem[]; phone: string }) {
+export default function NavBar({ logo, menu, phone, localAnchors = false }: { logo: string; menu: MenuItem[]; phone: string; localAnchors?: boolean }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -34,7 +34,7 @@ export default function NavBar({ logo, menu, phone }: { logo: string; menu: Menu
         <nav className="hidden xl:flex items-center space-x-8 text-white text-[12px] md:text-[14px] relative">
           <ul className="flex space-x-4">
             {menu.map((item) => (
-              <NavMenuItem key={item.label} item={item} onNavigate={() => setIsMenuOpen(false)} />
+              <NavMenuItem key={item.label} item={item} onNavigate={() => setIsMenuOpen(false)} localAnchors={localAnchors} />
             ))}
           </ul>
         </nav>
@@ -67,7 +67,7 @@ export default function NavBar({ logo, menu, phone }: { logo: string; menu: Menu
       >
         <ul className="flex flex-col gap-6 py-6 text-white text-lg px-6">
           {menu.map((item) => (
-            <NavMenuItem key={item.label} item={item} isMobile onNavigate={() => setIsMenuOpen(false)} />
+            <NavMenuItem key={item.label} item={item} isMobile onNavigate={() => setIsMenuOpen(false)} localAnchors={localAnchors} />
           ))}
         </ul>
       </div>

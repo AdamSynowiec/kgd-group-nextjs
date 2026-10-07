@@ -1,6 +1,7 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
 import Card from "./Card";
+import SectionHeading from "./SectionHeading";
 import { CheckIcon, ShieldIcon, KeyIcon } from "./icons";
 
 type StatLine = { value: string; label: string };
@@ -18,24 +19,29 @@ type WhyUsFields = {
 
 const infoCardIcons: Record<string, typeof ShieldIcon> = { shield: ShieldIcon, key: KeyIcon };
 
-function InfoCardView({ card }: { card: InfoCard }) {
+/** Dwa bloki informacyjne: pierwszy ciemny, drugi jasny (ciepły beż) — ten sam kontrast kafelków co FeatureGrid w /wykonczenie-pod-klucz. */
+function InfoCardView({ card, dark }: { card: InfoCard; dark: boolean }) {
   const Icon = infoCardIcons[card.icon] ?? ShieldIcon;
 
   return (
-    <div className="flex h-full flex-col bg-white rounded-md p-8 lg:p-10 border border-[#eee] transition-all duration-300 hover:shadow-[0_20px_50px_rgba(201,171,139,0.15)] hover:-translate-y-1">
+    <div
+      className={`flex h-full flex-col p-8 lg:p-10 transition-all duration-500 hover:-translate-y-2 ${
+        dark ? "bg-[#141414] text-white hover:shadow-[0_30px_60px_rgba(0,0,0,0.35)]" : "bg-[#FBF8F4] text-[#141414] hover:shadow-[0_30px_60px_rgba(201,171,139,0.3)]"
+      }`}
+    >
       <div className="flex items-center gap-3">
-        <span className="grid h-11 w-11 place-items-center rounded-full bg-[#C9AB8B]/10 text-[#C9AB8B]">
+        <span className={`grid h-11 w-11 place-items-center rounded-full ${dark ? "bg-white/10" : "bg-[#C9AB8B]/15"} text-[#C9AB8B]`}>
           <Icon />
         </span>
-        <span className="font-poppins text-xs font-medium uppercase tracking-[0.2em] text-[#C9AB8B]">{card.eyebrow}</span>
+        <span className="text-xs font-medium uppercase tracking-[0.25em] text-[#C9AB8B]">{card.eyebrow}</span>
       </div>
 
-      <h3 className="font-poppins mt-6 text-2xl lg:text-3xl font-light">{card.title}</h3>
-      <p className="mt-4 text-[#4a4a4a] font-light">{card.intro}</p>
+      <h3 className="mt-7 font-ranade-variable font-light text-[26px] lg:text-[32px] leading-tight">{card.title}</h3>
+      <p className={`mt-4 font-light leading-relaxed ${dark ? "text-white/65" : "text-black/60"}`}>{card.intro}</p>
 
       <ul className="mt-6 space-y-3">
         {card.items.map((item) => (
-          <li key={item} className="flex items-start gap-3 text-sm sm:text-base text-[#4a4a4a]">
+          <li key={item} className={`flex items-start gap-3 text-sm sm:text-base font-light ${dark ? "text-white/80" : "text-black/70"}`}>
             <CheckIcon className="mt-1 h-4 w-4 flex-none text-[#C9AB8B]" />
             <span>{item}</span>
           </li>
@@ -43,15 +49,15 @@ function InfoCardView({ card }: { card: InfoCard }) {
       </ul>
 
       {card.highlight && (
-        <div className="mt-6 pt-6 border-t border-[#eee]">
-          <p className="font-poppins text-base font-medium italic text-[#1a1a1a]">{card.highlight}</p>
+        <div className={`mt-6 pt-6 border-t ${dark ? "border-white/10" : "border-black/10"}`}>
+          <p className="font-ranade-variable text-lg font-light italic text-[#C9AB8B]">{card.highlight}</p>
         </div>
       )}
     </div>
   );
 }
 
-/** Mirror kgd-building/WhyUs.jsx — statystyki PUM + dwa bloki "info card". */
+/** Statystyki PUM (płaska dzielona siatka) + dwa bloki "info card". */
 export default function WhyUs({ fields }: { fields: WhyUsFields }) {
   const eyebrow = unwrap(fields.eyebrow);
   const header = unwrap(fields.header);
@@ -61,30 +67,21 @@ export default function WhyUs({ fields }: { fields: WhyUsFields }) {
   const infoCards = unwrap(fields.infoCards) ?? [];
 
   return (
-    <section id="dlaczego-my" className="bg-[#FBFBFB] py-16 md:py-20 font-poppins">
+    <section id="dlaczego-my" className="bg-[#FBFBFB] py-20 md:py-28 font-poppins">
       <Container>
-        <div className="mx-auto text-center">
-          {eyebrow && <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#C9AB8B]">{eyebrow}</span>}
-          <h2 className="mt-3 text-3xl md:text-4xl font-light">{header}</h2>
-          {text && <p className="mt-4 text-[#4a4a4a] font-light max-w-2xl mx-auto">{text}</p>}
-          {subText && (
-            <span className="max-w-4xl mx-auto block text-lg font-light uppercase tracking-[0.1em] text-[#C9AB8B] pt-10 md:pt-16 leading-[35px]">
-              {subText}
-            </span>
-          )}
+        <SectionHeading eyebrow={eyebrow} header={header} text={text}>
+          {subText && <span className="mt-6 block text-[13px] font-light uppercase tracking-[0.18em] text-[#C9AB8B] leading-relaxed">{subText}</span>}
+        </SectionHeading>
+
+        <div className="mt-14 grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-black/[0.08] border border-black/[0.08] bg-white">
+          {stats.map((stat, index) => (
+            <Card key={stat.header} icon={stat.icon} header={stat.header} lines={stat.lines} delay={index * 80} />
+          ))}
         </div>
-      </Container>
 
-      <div className="py-10 md:py-16 grid grid-cols-2 lg:grid-cols-4 w-full gap-1 divide-x divide-[#eee]">
-        {stats.map((stat, index) => (
-          <Card key={stat.header} icon={stat.icon} header={stat.header} lines={stat.lines} delay={100 + index * 50} className={index === 0 ? "border-b" : ""} />
-        ))}
-      </div>
-
-      <Container>
-        <div className="mt-4 grid gap-10 lg:grid-cols-2 lg:gap-14">
-          {infoCards.map((card) => (
-            <InfoCardView key={card.title} card={card} />
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          {infoCards.map((card, index) => (
+            <InfoCardView key={card.title} card={card} dark={index % 2 === 0} />
           ))}
         </div>
       </Container>

@@ -2,6 +2,9 @@
  * Style treści wpisu bloga (HTML z POST /blog/articles lub z edytora w panelu),
  * renderowanej w src/components/blog/BlogPost.tsx w kontenerze .blog-article.
  *
+ * Język wizualny jak /wykonczenie-pod-klucz i /kgd-building: nagłówki Ranade
+ * (light) ze złotą kreską, kwadratowe rogi, cienkie linie, złoty akcent #C9AB8B.
+ *
  * Zakres .blog-article zamiast gołego "article": <article> jest też w kartach
  * listy bloga (BlogPostGrid.tsx) i w "Bazie wiedzy" KGD Building
  * (Knowledge.tsx) — tam te reguły rozjechałyby nagłówki.
@@ -11,74 +14,197 @@
  */
 
 :root {
-  --blog-text: #3f3f46;          /* zinc-700 – tekst akapitów na stronie */
-  --blog-heading: #18181b;       /* zinc-900 – nagłówki na stronie */
-  --blog-bg: #f8f7f5;            /* ciepła, jasna szarość pod boxy */
-  --blog-border: #e7e5e4;
+  --blog-text: #4a4a4a;          /* tekst akapitów */
+  --blog-muted: #6b6b6b;
+  --blog-heading: #141414;       /* nagłówki */
+  --blog-bg: #fbf8f4;            /* ciepły beż pod boxy (jak jasny kafelek FeatureGrid) */
+  --blog-border: rgba(0, 0, 0, 0.08);
   --blog-accent: #c9ab8b;        /* złoty akcent marki KGD */
-  --blog-accent-soft: #c9ab8b26;
-  --blog-radius: 20px;
-  --blog-transition: 0.2s ease-in-out;
+  --blog-accent-soft: rgba(201, 171, 139, 0.14);
+  --blog-transition: 0.25s ease-in-out;
 }
 
-/* Font nagłówków jako zmienna na samym kontenerze, nie w :root — --poppins-src
-   (next/font, src/lib/fonts.ts) jest ustawiane dopiero na wrapperze w
-   src/app/blog/layout.tsx, więc w :root var() byłoby jeszcze puste. */
+/* Fonty jako zmienne na samym kontenerze, nie w :root — --ranade-variable-src
+   i --poppins-src (next/font, src/lib/fonts.ts) są ustawiane dopiero na
+   wrapperze w src/app/blog/layout.tsx, więc w :root var() byłoby jeszcze puste. */
 .blog-article {
-  --blog-font-heading: var(--poppins-src), "Poppins", sans-serif;
+  --blog-font-heading: var(--ranade-variable-src), serif;
+  --blog-font-body: var(--poppins-src), "Poppins", sans-serif;
+  font-family: var(--blog-font-body);
+  font-weight: 300;
+  color: var(--blog-text);
+}
+
+.blog-article strong {
+  font-weight: 500;
+  color: var(--blog-heading);
 }
 
 /* ---------- Typografia ---------- */
 
 .blog-article .section-title,
 .blog-article h2,
-.blog-article h3 {
+.blog-article h3,
+.blog-article h4 {
   font-family: var(--blog-font-heading);
   color: var(--blog-heading);
-  font-weight: 600;
+  font-weight: 300;
 }
 
 .blog-article h2 {
-  font-size: 30px;
-  line-height: 40px;
-  margin-top: 40px;
-  margin-bottom: 16px;
-  scroll-margin-top: 120px;      /* header jest fixed, 100 px wysokości */
+  position: relative;
+  font-size: 36px;
+  line-height: 1.15;
+  margin-top: 64px;
+  margin-bottom: 20px;
+  padding-top: 24px;
+  scroll-margin-top: 120px;      /* header jest fixed */
+}
+
+/* złota kreska nad nagłówkiem sekcji */
+.blog-article h2::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 3px;
+  background-color: var(--blog-accent);
 }
 
 .blog-article h3 {
-  font-size: 24px;
-  line-height: 34px;
-  margin-top: 32px;
+  font-size: 26px;
+  line-height: 1.25;
+  margin-top: 40px;
   margin-bottom: 12px;
   scroll-margin-top: 120px;
 }
 
+.blog-article h4 {
+  font-size: 20px;
+  line-height: 1.3;
+  margin-top: 28px;
+  margin-bottom: 8px;
+}
+
 .blog-article .section-title {
-  font-size: 24px;
-  line-height: 34px;
+  font-size: 26px;
+  line-height: 1.25;
   margin-bottom: 16px;
 }
 
-.blog-article p a {
+.blog-article p {
+  line-height: 1.85;
+}
+
+.blog-article a {
   color: var(--blog-heading);
   text-decoration: underline;
   text-decoration-color: var(--blog-accent);
-  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
   transition: color var(--blog-transition);
 }
 
-.blog-article p a:hover {
+.blog-article a:hover {
   color: var(--blog-accent);
 }
 
-/* ---------- TL;DR ("Czego się dowiesz?") ---------- */
+/* ---------- Listy ---------- */
+
+.blog-article ul,
+.blog-article ol {
+  padding-left: 24px;
+}
+
+.blog-article li::marker {
+  color: var(--blog-accent);
+}
+
+.blog-article li {
+  line-height: 1.8;
+  margin-bottom: 8px;
+}
+
+/* ---------- Cytat ---------- */
+
+.blog-article blockquote {
+  margin: 40px 0;
+  padding: 4px 0 4px 28px;
+  border-left: 3px solid var(--blog-accent);
+  font-family: var(--blog-font-heading);
+  font-size: 24px;
+  line-height: 1.4;
+  font-style: italic;
+  font-weight: 300;
+  color: var(--blog-heading);
+}
+
+.blog-article blockquote p {
+  margin: 0;
+}
+
+/* ---------- Obrazy, kod, tabele, linie ---------- */
+
+.blog-article img {
+  border-radius: 0;
+  margin-block: 32px;
+}
+
+.blog-article hr {
+  border: 0;
+  height: 1px;
+  background-color: var(--blog-border);
+  margin-block: 48px;
+}
+
+.blog-article code {
+  background-color: var(--blog-bg);
+  border-radius: 0;
+  padding: 2px 6px;
+}
+
+.blog-article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: 32px;
+  font-size: 15px;
+}
+
+.blog-article th {
+  font-family: var(--blog-font-heading);
+  font-weight: 400;
+  text-align: left;
+  color: var(--blog-heading);
+  border-bottom: 2px solid var(--blog-accent);
+  padding: 12px 14px;
+}
+
+.blog-article td {
+  border-bottom: 1px solid var(--blog-border);
+  padding: 12px 14px;
+}
+
+/* ---------- TL;DR ("Czego się dowiesz?") — jasny, ciepły kafelek ze złotą krawędzią ---------- */
 
 .blog-article .section-tldr {
-  padding: 32px 40px;
+  padding: 36px 40px;
   background-color: var(--blog-bg);
-  border-radius: var(--blog-radius);
-  margin-bottom: 40px;
+  color: var(--blog-text);
+  margin-bottom: 48px;
+  border-top: 3px solid var(--blog-accent);
+}
+
+.blog-article .section-tldr .section-title,
+.blog-article .section-tldr h2,
+.blog-article .section-tldr h3 {
+  color: var(--blog-heading);
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.blog-article .section-tldr h2::before {
+  display: none;
 }
 
 .blog-article .section-tldr ul {
@@ -105,39 +231,41 @@
 /* ---------- Lead ---------- */
 
 .blog-article .lead {
-  font-weight: 500;
+  font-family: var(--blog-font-heading);
+  font-weight: 300;
   color: var(--blog-heading);
-  font-size: 24px;
-  line-height: 32px;
-  margin-block: 40px;
+  font-size: 26px;
+  line-height: 1.4;
+  margin-block: 48px;
 }
 
 /* ---------- Spis treści ---------- */
 
 .blog-article .toc {
   border: 1px solid var(--blog-border);
-  border-radius: var(--blog-radius);
+  border-left: 3px solid var(--blog-accent);
   padding: 32px;
-  margin-block: 46px;
+  margin-block: 48px;
 }
 
 .blog-article .toc .toc-title {
   font-family: var(--blog-font-heading);
-  font-size: 20px;
-  line-height: 28px;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 1.3;
   color: var(--blog-heading);
   margin-bottom: 16px;
 }
 
 .blog-article .toc ul {
   list-style: none;
-  padding-left: 20px;
+  padding-left: 0;
   margin: 0;
 }
 
 .blog-article .toc li {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   margin: 0;
   padding-bottom: 8px;
 }
@@ -147,16 +275,15 @@
   display: block;
   width: 7px;
   height: 7px;
-  border: 1px solid var(--blog-heading);
+  border: 1px solid var(--blog-accent);
   border-radius: 50%;
   flex-shrink: 0;
-  margin-top: 9px;
+  margin-top: 11px;
   transition: var(--blog-transition);
 }
 
 .blog-article .toc li:hover::before {
   background-color: var(--blog-accent);
-  border-color: var(--blog-accent);
 }
 
 .blog-article .toc a {
@@ -166,16 +293,16 @@
 }
 
 .blog-article .toc a:hover {
-  color: var(--blog-heading);
+  color: var(--blog-accent);
 }
 
 /* ---------- Info boxy ---------- */
 
 .blog-article .info-box {
-  border-radius: var(--blog-radius);
   padding: 1.5em 2em;
   color: var(--blog-heading);
-  margin-block: 24px 32px;
+  margin-block: 32px 40px;
+  border-left: 3px solid var(--blog-accent);
 }
 
 .blog-article .info-box p {
@@ -187,53 +314,67 @@
 }
 
 .blog-article .info-box--warning {
-  background-color: #fcb90033;                 /* ⚠️ – bursztyn */
+  background-color: #fcb90026;                 /* ⚠️ – bursztyn */
+  border-left-color: #e0a100;
 }
 
 .blog-article .info-box--tip {
-  background-color: #00d08426;                 /* ✅ – zieleń */
+  background-color: #00d0841f;                 /* ✅ – zieleń */
+  border-left-color: #00b273;
 }
 
-/* ---------- FAQ ---------- */
+/* ---------- FAQ — lista z liniami jak akordeon w /wykonczenie-pod-klucz ---------- */
+
+.blog-article .faq {
+  border-top: 1px solid var(--blog-border);
+}
 
 .blog-article .faq .faq-question {
-  font-size: 20px;
-  line-height: 28px;
-  background-color: var(--blog-bg);
-  padding: 12px 20px;
-  border-radius: 8px;
-  margin: 0 0 12px;
+  font-family: var(--blog-font-heading);
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 1.3;
+  color: var(--blog-heading);
+  padding: 24px 0 8px;
+  margin: 0;
 }
 
 .blog-article .faq .faq-answer {
-  padding-inline: 20px;
+  padding-bottom: 24px;
 }
 
 .blog-article .faq .faq-answer p:last-child {
   margin-bottom: 0;
 }
 
+.blog-article .faq-item {
+  border-bottom: 1px solid var(--blog-border);
+}
+
 .blog-article .faq-item + .faq-item {
-  margin-top: 24px;
+  margin-top: 0;
 }
 
 /* ---------- Mobile ---------- */
 
 @media screen and (max-width: 480px) {
-  .blog-article .section-title,
   .blog-article h2 {
-    font-size: 24px;
-    line-height: 32px;
-  }
-
-  .blog-article h2 {
-    margin-top: 32px;
+    font-size: 28px;
+    margin-top: 48px;
   }
 
   .blog-article h3 {
+    font-size: 22px;
+    margin-top: 32px;
+  }
+
+  .blog-article .section-title {
+    font-size: 22px;
+  }
+
+  .blog-article blockquote {
     font-size: 20px;
-    line-height: 30px;
-    margin-top: 24px;
+    padding-left: 20px;
   }
 
   .blog-article .section-tldr,
@@ -245,14 +386,9 @@
     margin-block: 32px;
   }
 
-  .blog-article .toc ul {
-    padding-left: 0;
-  }
-
   .blog-article .lead {
-    font-size: 20px;
-    line-height: 28px;
-    margin-block: 20px;
+    font-size: 21px;
+    margin-block: 28px;
   }
 
   .blog-article .info-box {
@@ -260,7 +396,6 @@
   }
 
   .blog-article .faq .faq-question {
-    font-size: 18px;
-    line-height: 24px;
+    font-size: 19px;
   }
-}
+}

@@ -4,11 +4,22 @@ import { useState } from "react";
 
 export type MenuItem = { label: string; to: string; children?: MenuItem[] };
 
-export default function NavMenuItem({ item, isMobile = false, onNavigate }: { item: MenuItem; isMobile?: boolean; onNavigate?: () => void }) {
+export default function NavMenuItem({
+  item,
+  isMobile = false,
+  onNavigate,
+  localAnchors = false,
+}: {
+  item: MenuItem;
+  isMobile?: boolean;
+  onNavigate?: () => void;
+  localAnchors?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const hasChildren = !!item.children?.length;
   // Kotwice ("#kim_jestesmy") zawsze wskazują stronę główną — inaczej na /blog dawałyby /blog/#kim_jestesmy.
-  const href = item.to.startsWith("#") ? `/${item.to}` : item.to;
+  // Strony z własnymi sekcjami (np. /kgd-building) ustawiają localAnchors — wtedy kotwica zostaje na bieżącej stronie.
+  const href = item.to.startsWith("#") && !localAnchors ? `/${item.to}` : item.to;
 
   return (
     <li className="relative group">
@@ -37,7 +48,7 @@ export default function NavMenuItem({ item, isMobile = false, onNavigate }: { it
           }
         >
           {item.children!.map((child) => (
-            <NavMenuItem key={child.label} item={child} isMobile={isMobile} onNavigate={onNavigate} />
+            <NavMenuItem key={child.label} item={child} isMobile={isMobile} onNavigate={onNavigate} localAnchors={localAnchors} />
           ))}
         </ul>
       )}

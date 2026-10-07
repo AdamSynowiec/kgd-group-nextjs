@@ -42,6 +42,13 @@ type HomePageFields = {
   zakonczoneHeader?: EditableValue<string> | string;
   zakonczoneText?: EditableValue<string> | string;
   zakonczoneInwestycje?: EditableValue<InvestmentCardData[]> | InvestmentCardData[];
+  remontyEyebrow?: EditableValue<string> | string;
+  remontyHeader?: EditableValue<string> | string;
+  remontyText?: EditableValue<string> | string;
+  remontyPoints?: EditableValue<string[]> | string[];
+  remontyCtaLabel?: EditableValue<string> | string;
+  remontyLink?: EditableValue<string> | string;
+  remontyImage?: EditableValue<string> | string;
 
   dlaInwestoraHeader?: EditableValue<string> | string;
   dlaInwestoraText?: EditableValue<string> | string;
@@ -102,6 +109,13 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
   const zakonczoneHeader = unwrap(fields.zakonczoneHeader);
   const zakonczoneText = unwrap(fields.zakonczoneText);
   const zakonczoneInwestycje = unwrap(fields.zakonczoneInwestycje) ?? [];
+  const remontyEyebrow = unwrap(fields.remontyEyebrow);
+  const remontyHeader = unwrap(fields.remontyHeader);
+  const remontyText = unwrap(fields.remontyText);
+  const remontyPoints = unwrap(fields.remontyPoints) ?? [];
+  const remontyCtaLabel = unwrap(fields.remontyCtaLabel);
+  const remontyLink = unwrap(fields.remontyLink) ?? "/wykonczenie-pod-klucz";
+  const remontyImage = unwrap(fields.remontyImage);
 
   const dlaInwestoraHeader = unwrap(fields.dlaInwestoraHeader);
   const dlaInwestoraText = unwrap(fields.dlaInwestoraText);
@@ -196,6 +210,39 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
           </Section>
         </Container>
       </Section>
+
+      {remontyImage && (
+        <FeatureImage
+          src={remontyImage}
+          title={remontyEyebrow ?? ""}
+          subtitle={remontyPoints.join(" · ")}
+        />
+      )}
+
+      {remontyHeader && (
+        <Section>
+          <Container>
+            <div id="remonty" />
+            <Section className="py-[32.0px] md:py-[40px] md:py-[80px]">
+              <H2 reveal delay={100} className="text-center" separator>
+                {remontyHeader}
+              </H2>
+              {remontyText && (
+                <P reveal delay={200} className="mb-[32.0px] md:mb-[40px]">
+                  {remontyText}
+                </P>
+              )}
+              {remontyCtaLabel && (
+                <Section className="flex items-center justify-center">
+                  <Link href={remontyLink} className={ctaClass}>
+                    {remontyCtaLabel}
+                  </Link>
+                </Section>
+              )}
+            </Section>
+          </Container>
+        </Section>
+      )}
 
       <Section className="bg-[#FBFBFB]">
         <Container>
