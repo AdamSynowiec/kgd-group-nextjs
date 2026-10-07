@@ -94,12 +94,14 @@ export default function TableEditor({ value, path, session, onChange, meta }: Fi
     );
   }
 
-  return <PrimitiveRowsTable rows={rows} path={path} onChange={onChange} />;
+  return <PrimitiveRowsTable rows={rows} path={path} session={session} onChange={onChange} />;
 }
 
 // --- Kształt 1: lista prostych wartości --------------------------------------
 
-function PrimitiveRowsTable({ rows, path, onChange }: { rows: unknown[]; path: Path; onChange: OnChange }) {
+function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]; path: Path; session: Session | null; onChange: OnChange }) {
+  // Lista ścieżek do zdjęć (np. slider w /wykonczenie-pod-klucz) — każdy wiersz dostaje podgląd i upload zamiast gołego pola tekstowego.
+  const isAssetList = rows.some((cell) => typeof cell === "string" && cell !== "" && looksLikeAssetPath(cell));
   const { selected, toggle, toggleAll, clear, isAllSelected } = useRowSelection(rows.length);
   const [bulkValue, setBulkValue] = useState("");
 
@@ -191,12 +193,23 @@ function PrimitiveRowsTable({ rows, path, onChange }: { rows: unknown[]; path: P
                     />
                   </td>
                   <td className="px-2 py-1.5">
-                    <input
-                      type={wasNumber ? "number" : "text"}
-                      value={String(cell ?? "")}
-                      onChange={(event) => handleChange(index, event.target.value, wasNumber)}
-                      className={`${inputClass} min-w-[10rem]`}
-                    />
+                    {isAssetList ? (
+                      <AssetEditor
+                        label={`Zdjęcie ${index + 1}`}
+                        name={`zdjecie-${index + 1}`}
+                        value={String(cell ?? "")}
+                        path={[...path, index]}
+                        session={session}
+                        onChange={(_, uploaded) => handleChange(index, String(uploaded), false)}
+                      />
+                    ) : (
+                      <input
+                        type={wasNumber ? "number" : "text"}
+                        value={String(cell ?? "")}
+                        onChange={(event) => handleChange(index, event.target.value, wasNumber)}
+                        className={`${inputClass} min-w-[10rem]`}
+                      />
+                    )}
                   </td>
                   <td className="w-px px-2 py-1.5">
                     <button type="button" onClick={() => handleRemove(index)} className={removeButtonClass}>

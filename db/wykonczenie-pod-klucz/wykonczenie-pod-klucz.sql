@@ -22,7 +22,7 @@
 -- placeholdera na realne zdjęcie (pole "asset"): Hero.fields.bg oraz nowa
 -- sekcja "efekt-koncowy" (FeatureImage.fields.images — lista zdjęć) —
 -- slider przewijany scrollem między "Pełny zakres" a "Standard premium".
--- Bez pola "images" komponent pokazuje tymczasowe zdjęcia zaszyte w kodzie. Nagłówek/podtytuł tej sekcji to PROPOZYCJA (nie z briefu)
+-- Pole "images" (lista zdjęć slidera) edytuje się w panelu admina: podgląd, upload, dodawanie/usuwanie wierszy; bez niego komponent pokazuje tymczasowe zdjęcia zaszyte w kodzie. Nagłówek/podtytuł tej sekcji to PROPOZYCJA (nie z briefu)
 -- — do akceptacji lub zmiany przez klienta.
 --
 -- Import: mysql -u UZYTKOWNIK -p NAZWA_BAZY < db/wykonczenie-pod-klucz/wykonczenie-pod-klucz.sql
@@ -88,7 +88,7 @@ INSERT INTO pages (slug, content) VALUES
         {"title": "Koordynacja i nadzór", "text": "Koordynacja wszystkich etapów realizacji, nadzór nad pracami oraz kontakt z wykonawcami i dostawcami."}
       ]}},
 
-      {"id": "efekt-koncowy", "component": "FeatureImage", "fields": {"eyebrow": "Efekt końcowy", "title": "Gotowe wnętrze. Zero kompromisów.", "subtitle": "Tak wygląda mieszkanie, które odbierasz w pełni wykończone — zaprojektowane, umeblowane i gotowe do zamieszkania."}},
+      {"id": "efekt-koncowy", "component": "FeatureImage", "fields": {"images": ["/home/images/image00014.webp", "/home/images/Pylna_Dom_3_a.webp", "/home/images/image00018-min.webp", "/home/images/image00007.webp"], "eyebrow": "Efekt końcowy", "title": "Gotowe wnętrze. Zero kompromisów.", "subtitle": "Tak wygląda mieszkanie, które odbierasz w pełni wykończone — zaprojektowane, umeblowane i gotowe do zamieszkania."}},
 
       {"id": "standard-premium", "component": "TextBlock", "fields": {"header": "Standard premium. Lepsze wykorzystanie budżetu.", "paragraphs": [
         "Od lat kupujemy hurtowe ilości płytek, armatury, podłóg, drzwi, oświetlenia, mebli i AGD. Dzięki stałej współpracy z producentami i dystrybutorami korzystamy z cen oraz rabatów często nieosiągalnych dla klienta indywidualnego. To pozwala uzyskać wyższy standard w założonym budżecie.",
