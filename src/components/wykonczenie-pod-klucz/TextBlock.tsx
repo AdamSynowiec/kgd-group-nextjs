@@ -10,7 +10,7 @@ type Cta = { label: string; href: string };
 type TextBlockFields = {
   header: EditableValue<string> | string;
   paragraphs?: EditableValue<string[]> | string[];
-  cta?: Cta;
+  cta?: EditableValue<Cta> | Cta;
   tint?: EditableValue<boolean> | boolean;
 };
 
@@ -22,7 +22,7 @@ type TextBlockFields = {
 export default function TextBlock({ fields }: { fields: TextBlockFields }) {
   const header = unwrap(fields.header);
   const paragraphs = unwrap(fields.paragraphs) ?? [];
-  const cta = fields.cta;
+  const cta = unwrap(fields.cta);
   const tint = unwrap(fields.tint);
 
   return (

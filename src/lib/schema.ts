@@ -1,5 +1,5 @@
 import { getBreadcrumbs, getSite, toUrlPath, type Page } from "@/lib/content";
-import { unwrap } from "@/lib/editable";
+import { unwrap, type EditableValue } from "@/lib/editable";
 
 /**
  * Dane strukturalne (JSON-LD) sterowane polem "seo.structuredData" strony.
@@ -75,7 +75,7 @@ function buildService(page: Page, base: string, areaServed?: string) {
 function buildFaqPage(page: Page, from: `section:${string}`) {
   const sectionId = from.slice("section:".length);
   const section = page.sections.find((s) => s.id === sectionId);
-  const items = (section?.fields?.items ?? []) as { question: string; answer: string }[];
+  const items = (unwrap(section?.fields?.items as EditableValue<{ question: string; answer: string }[]> | { question: string; answer: string }[] | undefined) ?? []);
 
   if (items.length === 0) return null;
 

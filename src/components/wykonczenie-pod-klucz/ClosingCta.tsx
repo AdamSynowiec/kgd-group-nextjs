@@ -7,14 +7,14 @@ type Cta = { label: string; href: string };
 type ClosingCtaFields = {
   header: EditableValue<string> | string;
   message?: EditableValue<string> | string;
-  cta?: Cta;
+  cta?: EditableValue<Cta> | Cta;
 };
 
 /** Zamykająca sekcja strony — ciemny pas z gradientowym blaskiem, duży nagłówek Ranade + minimalny przycisk outline. */
 export default function ClosingCta({ fields }: { fields: ClosingCtaFields }) {
   const header = unwrap(fields.header);
   const message = unwrap(fields.message);
-  const cta = fields.cta;
+  const cta = unwrap(fields.cta);
 
   return (
     <section className="relative overflow-hidden bg-[#0f0f0f] py-24 md:py-32 font-poppins text-center text-white">
