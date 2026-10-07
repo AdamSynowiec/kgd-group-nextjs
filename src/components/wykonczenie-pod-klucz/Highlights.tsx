@@ -20,7 +20,7 @@ export default function Highlights({ fields }: { fields: HighlightsFields }) {
   const items = unwrap(fields.items) ?? [];
 
   return (
-    <section className="relative py-20 md:py-24 font-poppins bg-white">
+    <section id="przewagi" className="relative py-20 md:py-24 font-poppins bg-white">
       <Container>
         {header && (
           <div className="flex items-center gap-4 mb-14">

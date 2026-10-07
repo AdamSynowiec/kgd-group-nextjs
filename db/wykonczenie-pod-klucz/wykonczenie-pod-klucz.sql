@@ -59,7 +59,7 @@ INSERT INTO pages (slug, content) VALUES
       "structuredData": [{"type": "WebPage"}, {"type": "Service", "areaServed": "Kraków"}, {"type": "FAQPage", "from": "section:faq-wykonczenie-pod-klucz"}]
     },
     "sections": [
-      {"id": "hero", "component": "Hero", "fields": {"eyebrow": "Wykończenie pod klucz", "heading": "Od projektu po gotowe wnętrze", "lead": "Projekt, materiały, wykończenie, zabudowy, meble i AGD. Jeden zespół, jeden opiekun i pełna odpowiedzialność za efekt."}},
+      {"id": "hero", "component": "Hero", "fields": {"eyebrow": "Wykończenie pod klucz", "heading": "Od projektu po gotowe wnętrze", "lead": "Projekt, materiały, wykończenie, zabudowy, meble i AGD. Jeden zespół, jeden opiekun i pełna odpowiedzialność za efekt.", "video": "/home/kgd-background.mp4", "bg": "/home/images/Pylna_Dom_4_b-min.webp"}},
 
       {"id": "marquee", "component": "Marquee", "fields": {"items": ["Projekt", "Materiały", "Wykończenie", "Zabudowy", "Meble", "AGD"]}},
 
@@ -84,7 +84,8 @@ INSERT INTO pages (slug, content) VALUES
         {"title": "Materiały i logistyka", "text": "Dobór, zakup, dostawy i kontrola kompletności zamówień."},
         {"title": "Prace wykończeniowe", "text": "Instalacje, ściany, podłogi, płytki, drzwi, armatura, malowanie i oświetlenie."},
         {"title": "Stolarka i wyposażenie", "text": "Kuchnie, garderoby, szafy, meble, lustra, tekstylia i dodatki."},
-        {"title": "AGD, odbiór i gwarancja", "text": "Dobór i montaż urządzeń, kontrola jakości, przekazanie wnętrza oraz opieka zgodnie z umową."}
+        {"title": "AGD, odbiór i gwarancja", "text": "Dobór i montaż urządzeń, kontrola jakości, przekazanie wnętrza oraz opieka zgodnie z umową."},
+        {"title": "Koordynacja i nadzór", "text": "Koordynacja wszystkich etapów realizacji, nadzór nad pracami oraz kontakt z wykonawcami i dostawcami."}
       ]}},
 
       {"id": "efekt-koncowy", "component": "FeatureImage", "fields": {"eyebrow": "Efekt końcowy", "title": "Gotowe wnętrze. Zero kompromisów.", "subtitle": "Tak wygląda mieszkanie, które odbierasz w pełni wykończone — zaprojektowane, umeblowane i gotowe do zamieszkania."}},

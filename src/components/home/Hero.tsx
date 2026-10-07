@@ -1,7 +1,6 @@
-import H1 from "./H1";
-import P from "./P";
+import EditorialHero, { type HeroSocial } from "@/components/shared/EditorialHero";
 
-const socials = [
+const socials: HeroSocial[] = [
   {
     href: "https://www.youtube.com/@KGD-Group",
     label: "YouTube",
@@ -46,62 +45,5 @@ export default function Hero({
   subHeader: string;
   scrollTo: string;
 }) {
-  return (
-    <div className="relative lg:min-h-svh bg-slate-100 overflow-hidden">
-      <video className="absolute inset-0 w-full h-full object-cover pointer-events-none" autoPlay muted loop playsInline preload="auto" poster={bg}>
-        <source src={videoBg} type="video/mp4" />
-      </video>
-
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.2),rgba(0,0,0,0.75))] mix-blend-multiply" />
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05),transparent_60%)]" />
-      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-white/5 blur-3xl animate-pulse pointer-events-none" />
-
-      <div className="container max-w-[1596px] mx-auto px-6 min-h-svh flex flex-col justify-center text-white relative">
-        <div className="mx-auto md:max-w-[90%]">
-          <H1 className="md:mb-[40px] max-w-[1100px] opacity-0 animate-[fadeUp_1s_ease_forwards]">{header}</H1>
-          <P className="text-white/85 !text-[18px]/[32px] md:!text-[26px]/[44px] md:max-w-[50vw] opacity-0 animate-[fadeUp_1.2s_ease_forwards]">{subHeader}</P>
-        </div>
-
-        <div className="absolute bottom-[50px] left-6 right-6 flex items-end justify-between">
-          <a href={scrollTo} className="group/scroll flex flex-col items-center gap-3 text-white/70 hover:text-white transition-colors">
-            <span className="text-[11px] uppercase tracking-[0.18em] opacity-70">O nas</span>
-            <div className="w-[42px] h-[42px] rounded-full border border-white/15 bg-white/5 backdrop-blur-md flex items-center justify-center transition-all duration-500 group-hover/scroll:bg-white/10 group-hover/scroll:translate-y-1">
-              <svg width="18" height="18" viewBox="0 0 51 27" fill="none">
-                <path d="M49.7082 1.125L25.4998 25.3333L1.2915 1.125" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-          </a>
-
-          <ul className="flex items-center gap-3">
-            {socials.map((social) => (
-              <li key={social.label}>
-                <a
-                  href={social.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={social.label}
-                  className="group/social relative w-[52px] h-[52px] rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur-xl flex items-center justify-center text-white/80 overflow-visible transition-all duration-500 hover:-translate-y-1 hover:border-white/20 hover:bg-white/10 hover:text-white hover:shadow-[0_10px_40px_rgba(255,255,255,0.12)]"
-                >
-                  <div className="absolute bottom-[calc(100%+14px)] left-1/2 -translate-x-1/2 px-3 py-2 rounded-xl bg-black/80 backdrop-blur-xl border border-white/10 text-[11px] uppercase tracking-[0.14em] text-white/90 whitespace-nowrap opacity-0 translate-y-2 pointer-events-none transition-all duration-300 group-hover/social:opacity-100 group-hover/social:translate-y-0">
-                    {social.label}
-                  </div>
-                  <div className="absolute inset-0 opacity-0 group-hover/social:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-white/10 via-transparent to-white/5 rounded-2xl" />
-                  <div className="relative z-10 transition-transform duration-500 group-hover/social:scale-110">{social.icon}</div>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <div className="absolute bottom-0 left-0 right-0 h-[160px] bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
-
-      <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(30px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </div>
-  );
+  return <EditorialHero heading={header} lead={subHeader} video={videoBg} poster={bg} scrollTo={scrollTo} scrollLabel="O nas" socials={socials} />;
 }

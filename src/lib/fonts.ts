@@ -82,4 +82,5 @@ export const cormorantGaramond = Cormorant_Garamond({
 
 export const investmentFontVariables = `${ranadeVariable.variable} ${melodramaVariable.variable} ${poppins.variable} ${ebGaramond.variable} ${playfairDisplay.variable} ${lato.variable} ${libreCaslonText.variable} ${roboto.variable} ${cormorantGaramond.variable}`;
 
-export const homeFontVariables = `${poppins.variable} ${montserrat.variable}`;
+// Ranade — nagłówek wspólnego Hero (src/components/shared/EditorialHero.tsx).
+export const homeFontVariables = `${ranadeVariable.variable} ${poppins.variable} ${montserrat.variable}`;
