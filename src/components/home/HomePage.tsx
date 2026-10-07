@@ -42,13 +42,13 @@ type HomePageFields = {
   zakonczoneHeader?: EditableValue<string> | string;
   zakonczoneText?: EditableValue<string> | string;
   zakonczoneInwestycje?: EditableValue<InvestmentCardData[]> | InvestmentCardData[];
-  remontyEyebrow?: EditableValue<string> | string;
-  remontyHeader?: EditableValue<string> | string;
-  remontyText?: EditableValue<string> | string;
-  remontyPoints?: EditableValue<string[]> | string[];
-  remontyCtaLabel?: EditableValue<string> | string;
-  remontyLink?: EditableValue<string> | string;
-  remontyImage?: EditableValue<string> | string;
+  wykonczenieEyebrow?: EditableValue<string> | string;
+  wykonczenieHeader?: EditableValue<string> | string;
+  wykonczenieText?: EditableValue<string> | string;
+  wykonczeniePoints?: EditableValue<string[]> | string[];
+  wykonczenieCtaLabel?: EditableValue<string> | string;
+  wykonczenieLink?: EditableValue<string> | string;
+  wykonczenieImage?: EditableValue<string> | string;
 
   dlaInwestoraHeader?: EditableValue<string> | string;
   dlaInwestoraText?: EditableValue<string> | string;
@@ -109,13 +109,13 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
   const zakonczoneHeader = unwrap(fields.zakonczoneHeader);
   const zakonczoneText = unwrap(fields.zakonczoneText);
   const zakonczoneInwestycje = unwrap(fields.zakonczoneInwestycje) ?? [];
-  const remontyEyebrow = unwrap(fields.remontyEyebrow);
-  const remontyHeader = unwrap(fields.remontyHeader);
-  const remontyText = unwrap(fields.remontyText);
-  const remontyPoints = unwrap(fields.remontyPoints) ?? [];
-  const remontyCtaLabel = unwrap(fields.remontyCtaLabel);
-  const remontyLink = unwrap(fields.remontyLink) ?? "/wykonczenie-pod-klucz";
-  const remontyImage = unwrap(fields.remontyImage);
+  const wykonczenieEyebrow = unwrap(fields.wykonczenieEyebrow);
+  const wykonczenieHeader = unwrap(fields.wykonczenieHeader);
+  const wykonczenieText = unwrap(fields.wykonczenieText);
+  const wykonczeniePoints = unwrap(fields.wykonczeniePoints) ?? [];
+  const wykonczenieCtaLabel = unwrap(fields.wykonczenieCtaLabel);
+  const wykonczenieLink = unwrap(fields.wykonczenieLink) ?? "/wykonczenie-pod-klucz";
+  const wykonczenieImage = unwrap(fields.wykonczenieImage);
 
   const dlaInwestoraHeader = unwrap(fields.dlaInwestoraHeader);
   const dlaInwestoraText = unwrap(fields.dlaInwestoraText);
@@ -211,31 +211,31 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
         </Container>
       </Section>
 
-      {remontyImage && (
+      {wykonczenieImage && (
         <FeatureImage
-          src={remontyImage}
-          title={remontyEyebrow ?? ""}
-          subtitle={remontyPoints.join(" · ")}
+          src={wykonczenieImage}
+          title={wykonczenieEyebrow ?? ""}
+          subtitle={wykonczeniePoints.join(" · ")}
         />
       )}
 
-      {remontyHeader && (
+      {wykonczenieHeader && (
         <Section>
           <Container>
-            <div id="remonty" />
+            <div id="wykonczenie" />
             <Section className="py-[32.0px] md:py-[40px] md:py-[80px]">
               <H2 reveal delay={100} className="text-center" separator>
-                {remontyHeader}
+                {wykonczenieHeader}
               </H2>
-              {remontyText && (
+              {wykonczenieText && (
                 <P reveal delay={200} className="mb-[32.0px] md:mb-[40px]">
-                  {remontyText}
+                  {wykonczenieText}
                 </P>
               )}
-              {remontyCtaLabel && (
+              {wykonczenieCtaLabel && (
                 <Section className="flex items-center justify-center">
-                  <Link href={remontyLink} className={ctaClass}>
-                    {remontyCtaLabel}
+                  <Link href={wykonczenieLink} className={ctaClass}>
+                    {wykonczenieCtaLabel}
                   </Link>
                 </Section>
               )}
