@@ -67,7 +67,7 @@ export default function Map({ fields, id }: { fields: MapFields; id?: string }) 
         <SectionHeader eyebrow={eyebrow} title={header} accent={accent} text={text} />
       </Container>
 
-      <div className="relative mt-14 h-[780px] w-full border-y border-[#BCC0C1]/30 lg:h-[820px]">
+      <div className="relative isolate z-0 mt-14 h-[780px] w-full border-y border-[#BCC0C1]/30 lg:h-[820px]">
         <MapView center={center as [number, number]} zoom={zoom} points={points} categories={categories} visible={visible} focus={focus} homeName={homeName} />
 
         {/* Panel nad mapą: filtry + lista punktów */}

@@ -150,6 +150,9 @@ html {
 }
 
 /* Mapa FOXHILLS (src/components/investments/foxhills/MapView.tsx) — ciemne dymki i kontrolki w barwach inwestycji */
+.fh-map.leaflet-container {
+  background: #171a1c;
+}
 .fh-map .leaflet-popup-content-wrapper {
   background: #171a1c;
   color: #e7e7e7;

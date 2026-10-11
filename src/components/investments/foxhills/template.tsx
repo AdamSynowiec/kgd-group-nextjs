@@ -9,8 +9,8 @@ import Standards from "./Standards";
 import Gallery from "./Gallery";
 import Localization from "./Localization";
 import Map from "./Map";
-import Developer from "./Developer";
 
+import Deweloper from "@/components/shared/Deweloper";
 import Contact from "@/components/shared/Contact";
 import Footer from "@/components/shared/Footer";
 import PrivacyPolicy from "@/components/shared/PrivacyPolicy";
@@ -23,6 +23,15 @@ import PrivacyPolicy from "@/components/shared/PrivacyPolicy";
  */
 type SectionProps = { fields: Record<string, unknown>; id?: string };
 
+/** Globalna sekcja „KGD - Deweloper” (jak w pozostałych inwestycjach) z kotwicą dla nawigacji. */
+function DeweloperSection({ fields, id }: SectionProps) {
+  return (
+    <div id={id ?? "deweloper"} className="scroll-mt-20 bg-white">
+      <Deweloper fields={fields as React.ComponentProps<typeof Deweloper>["fields"]} />
+    </div>
+  );
+}
+
 const template: Record<string, ComponentType<SectionProps>> = {
   NavBar: NavBar as ComponentType<SectionProps>,
   Hero: Hero as ComponentType<SectionProps>,
@@ -33,7 +42,7 @@ const template: Record<string, ComponentType<SectionProps>> = {
   Gallery: Gallery as ComponentType<SectionProps>,
   Localization: Localization as ComponentType<SectionProps>,
   Map: Map as ComponentType<SectionProps>,
-  Developer: Developer as ComponentType<SectionProps>,
+  Deweloper: DeweloperSection,
   Contact: Contact as ComponentType<SectionProps>,
   Footer: Footer as ComponentType<SectionProps>,
   PrivacyPolicy: PrivacyPolicy as ComponentType<SectionProps>,

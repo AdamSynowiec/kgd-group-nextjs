@@ -4,6 +4,7 @@ import { unwrap, type EditableValue } from "@/lib/editable";
 import { Icon } from "./icons";
 import { Container, NUM, Reveal, SectionHeader } from "./ui";
 
+type Place = { title: string; image?: string; text?: string };
 type Distance = { icon: string; name: string; time: string; distance?: string; mode?: string };
 
 type LocalizationFields = {
@@ -13,6 +14,8 @@ type LocalizationFields = {
   paragraphs?: EditableValue<string[]> | string[];
   image?: EditableValue<string> | string;
   imageCaption?: EditableValue<string> | string;
+  placesHeader?: EditableValue<string> | string;
+  places?: EditableValue<Place[]> | Place[];
   distancesHeader?: EditableValue<string> | string;
   distances?: EditableValue<Distance[]> | Distance[];
   note?: EditableValue<string> | string;
@@ -29,6 +32,8 @@ export default function Localization({ fields, id }: { fields: LocalizationField
   const paragraphs = unwrap(fields.paragraphs) ?? [];
   const image = unwrap(fields.image);
   const imageCaption = unwrap(fields.imageCaption);
+  const placesHeader = unwrap(fields.placesHeader);
+  const places = unwrap(fields.places) ?? [];
   const distancesHeader = unwrap(fields.distancesHeader);
   const distances = unwrap(fields.distances) ?? [];
   const note = unwrap(fields.note);
@@ -69,6 +74,30 @@ export default function Localization({ fields, id }: { fields: LocalizationField
             </div>
           </div>
         </div>
+
+        {places.length > 0 && (
+          <div className="mt-28 sm:mt-36">
+            <Reveal className="flex items-center gap-6">
+              <h3 className="font-dmserif text-[28px] font-medium text-[#171A1C] sm:text-[36px]">{placesHeader}</h3>
+              <span className="h-px flex-1 bg-gradient-to-r from-[#555859] to-transparent" />
+            </Reveal>
+            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {places.map((place, index) => (
+                <Reveal key={place.title} delay={index * 0.08} y={30}>
+                  <article className="group relative aspect-[3/4] overflow-hidden bg-[#171A1C]">
+                    {place.image && <img src={place.image} alt={place.title} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1800ms] group-hover:scale-110" />}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#171A1C] via-[#171A1C]/20 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 p-6">
+                      <span className="block h-px w-8 bg-[#BCC0C1] transition-all duration-700 group-hover:w-20" />
+                      <h4 className="mt-4 font-dmserif text-[22px] leading-tight text-[#F7F7F7]">{place.title}</h4>
+                      {place.text && <p className="mt-2 text-[12px] font-light leading-relaxed text-[#E7E7E7]/70">{place.text}</p>}
+                    </div>
+                  </article>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        )}
 
         {distances.length > 0 && (
           <div className="mt-28 sm:mt-36">
