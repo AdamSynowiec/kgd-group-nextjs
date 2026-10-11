@@ -22,6 +22,8 @@
   --font-roboto: var(--roboto-src), sans-serif;
   --font-montserrat: var(--montserrat-src), sans-serif;
   --font-cormorant-regular: var(--cormorant-src), serif;
+  --font-dmserif: var(--dmserif-src), serif;
+  --font-manrope: var(--manrope-src), sans-serif;
 }
 
 body {
@@ -99,4 +101,119 @@ html {
 
 .animate-popup {
   animation: popup 0.2s ease-out;
+}
+
+/* FOXHILLS (src/components/investments/foxhills/**) — powolny najazd tła w hero, poświata przycisków, pulsujący znacznik na mapie */
+@keyframes fhKenBurns {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.14) translate3d(-1.2%, -0.8%, 0);
+  }
+}
+
+@keyframes fhShine {
+  from {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+
+@keyframes fhPulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes fhFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fh-motion {
+    animation: none !important;
+  }
+}
+
+/* Mapa FOXHILLS (src/components/investments/foxhills/MapView.tsx) — ciemne dymki i kontrolki w barwach inwestycji */
+.fh-map .leaflet-popup-content-wrapper {
+  background: #171a1c;
+  color: #e7e7e7;
+  border: 1px solid rgba(188, 192, 193, 0.6);
+  border-radius: 0;
+  box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.9);
+}
+.fh-map .leaflet-popup-tip {
+  background: #171a1c;
+  border: 1px solid rgba(188, 192, 193, 0.6);
+}
+.fh-map .leaflet-popup-content {
+  margin: 14px 18px;
+  font-family: var(--manrope-src), sans-serif;
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.fh-map .leaflet-popup-content strong {
+  display: block;
+  font-family: var(--dmserif-src), serif;
+  font-weight: 500;
+  font-size: 16px;
+  color: #e7e7e7;
+}
+.fh-map .leaflet-popup-content span {
+  display: block;
+  margin-top: 4px;
+  color: rgba(231, 231, 231, 0.65);
+}
+.fh-map .leaflet-popup-close-button {
+  color: #bcc0c1 !important;
+}
+.fh-map .leaflet-bar a {
+  background: #171a1c;
+  color: #e7e7e7;
+  border-color: rgba(188, 192, 193, 0.4);
+}
+.fh-map .leaflet-bar a:hover {
+  background: #bcc0c1;
+  color: #171a1c;
+}
+.fh-map .leaflet-control-attribution {
+  background: rgba(11, 12, 10, 0.7);
+  color: rgba(231, 231, 231, 0.5);
+}
+.fh-map .leaflet-control-attribution a {
+  color: #bcc0c1;
+}
+
+/* Logo Fox Hills Residences — wariant metaliczny (src/components/investments/foxhills/ui.tsx → Logo) */
+@keyframes fhMetal {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+.fh-metal-logo {
+  -webkit-mask: url(/investments/foxhills/logo-jasne.svg) center / contain no-repeat;
+  mask: url(/investments/foxhills/logo-jasne.svg) center / contain no-repeat;
+  background: linear-gradient(105deg, #8e9396 0%, #f7f7f7 20%, #bcc0c1 38%, #ffffff 50%, #9da2a4 66%, #e7e7e7 82%, #8e9396 100%);
+  background-size: 260% 100%;
+  animation: fhMetal 9s ease-in-out infinite alternate;
 }

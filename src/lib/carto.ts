@@ -11,3 +11,8 @@ export const CARTO_TILE_URL =
 
 export const CARTO_ATTRIBUTION =
   '&copy; <a href="https://carto.com/">Carto</a>';
+
+/** Ciemny basemap ("dark_all") — mapa inwestycji FOXHILLS (src/components/investments/foxhills/Map.tsx). Ten sam klucz API. */
+export const CARTO_DARK_TILE_URL =
+  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" +
+  (CARTO_API_KEY ? `?key=${encodeURIComponent(CARTO_API_KEY)}` : "");

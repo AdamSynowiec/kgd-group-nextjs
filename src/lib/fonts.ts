@@ -1,5 +1,5 @@
 import localFont from "next/font/local";
-import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto, Montserrat, Cormorant_Garamond } from "next/font/google";
+import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto, Montserrat, Cormorant_Garamond, DM_Serif_Display, Manrope } from "next/font/google";
 
 /**
  * Loader fontów współdzielony przez strony inwestycji i stronę główną (nie
@@ -80,7 +80,22 @@ export const cormorantGaramond = Cormorant_Garamond({
   display: "swap",
 });
 
-export const investmentFontVariables = `${ranadeVariable.variable} ${melodramaVariable.variable} ${poppins.variable} ${ebGaramond.variable} ${playfairDisplay.variable} ${lato.variable} ${libreCaslonText.variable} ${roboto.variable} ${cormorantGaramond.variable}`;
+// Fox Hills Residences (księga znaku): DM Serif Display — nagłówki, hasła, cytaty; Manrope — akapity i podpisy.
+export const dmSerifDisplay = DM_Serif_Display({
+  subsets: ["latin", "latin-ext"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--dmserif-src",
+  display: "swap",
+});
+
+export const manrope = Manrope({
+  subsets: ["latin", "latin-ext"],
+  variable: "--manrope-src",
+  display: "swap",
+});
+
+export const investmentFontVariables = `${ranadeVariable.variable} ${melodramaVariable.variable} ${poppins.variable} ${ebGaramond.variable} ${playfairDisplay.variable} ${lato.variable} ${libreCaslonText.variable} ${roboto.variable} ${cormorantGaramond.variable} ${dmSerifDisplay.variable} ${manrope.variable}`;
 
 // Ranade — nagłówek wspólnego Hero (src/components/shared/EditorialHero.tsx).
 export const homeFontVariables = `${ranadeVariable.variable} ${poppins.variable} ${montserrat.variable}`;

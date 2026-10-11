@@ -9,6 +9,7 @@ import pylnaResidenceTemplate from "@/components/investments/pylna-residence/tem
 import villaverdeWolaTemplate from "@/components/investments/villaverde-wola/template";
 import krj3072Template from "@/components/investments/krj307-2/template";
 import theEmausTemplate from "@/components/investments/the-emaus/template";
+import foxhillsTemplate from "@/components/investments/foxhills/template";
 
 type SectionProps = { fields: Record<string, unknown>; id?: string };
 type Template = Record<string, ComponentType<SectionProps>>;
@@ -36,6 +37,7 @@ const TEMPLATES: Record<string, Template> = {
   "villaverde-wola": villaverdeWolaTemplate,
   "krj307-2": krj3072Template,
   "the-emaus": theEmausTemplate,
+  foxhills: foxhillsTemplate,
 };
 
 export function getInvestmentSectionComponent(templateName: string, componentName: string) {
