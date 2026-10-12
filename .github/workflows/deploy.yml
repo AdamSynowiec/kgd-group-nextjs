@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      skip_blog:
+        description: "Nie wgrywaj /blog (szybszy deploy). Tylko gdy zmiany nie dotykają stopki, nawigacji, kontaktu ani wspólnych komponentów."
+        type: boolean
+        default: false
 
 jobs:
   build-and-deploy:
@@ -75,3 +80,4 @@ jobs:
           # już nie ma lokalnie". Wgrywasz go raz ręcznie, zostaje tam na stałe.
           exclude: |
             **/.env
+            ${{ inputs.skip_blog && 'blog/**' || '' }}

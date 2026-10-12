@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { Icon } from "./icons";
-import { Button, Container, Logo } from "./ui";
+import { Button, Container } from "./ui";
 
 type Slide = { image: string; alt?: string };
 type Fact = { icon: string; label: string; value: string };
@@ -87,22 +87,14 @@ export default function Hero({ fields }: { fields: HeroFields }) {
             </motion.div>
           )}
 
-          <motion.h1
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1.3, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-8"
-          >
-            <span className="sr-only">{title}</span>
-            <Logo variant="metal" label={title} className="w-[min(86vw,760px)] drop-shadow-[0_10px_40px_rgba(0,0,0,0.55)]" />
-          </motion.h1>
+          <h1 className="sr-only">{title}</h1>
 
           {subtitle && (
             <motion.p
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1.1, delay: 0.7 }}
-              className="mt-4 font-dmserif text-[26px] font-light italic leading-tight text-[#E7E7E7] sm:text-[36px] lg:text-[44px]"
+              className="mt-8 font-dmserif text-[36px] font-light italic leading-[1.1] text-[#F7F7F7] sm:text-[52px] lg:text-[72px]"
             >
               {subtitle}
             </motion.p>

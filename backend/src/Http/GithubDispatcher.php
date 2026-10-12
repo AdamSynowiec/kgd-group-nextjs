@@ -40,15 +40,23 @@ final class GithubDispatcher
     ) {
     }
 
-    /** Zwraca znacznik czasu (ISO 8601, UTC) do przekazania później do findRunStatus(). */
-    public function dispatch(): string
+    /**
+     * Zwraca znacznik czasu (ISO 8601, UTC) do przekazania później do findRunStatus().
+     *
+     * @param array<string, string> $inputs parametry workflow_dispatch (np. ['skip_blog' => 'true']); puste = domyślne wartości workflow
+     */
+    public function dispatch(array $inputs = []): string
     {
         $this->assertConfigured();
 
         $dispatchedAt = gmdate('Y-m-d\TH:i:s\Z');
 
         try {
-            $payload = json_encode(['ref' => $this->ref], JSON_THROW_ON_ERROR);
+            $body = ['ref' => $this->ref];
+            if ($inputs !== []) {
+                $body['inputs'] = $inputs;
+            }
+            $payload = json_encode($body, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
             throw new ApiException('Nie udało się zbudować żądania do GitHub API.', 500);
         }

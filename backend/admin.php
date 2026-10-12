@@ -129,7 +129,7 @@ $router->post('/upload', static function (Request $req) use ($uploadController, 
 // tokenu, gdy baza akurat nie odpowiada — patrz Authorization::requireResilient().
 $router->post('/build', static function (Request $req) use ($buildController, $authorization, $currentSession) {
     $authorization()->requireResilient($currentSession, 'build.trigger');
-    $buildController->trigger($currentSession);
+    $buildController->trigger($req, $currentSession);
 });
 $router->get('/build/status', static function (Request $req) use ($buildController, $authorization, $currentSession) {
     $authorization()->requireResilient($currentSession, 'build.status');

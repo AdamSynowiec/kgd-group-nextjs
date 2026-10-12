@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MapContainer, TileLayer, Marker, Circle, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { CARTO_ATTRIBUTION, CARTO_DARK_TILE_URL } from "@/lib/carto";
+import { CARTO_VOYAGER_ATTRIBUTION, CARTO_VOYAGER_TILE_URL } from "@/lib/carto";
 import { Icon } from "./icons";
 
 export type MapPoint = { name: string; category: string; lat: number | string; lng: number | string; desc?: string };
@@ -72,9 +72,6 @@ export default function MapView({
   homeName: string;
 }) {
   const [draggable] = useState(() => typeof window === "undefined" || window.innerWidth > 768);
-  // Klucz Carto działa tylko na domenie produkcyjnej (na localhost kafelki z kluczem zwracają 403 i mapa jest szara).
-  // Lokalnie używamy wariantu bez klucza (z znakiem wodnym), dzięki czemu drogi i opisy są widoczne podczas pracy.
-  const [tileUrl] = useState(() => (typeof window !== "undefined" && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) ? CARTO_DARK_TILE_URL.split("?")[0] : CARTO_DARK_TILE_URL));
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const home = useMemo(() => homeIcon(), []);
   const byKey = useMemo(() => Object.fromEntries(categories.map((category) => [category.key, category])), [categories]);
@@ -83,7 +80,7 @@ export default function MapView({
 
   return (
     <MapContainer center={center} zoom={zoom} scrollWheelZoom={false} dragging={draggable} touchZoom doubleClickZoom zoomControl className="fh-map h-full w-full bg-[#171A1C]">
-      <TileLayer url={tileUrl} attribution={CARTO_ATTRIBUTION} />
+      <TileLayer url={CARTO_VOYAGER_TILE_URL} attribution={CARTO_VOYAGER_ATTRIBUTION} />
 
       <Circle center={center} radius={1000} pathOptions={{ color: "#BCC0C1", weight: 1, opacity: 0.55, fillColor: "#BCC0C1", fillOpacity: 0.06, dashArray: "4 8" }} />
       <Circle center={center} radius={3000} pathOptions={{ color: "#BCC0C1", weight: 1, opacity: 0.35, fillColor: "#BCC0C1", fillOpacity: 0.03, dashArray: "4 10" }} />

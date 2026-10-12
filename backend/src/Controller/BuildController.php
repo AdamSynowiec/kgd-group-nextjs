@@ -25,19 +25,26 @@ final class BuildController
     }
 
     /**
-     * POST /build
+     * POST /build  (opcjonalnie JSON: {"mode": "quick" | "full"}; domyślnie "quick")
+     *
+     * "quick" = workflow z skip_blog=true (bez wgrywania /blog na FTP — dużo szybciej),
+     * "full" = pełny deploy ze wszystkim (po zmianie stopki, nawigacji, kontaktu, wspólnych komponentów).
+     *
      * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function trigger(?array $currentSession): void
+    public function trigger(Request $request, ?array $currentSession): void
     {
-        $dispatchedAt = $this->dispatcher->dispatch();
+        $mode = $request->jsonBody()['mode'] ?? 'quick';
+        $inputs = $mode === 'full' ? ['skip_blog' => 'false'] : ['skip_blog' => 'true'];
+
+        $dispatchedAt = $this->dispatcher->dispatch($inputs);
 
         // Ta trasa gatuje przez Authorization::requireResilient() (patrz
         // admin.php) — z fallbackiem do bezbazowego SessionAuth::requireRole('admin'),
         // gdy baza akurat nie odpowiada. Ten log więc MOŻE się nie zapisać w
         // takiej sytuacji — akceptowane świadomie, log nie może być
         // warunkiem działania przycisku odzyskiwania po awarii.
-        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'build.trigger');
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, $mode === 'full' ? 'build.trigger.full' : 'build.trigger');
 
         JsonResponse::ok(['triggered' => true, 'dispatchedAt' => $dispatchedAt]);
     }

@@ -16,3 +16,13 @@ export const CARTO_ATTRIBUTION =
 export const CARTO_DARK_TILE_URL =
   "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" +
   (CARTO_API_KEY ? `?key=${encodeURIComponent(CARTO_API_KEY)}` : "");
+
+/**
+ * Basemap "voyager" (jasna, kolorowa, czytelne drogi) — mapa inwestycji FOXHILLS. Osobny klucz API niż pozostałe mapy;
+ * działa na każdej domenie (produkcja, test, localhost). Atrybucja zgodnie z wymaganiami Carto/OSM.
+ */
+const CARTO_VOYAGER_API_KEY = "cb1_4hx1_1_1570aeef1d988db1d6765656";
+
+export const CARTO_VOYAGER_TILE_URL = `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_VOYAGER_API_KEY)}`;
+
+export const CARTO_VOYAGER_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';

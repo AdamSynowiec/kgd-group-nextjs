@@ -182,8 +182,11 @@ export type BuildStatus = {
 };
 
 /** Odpala GitHub Actions (workflow_dispatch) przez backend — token GitHuba nigdy nie trafia do przeglądarki. */
-export function triggerBuild(session: Session | null): Promise<{ triggered: boolean; dispatchedAt: string }> {
-  return request<{ triggered: boolean; dispatchedAt: string }>("/build", { method: "POST", session });
+export type BuildMode = "quick" | "full";
+
+/** mode "quick" (domyślny) = bez wgrywania /blog; "full" = pełna przebudowa i deploy wszystkiego. */
+export function triggerBuild(session: Session | null, mode: BuildMode = "quick"): Promise<{ triggered: boolean; dispatchedAt: string }> {
+  return request<{ triggered: boolean; dispatchedAt: string }>("/build", { method: "POST", body: { mode }, session });
 }
 
 /** Odpytuje status przebiegu uruchomionego przez triggerBuild() — "since" to jego dispatchedAt. */
