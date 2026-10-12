@@ -194,7 +194,9 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
         {/* ───────── Interaktywny plan osiedla ───────── */}
         <Reveal delay={0.1} className="mt-16 grid gap-6 lg:grid-cols-12">
           <div className="lg:col-span-8">
-            <div className="relative overflow-hidden border border-[#BCC0C1]/30 bg-[#26292B] shadow-[0_40px_120px_-40px_rgba(0,0,0,0.9)]">
+            <div className="relative border border-[#BCC0C1]/30 bg-[#26292B] shadow-[0_40px_120px_-40px_rgba(0,0,0,0.9)]">
+              {/* Obraz i strefy przycięte do ramki; karta strefy poniżej może z niej wychodzić */}
+              <div className="relative overflow-hidden">
               {planImage && <img src={planImage} alt="Plan I etapu osiedla Fox Hills Residences z lotu ptaka" width={planW} height={planH} className="block h-auto w-full select-none" draggable={false} />}
 
               <svg viewBox={`0 0 ${planW} ${planH}`} className="absolute inset-0 h-full w-full" role="group" aria-label="Plan osiedla — wybierz strefę">
@@ -265,6 +267,8 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                 );
               })}
 
+              </div>
+
               {/* Karta strefy po najechaniu / wybraniu */}
               <AnimatePresence>
                 {activeZone && (() => {
@@ -279,7 +283,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.25 }}
-                      className="pointer-events-none absolute z-10 hidden w-[290px] border border-[#BCC0C1]/50 bg-[#171A1C]/95 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md sm:block"
+                      className="pointer-events-none absolute z-30 hidden w-[290px] border border-[#BCC0C1]/50 bg-[#171A1C]/95 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md sm:block"
                       style={{
                         left: `${center.x}%`,
                         top: `${center.y}%`,

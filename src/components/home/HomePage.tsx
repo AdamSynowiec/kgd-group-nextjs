@@ -11,6 +11,7 @@ import P from "./P";
 import Card from "./Card";
 import Partners, { type PartnerCategory } from "./Partners";
 import LatestPosts from "./LatestPosts";
+import PressFeature from "./PressFeature";
 import type { MenuItem } from "./NavMenuItem";
 
 type StatCard = { icon: string; header: string; lines: { value: string; label: string }[] };
@@ -80,6 +81,11 @@ type HomePageFields = {
   partnersHeader?: EditableValue<string> | string;
   partnersText?: EditableValue<string> | string;
   partnersCategories?: EditableValue<PartnerCategory[]> | PartnerCategory[];
+
+  forbesImage?: EditableValue<string> | string;
+  forbesTitle?: EditableValue<string> | string;
+  forbesText?: EditableValue<string> | string;
+  forbesLink?: EditableValue<string> | string;
 };
 
 const ctaClass =
@@ -141,6 +147,7 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
   const partnersHeader = unwrap(fields.partnersHeader) ?? "";
   const partnersText = unwrap(fields.partnersText) ?? "";
   const partnersCategories = unwrap(fields.partnersCategories) ?? [];
+
 
   return (
     <Section className="overflow-x-hidden">
@@ -365,6 +372,8 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
       <LatestPosts />
 
       <Partners eyebrow={partnersEyebrow} header={partnersHeader} text={partnersText} categories={partnersCategories} />
+
+      <PressFeature image={unwrap(fields.forbesImage)} title={unwrap(fields.forbesTitle)} text={unwrap(fields.forbesText)} link={unwrap(fields.forbesLink)} />
     </Section>
   );
 }

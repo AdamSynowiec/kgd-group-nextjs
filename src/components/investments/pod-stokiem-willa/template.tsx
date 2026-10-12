@@ -10,6 +10,7 @@ import Features from "./Features";
 import Offert from "./Offert";
 import Gallery from "./Gallery";
 import Map from "./Map";
+import PriceHistory from "./PriceHistory";
 
 import Deweloper from "@/components/shared/Deweloper";
 import Contact from "@/components/shared/Contact";
@@ -33,6 +34,7 @@ const template: Record<string, ComponentType<SectionProps>> = {
   Offert: Offert as ComponentType<SectionProps>,
   Gallery: Gallery as ComponentType<SectionProps>,
   Map: Map as ComponentType<SectionProps>,
+  PriceHistory: PriceHistory as ComponentType<SectionProps>,
   Deweloper: Deweloper as ComponentType<SectionProps>,
   Contact: Contact as ComponentType<SectionProps>,
   Footer: Footer as ComponentType<SectionProps>,

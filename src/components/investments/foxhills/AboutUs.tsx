@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { animate, useInView } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
-import { Icon } from "./icons";
+import { PillarIcon } from "./PillarIcons";
 import { Container, NUM, Reveal, SectionHeader } from "./ui";
 
 type Stat = { value: string; label: string };
@@ -127,9 +127,9 @@ export default function AboutUs({ fields, id }: { fields: AboutUsFields; id?: st
             {pillars.map((pillar, index) => (
               <Reveal key={pillar.title} delay={index * 0.1}>
                 <div className="group">
-                  <div className="flex items-center gap-4">
-                    <span className="grid h-14 w-14 place-items-center border border-[#BCC0C1]/60 text-[#555859] transition-all duration-500 group-hover:bg-[#171A1C] group-hover:text-[#E7E7E7]">
-                      <Icon name={pillar.icon} className="h-6 w-6" />
+                  <div className="flex items-end justify-between">
+                    <span className="grid h-[120px] w-[120px] place-items-center border border-[#BCC0C1]/60 text-[#26292B] transition-all duration-500 group-hover:bg-[#171A1C] group-hover:text-[#E7E7E7] sm:h-[144px] sm:w-[144px]">
+                      <PillarIcon name={pillar.icon} className="h-[64px] w-[64px] sm:h-[76px] sm:w-[76px]" />
                     </span>
                     <span className="font-manrope text-[11px] tracking-[0.35em] text-[#555859]">{String(index + 1).padStart(2, "0")}</span>
                   </div>

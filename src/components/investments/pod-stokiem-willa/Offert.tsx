@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import H2 from "./H2";
 import Button from "./Button";
@@ -59,6 +60,12 @@ export default function Offert({ fields }: { fields: OffertFields }) {
             <span>
               {formatPLN(pricem2)} / m<sup>2</sup>
             </span>
+          </div>
+
+          <div className="mt-[24px] text-right">
+            <Link href="historia-cen" className="font-lato text-[15px] font-light text-[#707070] underline hover:no-underline">
+              Historia cen
+            </Link>
           </div>
 
           {pdfUrl && pdfButtonLabel && (
