@@ -24,6 +24,8 @@ type Unit = {
   layout?: string;
   link?: string;
   image?: string;
+  /** Obrys lokalu na planie (współrzędne zdjęcia "x,y x,y ...", kilka wielokątów rozdziel znakiem |). */
+  polygon?: string;
 };
 
 /**
@@ -65,6 +67,13 @@ const STATUS: Record<StatusKey, { label: string; dot: string; badge: string }> =
   available: { label: "Dostępny", dot: "bg-[#E7E7E7]", badge: "border-[#BCC0C1]/60 bg-[#BCC0C1]/15 text-[#E7E7E7]" },
   reserved: { label: "Rezerwacja", dot: "bg-[#8E9396]", badge: "border-dashed border-[#BCC0C1]/70 bg-transparent text-[#BCC0C1]" },
   sold: { label: "Sprzedany", dot: "bg-[#555859]", badge: "border-[#555859]/50 bg-[#555859]/10 text-[#8E9396]" },
+};
+
+/** Wygląd obrysu lokalu na planie wg statusu (monochromatycznie, w palecie księgi znaku). */
+const UNIT_SHAPE: Record<StatusKey, { fill: string; fillActive: string; stroke: string; dash?: string; legend: string }> = {
+  available: { fill: "rgba(247,247,247,0.12)", fillActive: "rgba(247,247,247,0.26)", stroke: "rgba(247,247,247,0.85)", legend: "border border-[#F7F7F7]/90 bg-[#F7F7F7]/20" },
+  reserved: { fill: "rgba(188,192,193,0.08)", fillActive: "rgba(188,192,193,0.22)", stroke: "rgba(188,192,193,0.9)", dash: "8 6", legend: "border border-dashed border-[#BCC0C1] bg-[#BCC0C1]/10" },
+  sold: { fill: "rgba(23,26,28,0.55)", fillActive: "rgba(23,26,28,0.35)", stroke: "rgba(85,88,89,0.9)", legend: "border border-[#555859] bg-[#171A1C]/70" },
 };
 
 function statusOf(raw: string): StatusKey {
@@ -115,7 +124,12 @@ function SortHead({ label, k, sort, onSort }: { label: string; k: SortKey; sort:
 
 /** Środek pierwszego wielokąta strefy w procentach rozmiaru planu (do etykiety i karty). */
 function zoneCenter(zone: Zone, planW: number, planH: number): { x: number; y: number } | null {
-  const first = (zone.polygons ?? "").split("|")[0]?.trim().split(/\s+/).map((pair) => pair.split(",").map(Number)) ?? [];
+  return polygonCenter(zone.polygons, planW, planH);
+}
+
+/** Środek pierwszego wielokąta ("x,y x,y ...|...") w procentach rozmiaru planu. */
+function polygonCenter(polygons: string | undefined, planW: number, planH: number): { x: number; y: number } | null {
+  const first = (polygons ?? "").split("|")[0]?.trim().split(/\s+/).map((pair) => pair.split(",").map(Number)) ?? [];
   if (first.length < 3 || first.some((point) => point.some(Number.isNaN))) return null;
   return {
     x: (first.reduce((sum, p) => sum + p[0], 0) / first.length / planW) * 100,
@@ -154,6 +168,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   const disclaimer = unwrap(fields.disclaimer);
 
   const [hovered, setHovered] = useState<string | null>(null);
+  const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
@@ -193,7 +208,12 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   const activeZone = zones.find((zone) => zone.id === activeId);
   const selectedZone = zones.find((zone) => zone.id === selected);
   const zoneName = (zoneId: string) => zones.find((zone) => zone.id === zoneId)?.name ?? zoneId;
+  // Lokale z własnym obrysem są rysowane na planie osobno; strefy zostają tylko tam, gdzie żaden lokal nie ma obrysu (np. budynek SPA).
+  const unitShapes = units.filter((unit) => unit.polygon?.trim());
+  const zonesWithShapes = new Set(unitShapes.map((unit) => unit.zone));
   const interactive = zones.filter((zone) => zone.polygons);
+  const zoneShapes = interactive.filter((zone) => !zonesWithShapes.has(zone.id));
+  const activeUnit = unitShapes.find((unit) => unit.unit === hoveredUnit);
   const typeOf = (unit: Unit) => types.find((item) => item.kind === unit.type || item.name === unit.type);
   /** Zakładki lokalu: własne wiersze (kolumna "unit"), a gdy ich nie ma — wspólne dla typu (sama kolumna "type"). */
   const viewsFor = (unit: Unit) => {
@@ -260,10 +280,53 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                     </feMerge>
                   </filter>
                 </defs>
-                {interactive.map((zone) => {
+                {unitShapes.map((unit) => {
+                  const status = statusOf(unit.status);
+                  const shape = UNIT_SHAPE[status];
+                  const isHovered = hoveredUnit === unit.unit;
+                  const inActiveZone = activeId !== null && unit.zone === activeId;
+                  const lit = isHovered || inActiveZone;
+                  const dim = (hoveredUnit !== null && !isHovered) || (hoveredUnit === null && activeId !== null && unit.zone !== activeId);
+                  return (
+                    <g
+                      key={unit.unit}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Lokal ${unit.unit}, ${unit.type}, ${formatArea(unit.area)}, ${STATUS[status].label}`}
+                      onMouseEnter={() => setHoveredUnit(unit.unit)}
+                      onMouseLeave={() => setHoveredUnit(null)}
+                      onFocus={() => setHoveredUnit(unit.unit)}
+                      onBlur={() => setHoveredUnit(null)}
+                      onClick={() => setOpen(unit)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setOpen(unit);
+                        }
+                      }}
+                      style={{ cursor: "pointer", opacity: dim ? 0.35 : 1, transition: "opacity .35s" }}
+                      className="outline-none"
+                    >
+                      {(unit.polygon ?? "").split("|").map((points, index) => (
+                        <polygon
+                          key={index}
+                          points={points.trim()}
+                          fill={lit ? shape.fillActive : shape.fill}
+                          stroke={lit ? "#F7F7F7" : shape.stroke}
+                          strokeWidth={lit ? 4 : 2.4}
+                          strokeDasharray={shape.dash}
+                          strokeLinejoin="round"
+                          filter={isHovered ? "url(#fh-zone-glow)" : undefined}
+                          style={{ transition: "all .3s" }}
+                        />
+                      ))}
+                    </g>
+                  );
+                })}
+                {zoneShapes.map((zone) => {
                   const isActive = activeId === zone.id;
                   const isSelected = selected === zone.id;
-                  const dim = activeId !== null && !isActive;
+                  const dim = (activeId !== null && !isActive) || hoveredUnit !== null;
                   return (
                     <g
                       key={zone.id}
@@ -303,8 +366,25 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                 })}
               </svg>
 
+              {/* Numery lokali na obrysach (od lg — na mniejszym planie byłyby nieczytelne) */}
+              {unitShapes.map((unit) => {
+                const center = polygonCenter(unit.polygon, planW, planH);
+                if (!center) return null;
+                return (
+                  <span
+                    key={unit.unit}
+                    className={`pointer-events-none absolute z-[5] hidden -translate-x-1/2 -translate-y-1/2 whitespace-nowrap bg-[#171A1C]/75 px-1.5 py-0.5 font-manrope text-[9px] font-medium tracking-[0.12em] text-[#F7F7F7] transition-opacity duration-300 lg:block ${
+                      hoveredUnit === unit.unit ? "opacity-0" : hoveredUnit !== null ? "opacity-40" : "opacity-100"
+                    }`}
+                    style={{ left: `${center.x}%`, top: `${center.y}%` }}
+                  >
+                    {unit.unit.replace(/^I\./, "")}
+                  </span>
+                );
+              })}
+
               {/* Etykiety stref */}
-              {interactive.map((zone) => {
+              {zoneShapes.map((zone) => {
                 const center = zoneCenter(zone, planW, planH);
                 if (!center) return null;
                 return (
@@ -320,9 +400,60 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
 
               </div>
 
+              {/* Mini-karta lokalu po najechaniu na obrys */}
+              <AnimatePresence>
+                {activeUnit && (() => {
+                  const center = polygonCenter(activeUnit.polygon, planW, planH) ?? { x: 50, y: 50 };
+                  const above = center.y > 45;
+                  const alignRight = center.x > 62;
+                  const state = STATUS[statusOf(activeUnit.status)];
+                  return (
+                    <motion.div
+                      key={activeUnit.unit}
+                      initial={{ opacity: 0, y: above ? 8 : -8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="pointer-events-none absolute z-30 hidden w-[260px] border border-[#BCC0C1]/50 bg-[#171A1C]/95 p-5 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md sm:block"
+                      style={{
+                        left: `${center.x}%`,
+                        top: `${center.y}%`,
+                        transform: `translate(${alignRight ? "calc(-100% - 20px)" : "20px"}, ${above ? "calc(-100% + 20px)" : "-20px"})`,
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="font-dmserif text-[26px] leading-none text-[#E7E7E7]">{activeUnit.unit}</h3>
+                        <span className={`inline-flex items-center gap-1.5 border px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.2em] ${state.badge}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${state.dot}`} />
+                          {state.label}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[11px] uppercase tracking-[0.22em] text-[#E7E7E7]/55">
+                        {activeUnit.type} · {activeUnit.floor}
+                      </p>
+                      <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-[#BCC0C1]/20 pt-4">
+                        <div>
+                          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#BCC0C1]/80">PUM</dt>
+                          <dd className={`mt-1 ${NUM} text-[20px] text-[#E7E7E7]`}>{formatArea(activeUnit.area)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#BCC0C1]/80">{num(activeUnit.garden) > 0 ? "Ogród" : "Pokoje"}</dt>
+                          <dd className={`mt-1 ${NUM} text-[20px] text-[#E7E7E7]`}>{num(activeUnit.garden) > 0 ? formatArea(activeUnit.garden ?? 0) : num(activeUnit.rooms)}</dd>
+                        </div>
+                        <div className="col-span-2">
+                          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#BCC0C1]/80">Cena</dt>
+                          <dd className={`mt-1 ${NUM} text-[20px] text-[#E7E7E7]`}>{totalPrice(activeUnit)}</dd>
+                        </div>
+                      </dl>
+                      <p className="mt-4 text-[10px] uppercase tracking-[0.25em] text-[#E7E7E7]/40">Kliknij, aby otworzyć kartę lokalu</p>
+                    </motion.div>
+                  );
+                })()}
+              </AnimatePresence>
+
               {/* Karta strefy po najechaniu / wybraniu */}
               <AnimatePresence>
-                {activeZone && (() => {
+                {activeZone && !activeUnit && (() => {
                   const center = zoneCenter(activeZone, planW, planH) ?? { x: 50, y: 50 };
                   const above = center.y > 45;
                   const alignRight = center.x > 62;
@@ -368,10 +499,19 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-x-8 gap-y-3 text-[11px] font-light uppercase tracking-[0.25em] text-[#E7E7E7]/65">
-              <span className="flex items-center gap-2.5">
-                <span className="h-3 w-5 border border-dashed border-[#E7E7E7]/70 bg-[#E7E7E7]/10" />
-                Budynki I etapu
-              </span>
+              {unitShapes.length > 0 ? (
+                (Object.keys(UNIT_SHAPE) as StatusKey[]).map((key) => (
+                  <span key={key} className="flex items-center gap-2.5">
+                    <span className={`h-3 w-5 ${UNIT_SHAPE[key].legend}`} />
+                    {STATUS[key].label}
+                  </span>
+                ))
+              ) : (
+                <span className="flex items-center gap-2.5">
+                  <span className="h-3 w-5 border border-dashed border-[#E7E7E7]/70 bg-[#E7E7E7]/10" />
+                  Budynki I etapu
+                </span>
+              )}
               <span className="flex items-center gap-2.5">
                 <span className="h-3 w-5 bg-[#E7E7E7]/45" />
                 Kolejne etapy
@@ -416,7 +556,13 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                       const state = STATUS[statusOf(unit.status)];
                       return (
                         <li key={unit.unit}>
-                          <button type="button" onClick={() => setOpen(unit)} className="group flex w-full items-center gap-4 py-3 text-left">
+                          <button
+                            type="button"
+                            onClick={() => setOpen(unit)}
+                            onMouseEnter={() => unit.polygon && setHoveredUnit(unit.unit)}
+                            onMouseLeave={() => setHoveredUnit(null)}
+                            className="group flex w-full items-center gap-4 py-3 text-left"
+                          >
                             <span className={`h-2 w-2 flex-none rounded-full ${state.dot}`} />
                             <span className="flex-1">
                               <span className="block font-dmserif text-[16px] text-[#E7E7E7] transition-colors group-hover:text-[#F7F7F7]">{unit.unit}</span>
