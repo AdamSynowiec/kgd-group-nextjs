@@ -9,11 +9,15 @@ import "./blog-article.css";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  // Geist to tylko fallback Tailwinda (font-sans/font-mono, głównie panel /admin) —
+  // bez preloadu nie blokuje pierwszego renderu stron publicznych.
+  preload: false,
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 export function generateMetadata(): Metadata {

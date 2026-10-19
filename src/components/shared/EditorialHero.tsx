@@ -1,4 +1,23 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { ReactNode } from "react";
+import { preload } from "react-dom";
+import HeroVideo from "./HeroVideo";
+
+/**
+ * Lżejszy wariant wideo dla telefonów: obok "/x/film.mp4" leży "/x/film-mobile.mp4"
+ * (540p, ~1,2 MB zamiast ~4,8 MB). Sprawdzane przy buildzie (output: "export") —
+ * brak pliku = wszyscy dostają oryginał, jak dotąd.
+ */
+function mobileVariant(video: string): string | undefined {
+  if (!video.startsWith("/") || !video.endsWith(".mp4")) return undefined;
+  const candidate = video.replace(/\.mp4$/, "-mobile.mp4");
+  try {
+    return fs.existsSync(path.join(process.cwd(), "public", candidate)) ? candidate : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export type HeroSocial = { href: string; label: string; icon: ReactNode };
 
@@ -21,6 +40,10 @@ type EditorialHeroProps = {
  * Wymaga font-ranade-variable w drzewie (homeFontVariables / investmentFontVariables).
  */
 export default function EditorialHero({ heading, lead, eyebrow, video, poster, scrollTo, scrollLabel = "Przewiń", socials = [] }: EditorialHeroProps) {
+  // Poster/zdjęcie tła to kandydat na LCP — przeglądarka ma go pobrać od razu, z wysokim priorytetem.
+  if (poster) preload(poster, { as: "image", fetchPriority: "high" });
+  const videoMobile = video ? mobileVariant(video) : undefined;
+
   const scrollCue = (
     <>
       <span className="relative block h-14 w-px overflow-hidden bg-white/15">
@@ -33,11 +56,9 @@ export default function EditorialHero({ heading, lead, eyebrow, video, poster, s
   return (
     <section className="relative min-h-svh bg-[#0f0f0f] overflow-hidden font-poppins flex items-center">
       {video ? (
-        <video className="absolute inset-0 w-full h-full object-cover pointer-events-none" autoPlay muted loop playsInline preload="auto" poster={poster}>
-          <source src={video} type="video/mp4" />
-        </video>
+        <HeroVideo src={video} srcMobile={videoMobile} poster={poster} />
       ) : (
-        poster && <img src={poster} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        poster && <img src={poster} alt="" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover" />
       )}
 
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.25),rgba(0,0,0,0.8))]" />

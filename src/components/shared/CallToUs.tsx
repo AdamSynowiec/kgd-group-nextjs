@@ -129,9 +129,10 @@ export default function CallToUs({ fields }: { fields: CallToUsFields }) {
 
   return (
     <>
-      <div className="fixed bottom-3 right-3 md:bottom-6 md:right-6 z-50 flex flex-col items-end space-y-3">
+      <div className="fixed bottom-3 right-3 md:bottom-6 md:right-6 z-50 flex flex-col items-end">
+        {/* Dymek pozycjonowany absolutnie nad przyciskiem — nie zmienia rozmiaru kontenera, więc jego pojawienie się po 3 s nie liczy się jako przesunięcie układu (CLS). */}
         {showBubble && !open && (
-          <div className="relative rounded-2xl bg-white/90 backdrop-blur-md border border-white/20 shadow-[0_20px_60px_rgba(0,0,0,0.15)] p-4 max-w-xs animate-fadeInRight">
+          <div className="absolute bottom-full right-0 mb-3 w-max max-w-[min(20rem,calc(100vw-1.5rem))] rounded-2xl bg-white/90 backdrop-blur-md border border-white/20 shadow-[0_20px_60px_rgba(0,0,0,0.15)] p-4 animate-fadeInRight">
             <button
               type="button"
               onClick={() => setShowBubble(false)}

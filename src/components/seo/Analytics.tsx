@@ -10,8 +10,11 @@ import { usePathname } from "next/navigation";
  * src/data/site.json ("analytics"), pusty identyfikator = dany skrypt się nie ładuje.
  *
  * next/script (wbudowany w Next.js) zamiast @next/third-parties — bez nowej
- * zależności. strategy "afterInteractive" = ładowanie zaraz po hydratacji,
- * jak zalecane dla GTM/GA.
+ * zależności. strategy "lazyOnload" = ładowanie po zdarzeniu `load`, w czasie
+ * bezczynności przeglądarki (wcześniej "afterInteractive"). GTM ciągnie za sobą
+ * gtag, Facebook Pixel, Clarity i Cookiebot — na mobile blokowały one pierwszy
+ * render (Lighthouse mobile, lokalnie: FCP 5,6 → 2,4 s, LCP 16,4 → 7,6 s). Koszt: śledzenie
+ * i baner cookies startują ~1–3 s później.
  *
  * Panel /admin celowo NIE jest śledzony (wejścia redaktorów zawyżałyby
  * statystyki i trafiałyby do GTM razem z danymi z formularzy panelu).
@@ -24,7 +27,7 @@ export default function Analytics({ gtmId, gaId }: { gtmId?: string; gaId?: stri
     <>
       {gtmId && (
         <>
-          <Script id="gtm" strategy="afterInteractive">
+          <Script id="gtm" strategy="lazyOnload">
             {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer',${JSON.stringify(gtmId)});`}
           </Script>
           <noscript>
@@ -40,8 +43,8 @@ export default function Analytics({ gtmId, gaId }: { gtmId?: string; gaId?: stri
 
       {gaId && (
         <>
-          <Script src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`} strategy="afterInteractive" />
-          <Script id="gtag-init" strategy="afterInteractive">
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`} strategy="lazyOnload" />
+          <Script id="gtag-init" strategy="lazyOnload">
             {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config',${JSON.stringify(gaId)});`}
           </Script>
         </>

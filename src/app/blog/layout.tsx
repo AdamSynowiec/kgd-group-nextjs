@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { getPageBySlug } from "@/lib/content";
 import { unwrap, type EditableValue } from "@/lib/editable";
-import { homeFontVariables } from "@/lib/fonts";
+import { homeFontVariables } from "@/lib/fonts-home";
 import NavBar from "@/components/home/NavBar";
 import Contact from "@/components/shared/Contact";
 import Footer from "@/components/shared/Footer";

@@ -1,5 +1,10 @@
 import localFont from "next/font/local";
-import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto, Montserrat, Cormorant_Garamond, DM_Serif_Display, Manrope } from "next/font/google";
+import { EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto, Cormorant_Garamond, DM_Serif_Display, Manrope } from "next/font/google";
+import { ranadeVariable, poppins, montserrat, homeFontVariables } from "./fonts-home";
+
+// Ranade/Poppins/Montserrat są zdefiniowane w ./fonts-home (patrz komentarz tam) —
+// reeksport, żeby istniejące importy z "@/lib/fonts" działały bez zmian.
+export { ranadeVariable, poppins, montserrat, homeFontVariables };
 
 /**
  * Loader fontów współdzielony przez strony inwestycji i stronę główną (nie
@@ -12,23 +17,11 @@ import { Poppins, EB_Garamond, Playfair_Display, Lato, Libre_Caslon_Text, Roboto
  * wpływa na już renderowane.
  */
 
-export const ranadeVariable = localFont({
-  src: "../assets/fonts/Ranade-Variable.woff2",
-  variable: "--ranade-variable-src",
-  display: "swap",
-});
-
 export const melodramaVariable = localFont({
   src: "../assets/fonts/Melodrama-Variable.woff2",
   variable: "--melodrama-src",
   display: "swap",
-});
-
-export const poppins = Poppins({
-  subsets: ["latin", "latin-ext"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--poppins-src",
-  display: "swap",
+  preload: false,
 });
 
 export const ebGaramond = EB_Garamond({
@@ -36,6 +29,7 @@ export const ebGaramond = EB_Garamond({
   weight: ["400", "500", "600"],
   variable: "--ebgaramond-src",
   display: "swap",
+  preload: false,
 });
 
 export const playfairDisplay = Playfair_Display({
@@ -43,6 +37,7 @@ export const playfairDisplay = Playfair_Display({
   weight: ["400", "500", "600", "700"],
   variable: "--playfairdisplay-src",
   display: "swap",
+  preload: false,
 });
 
 export const lato = Lato({
@@ -50,6 +45,7 @@ export const lato = Lato({
   weight: ["300", "400", "700", "900"],
   variable: "--lato-src",
   display: "swap",
+  preload: false,
 });
 
 export const libreCaslonText = Libre_Caslon_Text({
@@ -57,6 +53,7 @@ export const libreCaslonText = Libre_Caslon_Text({
   weight: ["400", "700"],
   variable: "--librecaslon-src",
   display: "swap",
+  preload: false,
 });
 
 export const roboto = Roboto({
@@ -64,13 +61,7 @@ export const roboto = Roboto({
   weight: ["300", "400", "500", "700"],
   variable: "--roboto-src",
   display: "swap",
-});
-
-export const montserrat = Montserrat({
-  subsets: ["latin", "latin-ext"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  variable: "--montserrat-src",
-  display: "swap",
+  preload: false,
 });
 
 export const cormorantGaramond = Cormorant_Garamond({
@@ -78,6 +69,7 @@ export const cormorantGaramond = Cormorant_Garamond({
   weight: ["300", "400", "500", "600", "700"],
   variable: "--cormorant-src",
   display: "swap",
+  preload: false,
 });
 
 // Fox Hills Residences (księga znaku): DM Serif Display — nagłówki, hasła, cytaty; Manrope — akapity i podpisy.
@@ -87,15 +79,15 @@ export const dmSerifDisplay = DM_Serif_Display({
   style: ["normal", "italic"],
   variable: "--dmserif-src",
   display: "swap",
+  preload: false,
 });
 
 export const manrope = Manrope({
   subsets: ["latin", "latin-ext"],
   variable: "--manrope-src",
   display: "swap",
+  preload: false,
 });
 
 export const investmentFontVariables = `${ranadeVariable.variable} ${melodramaVariable.variable} ${poppins.variable} ${ebGaramond.variable} ${playfairDisplay.variable} ${lato.variable} ${libreCaslonText.variable} ${roboto.variable} ${cormorantGaramond.variable} ${dmSerifDisplay.variable} ${manrope.variable}`;
 
-// Ranade — nagłówek wspólnego Hero (src/components/shared/EditorialHero.tsx).
-export const homeFontVariables = `${ranadeVariable.variable} ${poppins.variable} ${montserrat.variable}`;

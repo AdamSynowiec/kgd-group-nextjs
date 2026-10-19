@@ -5,7 +5,7 @@ import { buildMetadata } from "@/lib/seo";
 import { buildPageSchema } from "@/lib/schema";
 import JsonLd from "@/components/seo/JsonLd";
 import HomeSectionRenderer from "@/lib/home/sections";
-import { homeFontVariables } from "@/lib/fonts";
+import { homeFontVariables } from "@/lib/fonts-home";
 
 /**
  * Strona główna ("/") — poza grupą (site) celowo: (site)/layout.tsx renderuje

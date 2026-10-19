@@ -41,10 +41,16 @@ export default function ImageCard({ src, title, subtitle }: { src: string; title
       target.current = (clamped - 0.5) * strength;
     };
 
+    // Pętla działa tylko, dopóki obraz "dojeżdża" do celu — potem się zatrzymuje
+    // (wcześniej kręciła się co klatkę bez końca, w każdym bloku, także poza ekranem).
     const animate = () => {
       current.current = lerp(current.current, target.current, 0.08);
+      if (Math.abs(target.current - current.current) < 0.05) current.current = target.current;
       img.style.transform = `translate3d(0, ${current.current}px, 0) scale(1.08)`;
-      raf.current = requestAnimationFrame(animate);
+      raf.current = current.current === target.current ? null : requestAnimationFrame(animate);
+    };
+    const start = () => {
+      if (raf.current === null) raf.current = requestAnimationFrame(animate);
     };
 
     let ticking = false;
@@ -54,12 +60,14 @@ export default function ImageCard({ src, title, subtitle }: { src: string; title
         requestAnimationFrame(() => {
           update();
           ticking = false;
+          start();
         });
       }
     };
     const onResize = () => {
       measure();
       update();
+      start();
     };
 
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -67,6 +75,7 @@ export default function ImageCard({ src, title, subtitle }: { src: string; title
 
     measure();
     update();
+    raf.current = null;
     animate();
 
     return () => {
