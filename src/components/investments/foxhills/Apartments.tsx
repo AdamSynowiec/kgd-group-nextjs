@@ -26,6 +26,14 @@ type Unit = {
   image?: string;
 };
 
+/**
+ * Zakładka karty lokalu (np. "Parter", "Piętro"): przycisk w karcie, który podmienia zdjęcie i opis.
+ * Wiersz z "unit" dotyczy jednego lokalu; wiersz z samym "type" — wszystkich lokali tego typu
+ * (używany, gdy lokal nie ma własnych wierszy). Kolejność wierszy = kolejność przycisków.
+ * "rooms": "Salon z aneksem kuchennym: 42,5 | Łazienka: 6,2" — metraż po dwukropku jest opcjonalny.
+ */
+type UnitView = { unit?: string; type?: string; label: string; image?: string; text?: string; rooms?: string };
+
 type ApartmentsFields = {
   eyebrow?: EditableValue<string> | string;
   header?: EditableValue<string> | string;
@@ -39,10 +47,15 @@ type ApartmentsFields = {
   types?: EditableValue<UnitType[]> | UnitType[];
   typesHeader?: EditableValue<string> | string;
   units?: EditableValue<Unit[]> | Unit[];
+  unitViews?: EditableValue<UnitView[]> | UnitView[];
+  summaryLabel?: EditableValue<string> | string;
   listHeader?: EditableValue<string> | string;
   prospectusLabel?: EditableValue<string> | string;
   prospectusUrl?: EditableValue<string> | string;
   prospectusRequestLabel?: EditableValue<string> | string;
+  cardProspectusLabel?: EditableValue<string> | string;
+  standardLabel?: EditableValue<string> | string;
+  standardUrl?: EditableValue<string> | string;
   disclaimer?: EditableValue<string> | string;
 };
 
@@ -68,6 +81,20 @@ const num = (value: number | string | undefined, fallback = 0) => {
 const fmt = (value: number | string, digits = 2) => num(value).toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: digits });
 const formatArea = (value: number | string) => `${fmt(value)} m²`;
 const formatMoney = (value: number | string) => `${Math.round(num(value)).toLocaleString("pl-PL").replace(/ /g, " ")} zł`;
+
+/** "Salon z aneksem kuchennym: 42,5 | Łazienka" → [{ name, area }] (metraż opcjonalny). */
+function parseRooms(raw?: string): { name: string; area: number | null }[] {
+  if (!raw) return [];
+  return raw
+    .split("|")
+    .map((chunk) => {
+      const colon = chunk.lastIndexOf(":");
+      const name = (colon > -1 ? chunk.slice(0, colon) : chunk).trim();
+      const area = colon > -1 ? num(chunk.slice(colon + 1), NaN) : NaN;
+      return { name, area: Number.isFinite(area) && area > 0 ? area : null };
+    })
+    .filter((room) => room.name);
+}
 
 /** Cena łączna: pole "price" z panelu, a gdy puste — PUM × cena za m². */
 const totalPrice = (unit: Unit) => unit.price || (num(unit.pricePerM2) > 0 ? formatMoney(num(unit.area) * num(unit.pricePerM2)) : "Cena na zapytanie");
@@ -114,10 +141,16 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   const types = useMemo(() => unwrap(fields.types) ?? [], [fields.types]);
   const typesHeader = unwrap(fields.typesHeader);
   const units = useMemo(() => unwrap(fields.units) ?? [], [fields.units]);
+  const unitViews = useMemo(() => (unwrap(fields.unitViews) ?? []).filter((view) => view.label?.trim()), [fields.unitViews]);
+  const summaryLabel = unwrap(fields.summaryLabel) || "Podsumowanie";
   const listHeader = unwrap(fields.listHeader);
   const prospectusLabel = unwrap(fields.prospectusLabel);
   const prospectusUrl = unwrap(fields.prospectusUrl);
   const prospectusRequestLabel = unwrap(fields.prospectusRequestLabel);
+  // Przyciski w karcie lokalu: PDF, gdy jest adres; bez pliku — prośba przez formularz kontaktowy.
+  const cardProspectusLabel = unwrap(fields.cardProspectusLabel) || "Prospekt informacyjny";
+  const standardLabel = unwrap(fields.standardLabel) || "Standard wykończenia";
+  const standardUrl = unwrap(fields.standardUrl);
   const disclaimer = unwrap(fields.disclaimer);
 
   const [hovered, setHovered] = useState<string | null>(null);
@@ -126,6 +159,13 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [sort, setSort] = useState<SortState>({ key: "unit", dir: 1 });
   const [open, setOpen] = useState<Unit | null>(null);
+  // Zakładka karty lokalu: 0 = podsumowanie, 1..n = wiersze z unitViews. Nowy lokal zawsze startuje od podsumowania.
+  const [view, setView] = useState(0);
+  const [viewFor, setViewFor] = useState<Unit | null>(null);
+  if (open !== viewFor) {
+    setViewFor(open);
+    setView(0);
+  }
 
   const typeNames = useMemo(() => Array.from(new Set(units.map((unit) => unit.type))), [units]);
 
@@ -155,6 +195,17 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   const zoneName = (zoneId: string) => zones.find((zone) => zone.id === zoneId)?.name ?? zoneId;
   const interactive = zones.filter((zone) => zone.polygons);
   const typeOf = (unit: Unit) => types.find((item) => item.kind === unit.type || item.name === unit.type);
+  /** Zakładki lokalu: własne wiersze (kolumna "unit"), a gdy ich nie ma — wspólne dla typu (sama kolumna "type"). */
+  const viewsFor = (unit: Unit) => {
+    const own = unitViews.filter((row) => row.unit?.trim() === unit.unit);
+    return own.length > 0 ? own : unitViews.filter((row) => !row.unit?.trim() && row.type?.trim() === unit.type);
+  };
+  const openViews = open ? viewsFor(open) : [];
+  const activeView = view > 0 ? openViews[view - 1] : undefined;
+  const summaryImage = open ? open.image || typeOf(open)?.image : undefined;
+  const cardImage = activeView?.image || summaryImage;
+  const activeRooms = parseRooms(activeView?.rooms);
+  const roomsTotal = activeRooms.reduce((sum, room) => sum + (room.area ?? 0), 0);
 
   // Okno karty lokalu: Escape zamyka, tło strony nie przewija się pod spodem.
   useEffect(() => {
@@ -410,7 +461,10 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                         </div>
                         <div>
                           <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Cena</dt>
-                          <dd className={`mt-1 ${NUM} text-[26px] text-[#E7E7E7]`}>{fmt(item.pricePerM2, 0)} zł/m²</dd>
+                          <dd className={`mt-1 ${NUM} text-[26px] text-[#E7E7E7]`}>
+                            <span className="mr-1.5 font-manrope text-[13px] font-light lowercase tracking-normal text-[#E7E7E7]/60">od</span>
+                            {fmt(item.pricePerM2, 0)} zł/m²
+                          </dd>
                         </div>
                       </dl>
                       {item.summary && <p className="mt-5 text-[13px] font-light leading-[1.8] text-[#E7E7E7]/60">{item.summary}</p>}
@@ -622,19 +676,44 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              className="relative grid max-h-full w-full max-w-5xl overflow-y-auto border border-[#BCC0C1]/40 bg-[#171A1C] shadow-[0_50px_150px_-30px_rgba(0,0,0,1)] md:grid-cols-2"
+              className={`relative grid max-h-full w-full max-w-5xl overflow-y-auto border border-[#BCC0C1]/40 bg-[#171A1C] shadow-[0_50px_150px_-30px_rgba(0,0,0,1)] md:grid-cols-2 ${
+                openViews.length > 0 ? "md:h-[min(860px,100%)] md:overflow-hidden" : ""
+              }`}
               onClick={(event) => event.stopPropagation()}
             >
               <button type="button" onClick={() => setOpen(null)} aria-label="Zamknij" className="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center border border-[#BCC0C1]/50 bg-[#171A1C]/80 text-[#E7E7E7] transition-colors hover:bg-[#BCC0C1] hover:text-[#171A1C]">
                 <Icon name="close" className="h-4 w-4" />
               </button>
 
-              <div className="relative min-h-[260px] bg-[#26292B]">
-                {(open.image || typeOf(open)?.image) && <img src={open.image || typeOf(open)?.image} alt={open.type} className="absolute inset-0 h-full w-full object-cover" />}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#171A1C]/70 via-transparent to-transparent" />
+              <div className="relative min-h-[260px] overflow-hidden bg-[#26292B] md:min-h-[520px]">
+                <AnimatePresence initial={false}>
+                  {cardImage && (
+                    <motion.img
+                      key={`${view}-${cardImage}`}
+                      src={cardImage}
+                      alt={activeView ? `${open.unit} — ${activeView.label}` : open.type}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.4 }}
+                      className={`absolute inset-0 h-full w-full ${activeView?.image ? "object-contain p-4 sm:p-6" : "object-cover"}`}
+                    />
+                  )}
+                </AnimatePresence>
+                {!activeView?.image && <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#171A1C]/70 via-transparent to-transparent" />}
+                {activeView?.image && (
+                  <a
+                    href={activeView.image}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-4 left-4 inline-flex items-center gap-2 border border-[#BCC0C1]/50 bg-[#171A1C]/80 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-[#E7E7E7] transition-colors hover:bg-[#BCC0C1] hover:text-[#171A1C]"
+                  >
+                    <Icon name="expand" className="h-3.5 w-3.5" /> Powiększ
+                  </a>
+                )}
               </div>
 
-              <div className="p-8 sm:p-10">
+              <div className={`p-8 sm:p-10 ${openViews.length > 0 ? "md:overflow-y-auto" : ""}`}>
                 <Eyebrow>Karta lokalu</Eyebrow>
                 <h3 className="mt-5 font-dmserif text-[44px] font-medium leading-none text-[#E7E7E7]">{open.unit}</h3>
                 <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -645,6 +724,47 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                   <span className="text-[11px] uppercase tracking-[0.25em] text-[#E7E7E7]/55">{open.type}</span>
                 </div>
 
+                {openViews.length > 0 && (
+                  <div role="tablist" aria-label="Widoki lokalu" className="-mx-1 mt-7 flex flex-wrap gap-2 px-1">
+                    {[summaryLabel, ...openViews.map((row) => row.label)].map((label, index) => (
+                      <button
+                        key={`${index}-${label}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={view === index}
+                        onClick={() => setView(index)}
+                        className={`border px-4 py-2 text-[10px] font-medium uppercase tracking-[0.25em] transition-colors ${
+                          view === index ? "border-[#BCC0C1] bg-[#BCC0C1] text-[#171A1C]" : "border-[#BCC0C1]/35 text-[#E7E7E7]/80 hover:border-[#E7E7E7]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {activeView ? (
+                  <motion.div key={view} role="tabpanel" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mt-8 border-t border-[#BCC0C1]/25 pt-8">
+                    <h4 className="font-dmserif text-[28px] leading-tight text-[#E7E7E7]">{activeView.label}</h4>
+                    {activeView.text && <p className="mt-4 whitespace-pre-line text-[14px] font-light leading-[1.8] text-[#E7E7E7]/75">{activeView.text}</p>}
+                    {activeRooms.length > 0 && (
+                      <dl className="mt-6">
+                        {activeRooms.map((room, index) => (
+                          <div key={`${index}-${room.name}`} className="flex items-baseline justify-between gap-6 border-b border-[#BCC0C1]/15 py-3">
+                            <dt className="text-[14px] font-light text-[#E7E7E7]/80">{room.name}</dt>
+                            {room.area !== null && <dd className={`${NUM} shrink-0 text-[18px] text-[#E7E7E7]`}>{formatArea(room.area)}</dd>}
+                          </div>
+                        ))}
+                        {roomsTotal > 0 && (
+                          <div className="flex items-baseline justify-between gap-6 pt-4">
+                            <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Razem</dt>
+                            <dd className={`${NUM} shrink-0 text-[22px] text-[#E7E7E7]`}>{formatArea(Math.round(roomsTotal * 100) / 100)}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    )}
+                  </motion.div>
+                ) : (
                 <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-6 border-t border-[#BCC0C1]/25 pt-8">
                   {[
                     ["layers", "Strefa", zoneName(open.zone)],
@@ -679,6 +799,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                     {num(open.pricePerM2) > 0 && <dd className="mt-1 text-[12px] font-light text-[#E7E7E7]/50">{fmt(open.pricePerM2 ?? 0, 0)} zł/m² · cena = PUM × cena za m²</dd>}
                   </div>
                 </dl>
+                )}
 
                 <div className="mt-10 flex flex-col gap-3 sm:flex-row">
                   <Button href="#kontakt" variant="gold" onClick={() => setOpen(null)}>
@@ -690,6 +811,24 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                       Karta lokalu
                     </Button>
                   )}
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3">
+                  {[
+                    { label: cardProspectusLabel, url: prospectusUrl },
+                    { label: standardLabel, url: standardUrl },
+                  ].map(({ label, url }) => (
+                    <a
+                      key={label}
+                      href={url || "#kontakt"}
+                      onClick={url ? undefined : () => setOpen(null)}
+                      {...(url ? { target: "_blank", rel: "noopener noreferrer", download: true } : {})}
+                      className="group inline-flex items-center gap-2.5 border-b border-[#BCC0C1]/35 pb-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-[#E7E7E7]/85 transition-colors hover:border-[#E7E7E7] hover:text-[#F7F7F7]"
+                    >
+                      <Icon name={url ? "download" : "mail"} className="h-4 w-4 text-[#BCC0C1] transition-colors group-hover:text-[#F7F7F7]" />
+                      {label}
+                    </a>
+                  ))}
                 </div>
               </div>
             </motion.div>

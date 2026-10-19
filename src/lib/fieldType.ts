@@ -59,6 +59,11 @@ export function looksLikeAssetPath(value: string): boolean {
   return ASSET_VALUE_PATTERN.test(value);
 }
 
+/** Nazwa pola/kolumny sugerująca zdjęcie ("image", "logo", "zdjecie"...) — dla pustych wartości, gdzie nie ma po czym poznać. */
+export function looksLikeAssetKey(key: string): boolean {
+  return ASSET_LABEL_HINT.test(key);
+}
+
 export function classifyFieldType(value: unknown, label?: string): FieldType {
   if (typeof value === "boolean") return "bool";
   if (typeof value === "number") return "number";

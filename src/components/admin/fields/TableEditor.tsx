@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { looksLikeAssetPath } from "@/lib/fieldType";
+import { looksLikeAssetKey, looksLikeAssetPath } from "@/lib/fieldType";
 import type { Session } from "@/lib/adminApi";
 import { labelFor } from "./labels";
 import AssetEditor from "./AssetEditor";
@@ -283,6 +283,10 @@ function detectColumnKind(rows: Record<string, unknown>[], key: string): ColumnK
 
   const nonEmpty = values.filter((v) => v !== "" && v !== undefined && v !== null);
   if (nonEmpty.length > 0 && nonEmpty.every((v) => typeof v === "string" && looksLikeAssetPath(v))) {
+    return "asset";
+  }
+  // Kolumna bez żadnego zdjęcia (np. "image" w nowej tabeli) — poznajemy po nazwie, żeby był przycisk uploadu.
+  if (nonEmpty.length === 0 && looksLikeAssetKey(key)) {
     return "asset";
   }
   if (nonEmpty.length > 0 && nonEmpty.every((v) => typeof v === "number")) {
