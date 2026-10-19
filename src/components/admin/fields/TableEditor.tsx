@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type DragEvent } from "react";
 import { looksLikeAssetKey, looksLikeAssetPath } from "@/lib/fieldType";
 import type { Session } from "@/lib/adminApi";
 import { labelFor } from "./labels";
@@ -59,7 +59,134 @@ function useRowSelection(rowCount: number) {
     setSelected(new Set());
   }
 
-  return { selected, toggle, toggleAll, clear, isAllSelected: rowCount > 0 && selected.size === rowCount };
+  /** Po zmianie kolejności (ta sama liczba wierszy): order[nowyIndeks] = staryIndeks — zaznaczenie jedzie razem z wierszami. */
+  function remap(order: number[]) {
+    setSelected((prev) => new Set(order.flatMap((oldIndex, newIndex) => (prev.has(oldIndex) ? [newIndex] : []))));
+  }
+
+  function selectWhere(indices: number[], additive: boolean) {
+    setSelected((prev) => new Set([...(additive ? prev : []), ...indices]));
+  }
+
+  return { selected, toggle, toggleAll, clear, remap, selectWhere, isAllSelected: rowCount > 0 && selected.size === rowCount };
+}
+
+// --- Kolejność i klonowanie wierszy (wspólne dla list wartości i list obiektów) ---
+
+/** Przenosi element z `from` na pozycję `to`; zwraca nową tablicę i permutację (order[nowy] = stary). */
+function moveRow<T>(items: T[], from: number, to: number): { next: T[]; order: number[] } {
+  const order = items.map((_, index) => index);
+  const [moved] = order.splice(from, 1);
+  order.splice(to, 0, moved);
+  return { next: order.map((index) => items[index]), order };
+}
+
+/** Zaznaczone wiersze (w dotychczasowej kolejności) na początek albo koniec listy. */
+function moveSelected<T>(items: T[], selected: Set<number>, where: "top" | "bottom"): { next: T[]; order: number[] } {
+  const picked = items.map((_, index) => index).filter((index) => selected.has(index));
+  const rest = items.map((_, index) => index).filter((index) => !selected.has(index));
+  const order = where === "top" ? [...picked, ...rest] : [...rest, ...picked];
+  return { next: order.map((index) => items[index]), order };
+}
+
+/** Kopia każdego zaznaczonego wiersza ląduje zaraz pod oryginałem. */
+function duplicateRows<T>(items: T[], indices: Set<number>): T[] {
+  return items.flatMap((item, index) => (indices.has(index) ? [item, structuredClone(item)] : [item]));
+}
+
+/**
+ * Przeciąganie wierszy za uchwyt (⠿). Wiersz jest "draggable" tylko, gdy kursor
+ * wciśnięto na uchwycie — inaczej nie dałoby się zaznaczać tekstu w polach.
+ */
+function useRowDrag(onMove: (from: number, to: number) => void) {
+  const [armed, setArmed] = useState<number | null>(null);
+  const [from, setFrom] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+
+  function reset() {
+    setArmed(null);
+    setFrom(null);
+    setOver(null);
+  }
+
+  return {
+    over: from !== null ? over : null,
+    handleProps: (index: number) => ({
+      onMouseDown: () => setArmed(index),
+      onMouseUp: () => setArmed(null),
+    }),
+    rowProps: (index: number) => ({
+      draggable: armed === index,
+      onDragStart: (event: DragEvent) => {
+        setFrom(index);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", String(index));
+      },
+      onDragOver: (event: DragEvent) => {
+        if (from === null) return;
+        event.preventDefault();
+        setOver(index);
+      },
+      onDrop: (event: DragEvent) => {
+        event.preventDefault();
+        if (from !== null && from !== index) onMove(from, index);
+        reset();
+      },
+      onDragEnd: reset,
+    }),
+  };
+}
+
+const rowIconButtonClass =
+  "grid h-7 w-7 place-items-center rounded-md border border-zinc-200 text-xs text-zinc-500 hover:border-zinc-400 hover:text-zinc-800 disabled:opacity-30 disabled:hover:border-zinc-200 disabled:hover:text-zinc-500";
+
+/** Uchwyt do przeciągania + strzałki w pierwszej kolumnie wiersza. */
+function RowOrderCell({
+  index,
+  count,
+  onMove,
+  handleProps,
+}: {
+  index: number;
+  count: number;
+  onMove: (from: number, to: number) => void;
+  handleProps: { onMouseDown: () => void; onMouseUp: () => void };
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <span
+        {...handleProps}
+        title="Przeciągnij, aby zmienić kolejność"
+        aria-hidden
+        className="cursor-grab select-none px-0.5 text-base leading-none text-zinc-400 hover:text-zinc-700 active:cursor-grabbing"
+      >
+        ⠿
+      </span>
+      <div className="flex flex-col">
+        <button type="button" onClick={() => onMove(index, index - 1)} disabled={index === 0} aria-label={`Przesuń wiersz ${index + 1} w górę`} className="px-1 text-[10px] leading-none text-zinc-400 hover:text-zinc-800 disabled:opacity-25">
+          ▲
+        </button>
+        <button type="button" onClick={() => onMove(index, index + 1)} disabled={index === count - 1} aria-label={`Przesuń wiersz ${index + 1} w dół`} className="px-1 text-[10px] leading-none text-zinc-400 hover:text-zinc-800 disabled:opacity-25">
+          ▼
+        </button>
+      </div>
+      <span className="w-5 text-right text-[11px] tabular-nums text-zinc-400">{index + 1}</span>
+    </div>
+  );
+}
+
+/** Duplikuj + Usuń w ostatniej kolumnie wiersza. */
+function RowActionsCell({ index, onDuplicate, onRemove }: { index: number; onDuplicate: () => void; onRemove: () => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button type="button" onClick={onDuplicate} title="Duplikuj wiersz (kopia pod spodem)" aria-label={`Duplikuj wiersz ${index + 1}`} className={rowIconButtonClass}>
+        ⧉
+      </button>
+      <button type="button" onClick={onRemove} className={removeButtonClass}>
+        Usuń
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -102,8 +229,23 @@ export default function TableEditor({ value, path, session, onChange, meta }: Fi
 function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]; path: Path; session: Session | null; onChange: OnChange }) {
   // Lista ścieżek do zdjęć (np. slider w /wykonczenie-pod-klucz) — każdy wiersz dostaje podgląd i upload zamiast gołego pola tekstowego.
   const isAssetList = rows.some((cell) => typeof cell === "string" && cell !== "" && looksLikeAssetPath(cell));
-  const { selected, toggle, toggleAll, clear, isAllSelected } = useRowSelection(rows.length);
+  const { selected, toggle, toggleAll, clear, remap, isAllSelected } = useRowSelection(rows.length);
   const [bulkValue, setBulkValue] = useState("");
+
+  function handleMove(from: number, to: number) {
+    if (to < 0 || to >= rows.length || from === to) return;
+    const { next, order } = moveRow(rows, from, to);
+    onChange(path, next);
+    remap(order);
+  }
+
+  function handleMoveSelected(where: "top" | "bottom") {
+    const { next, order } = moveSelected(rows, selected, where);
+    onChange(path, next);
+    remap(order);
+  }
+
+  const drag = useRowDrag(handleMove);
 
   function handleChange(index: number, raw: string, wasNumber: boolean) {
     const next = [...rows];
@@ -139,6 +281,15 @@ function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]
       {selected.size > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
           <span className="font-medium text-zinc-700">Zaznaczono: {selected.size}</span>
+          <button type="button" onClick={() => onChange(path, duplicateRows(rows, selected))} className={bulkButtonClass}>
+            Duplikuj zaznaczone
+          </button>
+          <button type="button" onClick={() => handleMoveSelected("top")} className={bulkButtonClass}>
+            Na górę
+          </button>
+          <button type="button" onClick={() => handleMoveSelected("bottom")} className={bulkButtonClass}>
+            Na dół
+          </button>
           <button type="button" onClick={handleBulkDelete} className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50">
             Usuń zaznaczone
           </button>
@@ -172,6 +323,7 @@ function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]
                   aria-label="Zaznacz wszystkie wiersze"
                 />
               </th>
+              <th className="w-px border-b border-zinc-200 px-2 py-2" />
               <th className="border-b border-zinc-200 px-2 py-2" />
               <th className="border-b border-zinc-200 px-2 py-2" />
             </tr>
@@ -182,7 +334,8 @@ function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]
               return (
                 <tr
                   key={index}
-                  className={`border-b border-zinc-100 last:border-b-0 ${selected.has(index) ? "bg-blue-50" : ""}`}
+                  {...drag.rowProps(index)}
+                  className={`border-b border-zinc-100 last:border-b-0 ${selected.has(index) ? "bg-blue-50" : ""} ${drag.over === index ? "outline outline-2 -outline-offset-2 outline-blue-400" : ""}`}
                 >
                   <td className="px-2 py-1.5">
                     <input
@@ -191,6 +344,9 @@ function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]
                       onChange={() => toggle(index)}
                       aria-label={`Zaznacz wiersz ${index + 1}`}
                     />
+                  </td>
+                  <td className="px-1 py-1.5">
+                    <RowOrderCell index={index} count={rows.length} onMove={handleMove} handleProps={drag.handleProps(index)} />
                   </td>
                   <td className="px-2 py-1.5">
                     {isAssetList ? (
@@ -212,9 +368,7 @@ function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]
                     )}
                   </td>
                   <td className="w-px px-2 py-1.5">
-                    <button type="button" onClick={() => handleRemove(index)} className={removeButtonClass}>
-                      Usuń
-                    </button>
+                    <RowActionsCell index={index} onDuplicate={() => onChange(path, duplicateRows(rows, new Set([index])))} onRemove={() => handleRemove(index)} />
                   </td>
                 </tr>
               );
@@ -349,78 +503,208 @@ function AssetListCell({
   );
 }
 
+/** Tekstowa postać komórki do porównań i podpowiedzi ("Willa", "11500", ...). */
+function cellText(value: unknown): string {
+  return value === undefined || value === null ? "" : String(value);
+}
+
+/** Różne wartości kolumny z liczbą wystąpień, najczęstsze pierwsze — do podpowiedzi i szybkiego zaznaczania. */
+function distinctValues(rows: Record<string, unknown>[], key: string, only?: Set<number>): { value: string; count: number }[] {
+  const counts = new Map<string, number>();
+  rows.forEach((row, index) => {
+    if (only && !only.has(index)) return;
+    const text = cellText(row[key]);
+    counts.set(text, (counts.get(text) ?? 0) + 1);
+  });
+  return [...counts.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, "pl", { numeric: true }));
+}
+
+/** Kolumny, po których da się sensownie zaznaczać (powtarzające się wartości, np. typ, status, strefa). */
+function groupableColumns(rows: Record<string, unknown>[], columns: string[], columnKinds: Record<string, ColumnKind>): string[] {
+  return columns.filter((key) => {
+    if (columnKinds[key] === "assetList" || columnKinds[key] === "asset") return false;
+    const distinct = distinctValues(rows, key);
+    return distinct.length > 1 && distinct.length < rows.length && distinct.every((entry) => entry.value.length <= 60);
+  });
+}
+
+/**
+ * "Zaznacz wiersze, gdzie <kolumna> = <wartość>" — szybkie zaznaczenie grupy wierszy
+ * (np. wszystkie wille, wszystkie "Dostępny") przed edycją wielu wierszy naraz.
+ */
+function QuickSelect({
+  rows,
+  columns,
+  columnLabels,
+  onSelect,
+}: {
+  rows: Record<string, unknown>[];
+  columns: string[];
+  columnLabels?: Record<string, string>;
+  onSelect: (indices: number[], additive: boolean) => void;
+}) {
+  const [key, setKey] = useState(columns[0] ?? "");
+  const activeKey = columns.includes(key) ? key : (columns[0] ?? "");
+  const options = activeKey ? distinctValues(rows, activeKey) : [];
+  const [value, setValue] = useState("");
+  const activeValue = options.some((option) => option.value === value) ? value : (options[0]?.value ?? "");
+
+  if (columns.length === 0) return null;
+
+  const matching = rows.flatMap((row, index) => (cellText(row[activeKey]) === activeValue ? [index] : []));
+
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-600">
+      <span>Zaznacz wiersze, gdzie</span>
+      <select value={activeKey} onChange={(event) => setKey(event.target.value)} className="rounded-md border border-zinc-300 bg-white px-2 py-1" aria-label="Kolumna do zaznaczania">
+        {columns.map((column) => (
+          <option key={column} value={column}>
+            {columnLabels?.[column] ?? labelFor(column)}
+          </option>
+        ))}
+      </select>
+      <span>=</span>
+      <select value={activeValue} onChange={(event) => setValue(event.target.value)} className="max-w-[16rem] rounded-md border border-zinc-300 bg-white px-2 py-1" aria-label="Wartość do zaznaczania">
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.value === "" ? "(puste)" : option.value} ({option.count})
+          </option>
+        ))}
+      </select>
+      <button type="button" onClick={() => onSelect(matching, false)} className={bulkButtonClass}>
+        Zaznacz ({matching.length})
+      </button>
+      <button type="button" onClick={() => onSelect(matching, true)} className={bulkButtonClass} title="Dodaj do obecnego zaznaczenia">
+        + Dodaj do zaznaczenia
+      </button>
+    </div>
+  );
+}
+
 /**
  * Pasek akcji masowych dla ObjectRowsTable — widoczny tylko, gdy coś jest
- * zaznaczone. Kolumny typu "assetList" (obrazki) są wykluczone z masowego
- * ustawiania wartości — pojedyncze pole tekstowe nie ma jak sensownie
- * zastąpić listy plików, a usuwanie wierszy nadal działa dla takich kolumn.
+ * zaznaczone: duplikowanie, przenoszenie na górę/dół, usuwanie oraz zmiana
+ * wartości jednej kolumny we wszystkich zaznaczonych wierszach naraz (z
+ * podpowiedzią istniejących wartości; dla zdjęć — upload). Kolumny typu
+ * "assetList" są wykluczone z masowej zmiany — pojedyncze pole nie zastąpi
+ * listy plików.
  */
 function BulkToolbar({
-  selectedCount,
+  rows,
+  selected,
   columns,
   columnLabels,
   columnKinds,
+  session,
   onBulkDelete,
   onBulkSet,
+  onDuplicate,
+  onMoveSelected,
   onClear,
 }: {
-  selectedCount: number;
+  rows: Record<string, unknown>[];
+  selected: Set<number>;
   columns: string[];
   columnLabels?: Record<string, string>;
   columnKinds: Record<string, ColumnKind>;
+  session: Session | null;
   onBulkDelete: () => void;
   onBulkSet: (key: string, value: string) => void;
+  onDuplicate: () => void;
+  onMoveSelected: (where: "top" | "bottom") => void;
   onClear: () => void;
 }) {
   const editableColumns = columns.filter((key) => columnKinds[key] !== "assetList");
   const [bulkKey, setBulkKey] = useState(editableColumns[0] ?? "");
   const [bulkValue, setBulkValue] = useState("");
 
-  if (selectedCount === 0) return null;
+  if (selected.size === 0) return null;
+
+  const activeKey = editableColumns.includes(bulkKey) ? bulkKey : (editableColumns[0] ?? "");
+  const kind = columnKinds[activeKey];
+  const label = (key: string) => columnLabels?.[key] ?? labelFor(key);
+  const current = activeKey ? distinctValues(rows, activeKey, selected) : [];
+  const suggestions = activeKey ? distinctValues(rows, activeKey).filter((entry) => entry.value !== "").slice(0, 40) : [];
+  const listId = `bulk-values-${activeKey}`;
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
-      <span className="font-medium text-zinc-700">Zaznaczono: {selectedCount}</span>
-      <button
-        type="button"
-        onClick={onBulkDelete}
-        className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-      >
-        Usuń zaznaczone
-      </button>
+    <div className="mb-2 space-y-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-zinc-700">Zaznaczono: {selected.size}</span>
+        <button type="button" onClick={onDuplicate} className={bulkButtonClass}>
+          Duplikuj zaznaczone
+        </button>
+        <button type="button" onClick={() => onMoveSelected("top")} className={bulkButtonClass}>
+          Na górę
+        </button>
+        <button type="button" onClick={() => onMoveSelected("bottom")} className={bulkButtonClass}>
+          Na dół
+        </button>
+        <button type="button" onClick={onBulkDelete} className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50">
+          Usuń zaznaczone
+        </button>
+        <button type="button" onClick={onClear} className="ml-auto text-xs text-zinc-500 hover:text-zinc-800">
+          Odznacz wszystko
+        </button>
+      </div>
+
       {editableColumns.length > 0 && (
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-start gap-2 border-t border-amber-200 pt-2">
+          <span className="pt-1 text-xs font-medium text-zinc-700">Zmień w zaznaczonych:</span>
           <select
-            value={bulkKey}
-            onChange={(event) => setBulkKey(event.target.value)}
-            className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
+            value={activeKey}
+            onChange={(event) => {
+              setBulkKey(event.target.value);
+              setBulkValue("");
+            }}
+            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs"
             aria-label="Kolumna do masowej zmiany"
           >
             {editableColumns.map((key) => (
               <option key={key} value={key}>
-                {columnLabels?.[key] ?? labelFor(key)}
+                {label(key)}
               </option>
             ))}
           </select>
-          <input
-            type="text"
-            value={bulkValue}
-            onChange={(event) => setBulkValue(event.target.value)}
-            placeholder="Nowa wartość"
-            className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
-          />
-          <button
-            type="button"
-            onClick={() => bulkKey && onBulkSet(bulkKey, bulkValue)}
-            className={bulkButtonClass}
-          >
-            Zastosuj do zaznaczonych
+          <span className="pt-1 text-xs text-zinc-500">na</span>
+          {kind === "asset" ? (
+            <div className="w-64">
+              <AssetEditor label={label(activeKey)} name={`bulk-${activeKey}`} value={bulkValue} path={[]} session={session} onChange={(_, uploaded) => setBulkValue(String(uploaded ?? ""))} />
+            </div>
+          ) : (
+            <>
+              <input
+                type={kind === "number" ? "number" : "text"}
+                list={kind === "number" ? undefined : listId}
+                value={bulkValue}
+                onChange={(event) => setBulkValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && activeKey) {
+                    event.preventDefault();
+                    onBulkSet(activeKey, bulkValue);
+                  }
+                }}
+                placeholder="Nowa wartość"
+                className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs"
+              />
+              <datalist id={listId}>
+                {suggestions.map((entry) => (
+                  <option key={entry.value} value={entry.value} />
+                ))}
+              </datalist>
+            </>
+          )}
+          <button type="button" onClick={() => activeKey && onBulkSet(activeKey, bulkValue)} className={bulkButtonClass}>
+            Zastosuj do {selected.size} {selected.size === 1 ? "wiersza" : "wierszy"}
           </button>
+          {current.length > 0 && (
+            <span className="basis-full text-[11px] text-zinc-500">
+              Obecnie: {current.slice(0, 6).map((entry) => `${entry.value === "" ? "(puste)" : entry.value}${entry.count > 1 ? ` ×${entry.count}` : ""}`).join(" · ")}
+              {current.length > 6 ? " …" : ""}
+            </span>
+          )}
         </div>
       )}
-      <button type="button" onClick={onClear} className="ml-auto text-xs text-zinc-500 hover:text-zinc-800">
-        Odznacz wszystko
-      </button>
     </div>
   );
 }
@@ -443,7 +727,7 @@ function ObjectRowsTable({
     string,
     ColumnKind
   >;
-  const { selected, toggle, toggleAll, clear, isAllSelected } = useRowSelection(rows.length);
+  const { selected, toggle, toggleAll, clear, remap, selectWhere, isAllSelected } = useRowSelection(rows.length);
 
   function handleCellChange(rowIndex: number, key: string, raw: string, kind: ColumnKind) {
     onChange([...path, rowIndex, key], kind === "number" ? Number(raw) || 0 : raw);
@@ -465,6 +749,21 @@ function ObjectRowsTable({
     onChange(path, [...rows, blank]);
   }
 
+  function handleMove(from: number, to: number) {
+    if (to < 0 || to >= rows.length || from === to) return;
+    const { next, order } = moveRow(rows, from, to);
+    onChange(path, next);
+    remap(order);
+  }
+
+  function handleMoveSelected(where: "top" | "bottom") {
+    const { next, order } = moveSelected(rows, selected, where);
+    onChange(path, next);
+    remap(order);
+  }
+
+  const drag = useRowDrag(handleMove);
+
   function handleBulkDelete() {
     onChange(path, rows.filter((_, i) => !selected.has(i)));
     clear();
@@ -481,13 +780,20 @@ function ObjectRowsTable({
 
   return (
     <div>
+      {rows.length > 2 && (
+        <QuickSelect rows={rows} columns={groupableColumns(rows, columns, columnKinds)} columnLabels={columnLabels} onSelect={selectWhere} />
+      )}
       <BulkToolbar
-        selectedCount={selected.size}
+        rows={rows}
+        selected={selected}
         columns={columns}
         columnLabels={columnLabels}
         columnKinds={columnKinds}
+        session={session}
         onBulkDelete={handleBulkDelete}
         onBulkSet={handleBulkSet}
+        onDuplicate={() => onChange(path, duplicateRows(rows, selected))}
+        onMoveSelected={handleMoveSelected}
         onClear={clear}
       />
       <div className="overflow-x-auto rounded-md border border-zinc-200">
@@ -502,6 +808,7 @@ function ObjectRowsTable({
                   aria-label="Zaznacz wszystkie wiersze"
                 />
               </th>
+              <th className="w-px border-b border-zinc-200 px-1 py-2" />
               {columns.map((key) => (
                 <th
                   key={key}
@@ -517,7 +824,10 @@ function ObjectRowsTable({
             {rows.map((row, rowIndex) => (
               <tr
                 key={rowIndex}
-                className={`border-b border-zinc-100 align-top last:border-b-0 ${selected.has(rowIndex) ? "bg-blue-50" : ""}`}
+                {...drag.rowProps(rowIndex)}
+                className={`border-b border-zinc-100 align-top last:border-b-0 ${selected.has(rowIndex) ? "bg-blue-50" : ""} ${
+                  drag.over === rowIndex ? "outline outline-2 -outline-offset-2 outline-blue-400" : ""
+                }`}
               >
                 <td className="px-2 py-1.5">
                   <input
@@ -526,6 +836,9 @@ function ObjectRowsTable({
                     onChange={() => toggle(rowIndex)}
                     aria-label={`Zaznacz wiersz ${rowIndex + 1}`}
                   />
+                </td>
+                <td className="px-1 py-1.5">
+                  <RowOrderCell index={rowIndex} count={rows.length} onMove={handleMove} handleProps={drag.handleProps(rowIndex)} />
                 </td>
                 {columns.map((key) => {
                   const kind = columnKinds[key];
@@ -574,9 +887,7 @@ function ObjectRowsTable({
                   );
                 })}
                 <td className="px-2 py-1.5">
-                  <button type="button" onClick={() => handleRemoveRow(rowIndex)} className={removeButtonClass}>
-                    Usuń
-                  </button>
+                  <RowActionsCell index={rowIndex} onDuplicate={() => onChange(path, duplicateRows(rows, new Set([rowIndex])))} onRemove={() => handleRemoveRow(rowIndex)} />
                 </td>
               </tr>
             ))}
