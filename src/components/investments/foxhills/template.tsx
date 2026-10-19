@@ -6,6 +6,9 @@ import AboutUs from "./AboutUs";
 import Features from "./Features";
 import Apartments from "./Apartments";
 import Standards from "./Standards";
+import BuildStandard from "./BuildStandard";
+import Investment from "./Investment";
+import InvestmentOutlook from "./InvestmentOutlook";
 import Gallery from "./Gallery";
 import Localization from "./Localization";
 import Map from "./Map";
@@ -39,6 +42,9 @@ const template: Record<string, ComponentType<SectionProps>> = {
   Features: Features as ComponentType<SectionProps>,
   Apartments: Apartments as ComponentType<SectionProps>,
   Standards: Standards as ComponentType<SectionProps>,
+  BuildStandard: BuildStandard as ComponentType<SectionProps>,
+  Investment: Investment as ComponentType<SectionProps>,
+  InvestmentOutlook: InvestmentOutlook as ComponentType<SectionProps>,
   Gallery: Gallery as ComponentType<SectionProps>,
   Localization: Localization as ComponentType<SectionProps>,
   Map: Map as ComponentType<SectionProps>,
