@@ -1,0 +1,164 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controller;
+
+use App\Exception\ApiException;
+use App\Http\JsonResponse;
+use App\Http\Request;
+use App\PriceReport\PriceReportGenerator;
+use App\Repository\ActivityLogRepositoryInterface;
+use RuntimeException;
+
+if (!defined('APP_ENTRY')) {
+    http_response_code(403);
+    exit;
+}
+
+/**
+ * "Raportowanie cen" w Ustawieniach panelu — katalog raportu każdej inwestycji
+ * (backend/raporty-cen/<klucz>/), podgląd plików i ręczne generowanie. Codzienne
+ * generowanie robi cron (backend/cron.php), ten sam PriceReportGenerator.
+ */
+final class PriceReportController
+{
+    /** Podgląd w panelu — większe pliki tylko do pobrania. */
+    private const PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
+
+    public function __construct(
+        private readonly PriceReportGenerator $generator,
+        private readonly ActivityLogRepositoryInterface $activity
+    ) {
+    }
+
+    /** GET /price-reports — inwestycje z tabelą historii cen + stan ich katalogów. */
+    public function list(): void
+    {
+        $items = [];
+        foreach ($this->generator->discover() as $investment) {
+            $key = $investment['key'];
+            $dir = $this->generator->directory($key);
+            $files = $this->files($key);
+            $csvFiles = array_values(array_filter($files, static fn (array $file): bool => $file['type'] === 'csv'));
+            $items[] = $investment + [
+                'datasetUrl' => $this->generator->publicUrl($key, 'dataset.xml'),
+                'md5Url' => $this->generator->publicUrl($key, 'dataset.md5'),
+                'hasDataset' => is_file($dir . '/dataset.xml'),
+                'csvCount' => count($csvFiles),
+                'lastCsv' => $csvFiles[0]['name'] ?? null,
+                'status' => $this->generator->status($key),
+            ];
+        }
+
+        JsonResponse::ok($items);
+    }
+
+    /** GET /price-reports/files?key=rudava-park */
+    public function listFiles(Request $request): void
+    {
+        $key = $this->key($request->query['key'] ?? null);
+
+        JsonResponse::ok([
+            'key' => $key,
+            'files' => $this->files($key),
+            'status' => $this->generator->status($key),
+        ]);
+    }
+
+    /** GET /price-reports/file?key=rudava-park&name=dataset.xml — treść do podglądu. */
+    public function file(Request $request): void
+    {
+        $key = $this->key($request->query['key'] ?? null);
+        $name = (string) ($request->query['name'] ?? '');
+        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $name) !== 1 || str_contains($name, '..')) {
+            throw new ApiException('Nieprawidłowa nazwa pliku.', 400);
+        }
+        $path = $this->generator->directory($key) . '/' . $name;
+        if (!is_file($path)) {
+            throw new ApiException('Plik nie istnieje.', 404);
+        }
+        $size = (int) filesize($path);
+
+        JsonResponse::ok([
+            'name' => $name,
+            'size' => $size,
+            'url' => $this->generator->publicUrl($key, $name),
+            'truncated' => $size > self::PREVIEW_MAX_BYTES,
+            'content' => (string) file_get_contents($path, false, null, 0, self::PREVIEW_MAX_BYTES),
+        ]);
+    }
+
+    /**
+     * POST /price-reports/generate  body: {"key": "rudava-park"} — albo bez "key" = wszystkie.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function generate(Request $request, ?array $currentSession): void
+    {
+        $key = $request->jsonBody()['key'] ?? null;
+        $key = is_string($key) && $key !== '' ? $this->key($key) : null;
+
+        try {
+            $results = $this->generator->generate($key);
+        } catch (RuntimeException $exception) {
+            throw new ApiException($exception->getMessage(), 409);
+        }
+
+        $this->activity->log(
+            $currentSession['userId'] ?? null,
+            $currentSession['login'] ?? null,
+            'price-reports.generate',
+            $key ?? 'wszystkie',
+            ['results' => array_map(static fn (array $result): string => "{$result['key']}: {$result['result']}", $results)]
+        );
+
+        JsonResponse::ok($results);
+    }
+
+    private function key(mixed $key): string
+    {
+        if (!is_string($key) || preg_match('/^[a-z0-9][a-z0-9-]*$/', $key) !== 1) {
+            throw new ApiException('Nieprawidłowy klucz inwestycji.', 400);
+        }
+
+        return $key;
+    }
+
+    /** @return list<array{name: string, type: string, size: int, modifiedAt: string, url: string}> najnowsze pierwsze */
+    private function files(string $key): array
+    {
+        $dir = $this->generator->directory($key);
+        if (!is_dir($dir)) {
+            return [];
+        }
+
+        $files = [];
+        foreach (scandir($dir) ?: [] as $name) {
+            // Pliki techniczne (status, tymczasowe zapisu) nie są częścią zbioru danych.
+            if ($name === '.' || $name === '..' || str_starts_with($name, '.') || $name === 'status.json' || str_contains($name, '.tmp-')) {
+                continue;
+            }
+            $path = $dir . '/' . $name;
+            if (!is_file($path)) {
+                continue;
+            }
+            $files[] = [
+                'name' => $name,
+                'type' => strtolower(pathinfo($name, PATHINFO_EXTENSION)),
+                'size' => (int) filesize($path),
+                'modifiedAt' => date(DATE_ATOM, (int) filemtime($path)),
+                'url' => $this->generator->publicUrl($key, $name),
+            ];
+        }
+
+        // dataset.xml i .md5 na górze, potem CSV od najnowszego (data jest w nazwie).
+        usort($files, static function (array $a, array $b): int {
+            $rank = static fn (array $file): int => $file['type'] === 'csv' ? 1 : 0;
+
+            return [$rank($a), $b['name']] <=> [$rank($b), $a['name']];
+        });
+
+        return $files;
+    }
+}

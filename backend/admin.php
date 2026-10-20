@@ -9,6 +9,7 @@ use App\Controller\AdminController;
 use App\Controller\AuthController;
 use App\Controller\BuildController;
 use App\Controller\PermissionsController;
+use App\Controller\PriceReportController;
 use App\Controller\RolesController;
 use App\Controller\UploadController;
 use App\Controller\UsersController;
@@ -19,6 +20,7 @@ use App\Http\Request;
 use App\Http\Router;
 use App\Http\SessionAuth;
 use App\Http\SessionToken;
+use App\PriceReport\PriceReportGenerator;
 use App\Repository\MysqlActivityLogRepository;
 use App\Repository\MysqlPageRepository;
 use App\Repository\MysqlPermissionRepository;
@@ -210,6 +212,29 @@ $router->get('/me', static fn (Request $req) => $permissionsController()->me($re
 $router->get('/activity', static function (Request $req) use ($activityController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'activity.list');
     $activityController()->list($req);
+});
+
+// Raportowanie cen (dane.gov.pl) — katalogi raportów inwestycji, podgląd plików,
+// ręczne generowanie. Codziennie generuje je cron (cron.php) — patrz PriceReportGenerator.php.
+$priceReportController = static fn (): PriceReportController => new PriceReportController(
+    new PriceReportGenerator(new MysqlPageRepository(Connection::get($config)), $config->get('SITE_URL', 'https://kgd-group.pl')),
+    $activityLogRepository()
+);
+$router->get('/price-reports', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.list');
+    $priceReportController()->list();
+});
+$router->get('/price-reports/files', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.list');
+    $priceReportController()->listFiles($req);
+});
+$router->get('/price-reports/file', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.list');
+    $priceReportController()->file($req);
+});
+$router->post('/price-reports/generate', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.generate');
+    $priceReportController()->generate($req, $currentSession);
 });
 
 $router->dispatch($request);

@@ -9,7 +9,7 @@
 #   /inwestycja/xyz   -> inwestycja/xyz/**     (ścieżka bez rozszerzenia = katalog strony)
 #   blog/ , blog/*    -> blog/**               (cały katalog, z podkatalogami)
 #   api/**, *.pdf     -> bez zmian             (gotowy glob)
-# Zawsze dokłada **/.env (konfiguracja serwera — patrz deploy.yml).
+# Zawsze dokłada **/.env (konfiguracja serwera — patrz deploy.yml) i api/raporty-cen/** (raporty cen z serwera).
 #
 # Wypisuje gotową listę (po jednym wzorcu w linii) na stdout. Kończy się błędem
 # przy wzorcu, który zepsułby stronę: _next/** (JS/CSS wszystkich stron) albo "wszystko".
@@ -29,6 +29,8 @@ entries() {
 }
 
 echo '**/.env'
+# Raporty cen generowane NA SERWERZE (cron.php) — deploy nie może ich nadpisać ani skasować.
+echo 'api/raporty-cen/**'
 seen=" "
 while IFS= read -r raw; do
   pattern="$(printf '%s' "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"

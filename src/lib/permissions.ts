@@ -31,6 +31,8 @@ export const PERMISSIONS = [
   "roles.delete",
   "roles.permissions.manage",
   "activity.list",
+  "reports.list",
+  "reports.generate",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

@@ -337,3 +337,61 @@ export function fetchActivity(
     session,
   });
 }
+
+/** Wynik ostatniego generowania raportu cen inwestycji (status.json w jej katalogu — patrz PriceReportGenerator.php). */
+export type PriceReportStatus = {
+  key: string;
+  name: string;
+  sourceSlug: string;
+  generatedAt: string;
+  result: "ok" | "skipped" | "error";
+  message: string;
+  datasetUrl: string;
+  md5Url: string;
+  developer?: string;
+  dataDate?: string;
+  rows?: number;
+  csv?: string;
+  csvUrl?: string;
+  md5?: string;
+  warnings: string[];
+};
+
+export type PriceReportInvestment = {
+  key: string;
+  name: string;
+  sourceSlug: string;
+  published: boolean;
+  datasetUrl: string;
+  md5Url: string;
+  hasDataset: boolean;
+  csvCount: number;
+  lastCsv: string | null;
+  status: PriceReportStatus | null;
+};
+
+export type PriceReportFile = { name: string; type: string; size: number; modifiedAt: string; url: string };
+
+/** GET /price-reports — inwestycje z tabelą historii cen i stan ich katalogów raportów (uprawnienie reports.list). */
+export function fetchPriceReports(session: Session | null): Promise<PriceReportInvestment[]> {
+  return request<PriceReportInvestment[]>("/price-reports", { session });
+}
+
+/** GET /price-reports/files — pliki w katalogu raportu jednej inwestycji. */
+export function fetchPriceReportFiles(key: string, session: Session | null): Promise<{ key: string; files: PriceReportFile[]; status: PriceReportStatus | null }> {
+  return request<{ key: string; files: PriceReportFile[]; status: PriceReportStatus | null }>("/price-reports/files", { params: { key }, session });
+}
+
+/** GET /price-reports/file — treść pliku do podglądu (do 2 MB). */
+export function fetchPriceReportFile(
+  key: string,
+  name: string,
+  session: Session | null
+): Promise<{ name: string; size: number; url: string; truncated: boolean; content: string }> {
+  return request<{ name: string; size: number; url: string; truncated: boolean; content: string }>("/price-reports/file", { params: { key, name }, session });
+}
+
+/** POST /price-reports/generate — jedna inwestycja (key) albo wszystkie (bez key); uprawnienie reports.generate. */
+export function generatePriceReports(session: Session | null, key?: string): Promise<PriceReportStatus[]> {
+  return request<PriceReportStatus[]>("/price-reports/generate", { method: "POST", body: key ? { key } : {}, session });
+}

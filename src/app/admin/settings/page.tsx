@@ -8,6 +8,7 @@ import UsersPanel from "@/components/admin/UsersPanel";
 import RolesPanel from "@/components/admin/RolesPanel";
 import PermissionsPanel from "@/components/admin/PermissionsPanel";
 import ActivityLogPanel from "@/components/admin/ActivityLogPanel";
+import PriceReportsPanel from "@/components/admin/PriceReportsPanel";
 import { can } from "@/lib/permissions";
 import {
   AdminApiError,
@@ -36,7 +37,7 @@ import {
  * (patrz Authorization::require() po stronie backendu).
  */
 
-type TabKey = "account" | "users" | "roles" | "permissions" | "activity";
+type TabKey = "account" | "users" | "roles" | "permissions" | "activity" | "reports";
 
 type ViewState =
   | { status: "checking" }
@@ -102,6 +103,7 @@ export default function AdminSettingsPage() {
     if (can(session?.permissions, "users.list")) list.push({ key: "users", label: "Konta" });
     if (can(session?.permissions, "roles.list")) list.push({ key: "roles", label: "Role" });
     if (can(session?.permissions, "roles.permissions.manage")) list.push({ key: "permissions", label: "Uprawnienia" });
+    if (can(session?.permissions, "reports.list")) list.push({ key: "reports", label: "Raportowanie cen" });
     if (can(session?.permissions, "activity.list")) list.push({ key: "activity", label: "Aktywność" });
     return list;
   }, [session]);
@@ -166,6 +168,7 @@ export default function AdminSettingsPage() {
           {activeTab === "users" && <UsersPanel initialUsers={view.users} roles={view.roles} session={session} />}
           {activeTab === "roles" && <RolesPanel initialRoles={view.roles} session={session} />}
           {activeTab === "permissions" && <PermissionsPanel users={view.users} roles={view.roles} session={session} />}
+          {activeTab === "reports" && <PriceReportsPanel session={session} />}
           {activeTab === "activity" && <ActivityLogPanel session={session} />}
         </div>
       )}
