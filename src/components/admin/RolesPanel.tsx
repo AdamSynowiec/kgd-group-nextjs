@@ -4,8 +4,9 @@ import { useState } from "react";
 import { AdminApiError, createRole, deleteRole, type RoleAccount, type Session } from "@/lib/adminApi";
 import { can } from "@/lib/permissions";
 import Can from "@/components/admin/Can";
+import { ui } from "@/components/admin/ui";
 
-const inputClass = "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
+const inputClass = ui.input;
 
 /**
  * Zarządzanie rolami — dodawanie i usuwanie, mirror UsersPanel.tsx. "name"
@@ -52,14 +53,14 @@ function NewRoleForm({ session, onCreated }: { session: Session | null; onCreate
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-zinc-200 bg-white p-6">
+    <form onSubmit={handleSubmit} className={`${ui.card} space-y-4 p-6`}>
       <h2 className="text-sm font-semibold text-zinc-900">Nowa rola</h2>
 
-      {errorMessage && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>}
+      {errorMessage && <p className={ui.alertError}>{errorMessage}</p>}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Nazwa techniczna</label>
+          <label className={ui.label}>Nazwa techniczna</label>
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -70,7 +71,7 @@ function NewRoleForm({ session, onCreated }: { session: Session | null; onCreate
           <p className="mt-1 text-xs text-zinc-400">Małe litery, cyfry, &quot;-&quot;/&quot;_&quot;. Nie da się jej później zmienić.</p>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Etykieta</label>
+          <label className={ui.label}>Etykieta</label>
           <input
             value={label}
             onChange={(event) => setLabel(event.target.value)}
@@ -84,7 +85,7 @@ function NewRoleForm({ session, onCreated }: { session: Session | null; onCreate
       <button
         type="submit"
         disabled={submitting || name.trim() === "" || label.trim() === ""}
-        className="rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50"
+        className={ui.btnPrimary}
       >
         {submitting ? "Dodawanie..." : "Dodaj rolę"}
       </button>
@@ -127,7 +128,7 @@ function RoleList({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+    <div className={`${ui.card} overflow-hidden`}>
       {errorMessage && <p className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">{errorMessage}</p>}
       <ul className="divide-y divide-zinc-100">
         {roles.map((role) => {
@@ -137,7 +138,7 @@ function RoleList({
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium text-zinc-900">{role.label}</span>
-                  <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-600">{role.name}</span>
+                  <span className={`${ui.badge} ${ui.badgeNeutral} shrink-0`}>{role.name}</span>
                 </div>
                 <div className="truncate text-sm text-zinc-500">utworzono: {role.createdAt}</div>
               </div>
@@ -146,7 +147,7 @@ function RoleList({
                   onClick={() => handleDelete(role)}
                   disabled={isAdmin || pendingName === role.name}
                   title={isAdmin ? 'Roli "admin" nie można usunąć.' : undefined}
-                  className="shrink-0 rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
+                  className={`${ui.btnDanger} shrink-0`}
                 >
                   {pendingName === role.name ? "Usuwanie..." : "Usuń"}
                 </button>

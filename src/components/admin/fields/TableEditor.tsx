@@ -8,10 +8,11 @@ import AssetEditor from "./AssetEditor";
 import { inputClass, type FieldEditorProps, type OnChange, type Path } from "./types";
 
 const removeButtonClass =
-  "rounded-md border border-zinc-200 px-2 py-1.5 text-xs text-zinc-500 hover:border-red-300 hover:text-red-600";
-const addButtonClass = "mt-2 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50";
+  "rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600";
+const addButtonClass =
+  "mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700";
 const bulkButtonClass =
-  "rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-100";
+  "rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-zinc-300 hover:bg-zinc-50";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -138,7 +139,7 @@ function useRowDrag(onMove: (from: number, to: number) => void) {
 }
 
 const rowIconButtonClass =
-  "grid h-7 w-7 place-items-center rounded-md border border-zinc-200 text-xs text-zinc-500 hover:border-zinc-400 hover:text-zinc-800 disabled:opacity-30 disabled:hover:border-zinc-200 disabled:hover:text-zinc-500";
+  "grid h-7 w-7 place-items-center rounded-lg border border-zinc-200 bg-white text-xs text-zinc-500 hover:border-zinc-400 hover:text-zinc-800 disabled:opacity-30 disabled:hover:border-zinc-200 disabled:hover:text-zinc-500";
 
 /** Uchwyt do przeciągania + strzałki w pierwszej kolumnie wiersza. */
 function RowOrderCell({
@@ -279,7 +280,7 @@ function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]
   return (
     <div>
       {selected.size > 0 && (
-        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2.5 text-sm">
           <span className="font-medium text-zinc-700">Zaznaczono: {selected.size}</span>
           <button type="button" onClick={() => onChange(path, duplicateRows(rows, selected))} className={bulkButtonClass}>
             Duplikuj zaznaczone
@@ -311,10 +312,10 @@ function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-md border border-zinc-200">
+      <div className="overflow-x-auto rounded-lg border border-zinc-200">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-zinc-50">
+            <tr className="bg-zinc-50/80">
               <th className="w-8 border-b border-zinc-200 px-2 py-2">
                 <input
                   type="checkbox"
@@ -628,7 +629,7 @@ function BulkToolbar({
   const listId = `bulk-values-${activeKey}`;
 
   return (
-    <div className="mb-2 space-y-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+    <div className="mb-2 space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2.5 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-zinc-700">Zaznaczono: {selected.size}</span>
         <button type="button" onClick={onDuplicate} className={bulkButtonClass}>
@@ -649,7 +650,7 @@ function BulkToolbar({
       </div>
 
       {editableColumns.length > 0 && (
-        <div className="flex flex-wrap items-start gap-2 border-t border-amber-200 pt-2">
+        <div className="flex flex-wrap items-start gap-2 border-t border-indigo-200/70 pt-2">
           <span className="pt-1 text-xs font-medium text-zinc-700">Zmień w zaznaczonych:</span>
           <select
             value={activeKey}
@@ -796,10 +797,10 @@ function ObjectRowsTable({
         onMoveSelected={handleMoveSelected}
         onClear={clear}
       />
-      <div className="overflow-x-auto rounded-md border border-zinc-200">
+      <div className="overflow-x-auto rounded-lg border border-zinc-200">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-zinc-50">
+            <tr className="bg-zinc-50/80">
               <th className="w-8 border-b border-zinc-200 px-2 py-2">
                 <input
                   type="checkbox"
@@ -917,7 +918,7 @@ function DictTable({
   void session; // słownikowe wartości są dziś zawsze tekstowe (errors/placeholders/consents) — brak assetów do przesłania
 
   return (
-    <div className="overflow-x-auto rounded-md border border-zinc-200">
+    <div className="overflow-x-auto rounded-lg border border-zinc-200">
       <table className="w-full border-collapse text-sm">
         <tbody>
           {Object.entries(value).map(([key, val]) => {

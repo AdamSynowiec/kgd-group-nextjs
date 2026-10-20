@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useBrand } from "@/components/admin/BrandProvider";
+import { ui } from "@/components/admin/ui";
 
 export default function LoginForm({
   onSubmit,
@@ -26,48 +27,45 @@ export default function LoginForm({
   }
 
   return (
-    <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-8 shadow-sm">
-      <div className="mb-6 flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-foreground text-sm font-bold text-background">
+    <div className="w-full max-w-[400px]">
+      <div className="mb-8 flex flex-col items-center text-center">
+        <span className="grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-950 text-lg font-semibold text-white shadow-[0_8px_24px_-6px_rgba(16,24,40,0.45),inset_0_1px_0_rgba(255,255,255,0.12)]">
           {brand.name.charAt(0).toUpperCase()}
         </span>
-        <span className="truncate text-sm font-semibold text-zinc-900">{brand.name} — panel</span>
+        <h1 className="mt-5 text-xl font-semibold tracking-tight text-zinc-900">Zaloguj się do panelu</h1>
+        <p className="mt-1.5 text-sm text-zinc-500">{brand.name} — zarządzanie treścią strony</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {errorMessage && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {errorMessage}
-          </p>
-        )}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Login</label>
-          <input
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            autoFocus
-            disabled={submitting}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none disabled:opacity-50"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Hasło</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={submitting}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none disabled:opacity-50"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50"
-        >
-          {submitting ? "Logowanie..." : "Zaloguj"}
-        </button>
-      </form>
+      <div className="rounded-2xl border border-zinc-200/80 bg-white p-7 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_40px_-12px_rgba(16,24,40,0.12)]">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {errorMessage && <p className={ui.alertError}>{errorMessage}</p>}
+          <div>
+            <label htmlFor="admin-login" className={ui.label}>
+              Login
+            </label>
+            <input id="admin-login" value={username} onChange={(event) => setUsername(event.target.value)} autoFocus autoComplete="username" disabled={submitting} className={ui.input} />
+          </div>
+          <div>
+            <label htmlFor="admin-password" className={ui.label}>
+              Hasło
+            </label>
+            <input
+              id="admin-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              disabled={submitting}
+              className={ui.input}
+            />
+          </div>
+          <button type="submit" disabled={submitting} className={`${ui.btnPrimary} w-full`}>
+            {submitting ? "Logowanie..." : "Zaloguj się"}
+          </button>
+        </form>
+      </div>
+
+      <p className="mt-6 text-center text-xs text-zinc-400">Dostęp tylko dla uprawnionych osób.</p>
     </div>
   );
 }

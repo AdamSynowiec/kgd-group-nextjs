@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDownIcon } from "@/components/admin/icons";
+import { ChevronDownIcon, RocketIcon } from "@/components/admin/icons";
+import { ui } from "@/components/admin/ui";
 import { fetchBuildStatus, triggerBuild, type BuildMode, type Session } from "@/lib/adminApi";
 
 type State =
@@ -34,7 +35,7 @@ function Spinner() {
   return (
     <span
       aria-hidden
-      className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600"
+      className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white"
     />
   );
 }
@@ -139,14 +140,14 @@ export default function BuildButton({ session }: { session: Session | null }) {
   const busy = state.phase === "triggering" || state.phase === "waiting";
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-3">
       <div ref={menuRef} className="relative flex">
         <button
           onClick={() => void run("quick")}
           disabled={busy}
-          className="flex items-center gap-2 rounded-l-full border border-zinc-300 py-2 pl-4 pr-3 text-sm font-medium transition-colors hover:bg-black/[.04] disabled:opacity-50"
+          className="flex items-center gap-2 rounded-l-lg bg-zinc-900 py-2 pl-3.5 pr-3 text-sm font-medium text-white shadow-[0_1px_2px_rgba(16,24,40,0.12),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:bg-zinc-800 disabled:opacity-60"
         >
-          {busy && <Spinner />}
+          {busy ? <Spinner /> : <RocketIcon className="h-4 w-4 text-zinc-300" />}
           {state.phase === "triggering" && "Uruchamianie..."}
           {state.phase === "waiting" && (activeMode === "full" ? "Budowanie (pełny)..." : "Budowanie...")}
           {!busy && "Zbuduj stronę"}
@@ -158,27 +159,27 @@ export default function BuildButton({ session }: { session: Session | null }) {
           aria-label="Więcej opcji budowania"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          className="flex items-center rounded-r-full border border-l-0 border-zinc-300 px-2.5 py-2 text-zinc-500 transition-colors hover:bg-black/[.04] disabled:opacity-50"
+          className="flex items-center rounded-r-lg border-l border-white/10 bg-zinc-900 px-2 py-2 text-zinc-300 shadow-[0_1px_2px_rgba(16,24,40,0.12)] transition hover:bg-zinc-800 hover:text-white disabled:opacity-60"
         >
           <ChevronDownIcon className="h-4 w-4" />
         </button>
 
         {menuOpen && (
-          <div role="menu" className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg">
+          <div role="menu" className="absolute right-0 top-full z-40 mt-2 w-72 overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-1 shadow-[0_12px_32px_-8px_rgba(16,24,40,0.18)]">
             <button
               role="menuitem"
               onClick={handleFullBuild}
-              className="block w-full px-4 py-2.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+              className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-zinc-800 hover:bg-zinc-50"
             >
               Pełny build
-              <span className="block text-xs text-zinc-400">Przebuduje i wgra całą stronę, razem z blogiem</span>
+              <span className="mt-0.5 block text-xs font-normal text-zinc-500">Przebuduje i wgra całą stronę, razem z blogiem</span>
             </button>
           </div>
         )}
       </div>
 
       {state.phase === "success" && (
-        <span className="text-sm text-green-600">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/15">
           ✓ Zbudowano pomyślnie.
           {state.htmlUrl && (
             <>
@@ -192,7 +193,7 @@ export default function BuildButton({ session }: { session: Session | null }) {
       )}
 
       {state.phase === "failure" && (
-        <span className="text-sm text-red-600">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/15">
           Build zakończył się błędem ({state.conclusion}).
           {state.htmlUrl && (
             <>
@@ -206,7 +207,7 @@ export default function BuildButton({ session }: { session: Session | null }) {
       )}
 
       {state.phase === "timeout" && (
-        <span className="text-sm text-amber-600">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
           Build trwa dłużej niż zwykle.
           {repoUrl && (
             <>
@@ -220,11 +221,11 @@ export default function BuildButton({ session }: { session: Session | null }) {
         </span>
       )}
 
-      {state.phase === "error" && <span className="text-sm text-red-600">{state.message}</span>}
+      {state.phase === "error" && <span className="max-w-xs truncate rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/15" title={state.message}>{state.message}</span>}
 
       {confirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true" aria-labelledby="full-build-title">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="full-build-title">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-2xl">
             <h2 id="full-build-title" className="text-base font-semibold text-zinc-900">
               Pełna przebudowa strony
             </h2>
@@ -237,10 +238,10 @@ export default function BuildButton({ session }: { session: Session | null }) {
               Nie pokazuj więcej tej wiadomości
             </label>
             <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setConfirmOpen(false)} className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+              <button onClick={() => setConfirmOpen(false)} className={ui.btnSecondary}>
                 Anuluj
               </button>
-              <button onClick={confirmFullBuild} className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700">
+              <button onClick={confirmFullBuild} className={ui.btnPrimary}>
                 Uruchom pełny build
               </button>
             </div>

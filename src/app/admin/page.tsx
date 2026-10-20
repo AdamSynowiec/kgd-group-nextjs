@@ -37,7 +37,7 @@ type ViewState =
 function viewTitle(view: ViewState): string {
   switch (view.status) {
     case "editing":
-      return `Edycja — ${view.slug}`;
+      return "Edycja strony";
     case "error":
       return "Błąd";
     case "checking":
@@ -122,7 +122,7 @@ export default function AdminPage() {
 
   return (
     <AdminShell title={viewTitle(view)} session={session} onLogout={goToLogin}>
-      {view.status === "checking" && <p className="text-sm text-zinc-500">Wczytywanie...</p>}
+      {view.status === "checking" && <LoadingSkeleton />}
 
       {view.status === "list" && <PageList initialPages={view.pages} session={session} onEdit={handleEdit} />}
 
@@ -131,10 +131,31 @@ export default function AdminPage() {
       )}
 
       {view.status === "error" && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {view.message}
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+          <div className="font-medium">Nie udało się wczytać danych</div>
+          <div className="mt-1 text-red-600">{view.message}</div>
+          <button onClick={handleBack} className="mt-3 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100/50">
+            Spróbuj ponownie
+          </button>
         </div>
       )}
     </AdminShell>
+  );
+}
+
+/** Szkielet listy na czas wczytywania — zamiast samego napisu. */
+function LoadingSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4" aria-busy="true" aria-label="Wczytywanie">
+      <div className="h-7 w-40 rounded-md bg-zinc-200/80" />
+      <div className="grid grid-cols-3 gap-3 sm:max-w-xl">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-[68px] rounded-xl bg-zinc-200/60" />
+        ))}
+      </div>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="h-16 rounded-xl bg-zinc-200/50" />
+      ))}
+    </div>
   );
 }

@@ -115,25 +115,37 @@ export default function AdminSettingsPage() {
 
   return (
     <AdminShell title="Ustawienia" session={session} onLogout={goToLogin}>
-      {view.status === "checking" && <p className="text-sm text-zinc-500">Wczytywanie...</p>}
+      {view.status === "checking" && (
+        <div className="max-w-5xl animate-pulse space-y-4" aria-busy="true">
+          <div className="h-7 w-40 rounded-md bg-zinc-200/80" />
+          <div className="h-9 w-80 rounded-lg bg-zinc-200/60" />
+          <div className="h-56 rounded-xl bg-zinc-200/50" />
+        </div>
+      )}
 
       {view.status === "ready" && (
-        <div>
-          <div className="mb-6 flex gap-1 border-b border-zinc-200">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                aria-current={activeTab === tab.key ? "page" : undefined}
-                className={
-                  activeTab === tab.key
-                    ? "border-b-2 border-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-900"
-                    : "border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900"
-                }
-              >
-                {tab.label}
-              </button>
-            ))}
+        <div className="max-w-5xl">
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Ustawienia</h2>
+            <p className="mt-1 text-sm text-zinc-500">Twoje konto, użytkownicy panelu, role i uprawnienia.</p>
+          </div>
+          <div className="mb-6 overflow-x-auto">
+            <div className="inline-flex gap-1 rounded-lg bg-zinc-100 p-1 ring-1 ring-inset ring-zinc-200/60" role="tablist" aria-label="Sekcje ustawień">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  role="tab"
+                  aria-selected={activeTab === tab.key}
+                  aria-current={activeTab === tab.key ? "page" : undefined}
+                  className={`whitespace-nowrap rounded-md px-3.5 py-1.5 text-[13px] font-medium transition ${
+                    activeTab === tab.key ? "bg-white text-zinc-900 shadow-[0_1px_2px_rgba(16,24,40,0.08)] ring-1 ring-zinc-200/80" : "text-zinc-500 hover:text-zinc-900"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {activeTab === "account" && (
@@ -159,7 +171,7 @@ export default function AdminSettingsPage() {
       )}
 
       {view.status === "error" && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
           {view.message}
         </div>
       )}

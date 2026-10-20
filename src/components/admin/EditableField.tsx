@@ -118,33 +118,86 @@ function collectFields(
   return [];
 }
 
-/** Wejście panelu: zamienia treść strony na płaski formularz — jeden podpisany input pod drugim, bez zagnieżdżeń. */
+export type FieldSection = { id: string; label: string; fields: FlatField[] };
+
+/**
+ * Pola z collectFields() pogrupowane w sekcje wg kontekstu (np. "Hero", "Lokalizacja") —
+ * kolejne pola z tym samym groupPrefix trafiają do jednej karty edytora. Pola najwyższego
+ * poziomu (bez kontekstu, np. tytuł strony) lądują w sekcji "Ogólne".
+ */
+export function fieldSections(node: unknown, role: string | null | undefined): FieldSection[] {
+  const pageAcl = isPlainObject(node) ? (node.acl as Acl | undefined) : undefined;
+  const sections: FieldSection[] = [];
+  for (const field of collectFields(node, [], null, null, role, pageAcl)) {
+    const label = field.groupPrefix ?? "Ogólne";
+    const last = sections[sections.length - 1];
+    if (last && last.label === label) last.fields.push(field);
+    else sections.push({ id: `sekcja-${sections.length + 1}`, label, fields: [field] });
+  }
+  return sections;
+}
+
+/**
+ * Wejście panelu: zamienia treść strony na formularz — sekcje (karty, zwijane) z
+ * podpisanymi polami jedno pod drugim, bez zagnieżdżeń. Zwinięte sekcje kontroluje
+ * rodzic (ContentEditor — spis sekcji obok rozwija sekcję, do której przewija).
+ */
 export default function EditableField({
   node,
   session,
   onChange,
+  collapsed,
+  onToggleSection,
 }: {
   node: unknown;
   session: Session | null;
   onChange: OnChange;
+  collapsed?: Set<string>;
+  onToggleSection?: (id: string) => void;
 }) {
   // "acl" na najwyższym poziomie treści to acl CAŁEJ STRONY (patrz Page.acl w
   // src/lib/content.ts) — dziedziczone przez każde pole bez własnego "acl",
   // patrz komentarz przy collectFields().
   const pageAcl = isPlainObject(node) ? (node.acl as Acl | undefined) : undefined;
-  const fields = collectFields(node, [], null, null, session?.role, pageAcl);
+  const sections = fieldSections(node, session?.role);
 
-  if (fields.length === 0) {
-    return <p className="text-sm text-zinc-500">Ta strona nie ma pól do edycji.</p>;
+  if (sections.length === 0) {
+    return <p className="rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-10 text-center text-sm text-zinc-500">Ta strona nie ma pól do edycji.</p>;
   }
 
   return (
-    <div className="divide-y divide-zinc-100">
-      {fields.map((field) => (
-        <div key={field.path.join(".")} className="py-4 first:pt-0 last:pb-0">
-          <EditableControl field={field} session={session} pageAcl={pageAcl} onChange={onChange} />
-        </div>
-      ))}
+    <div className="space-y-4">
+      {sections.map((section, index) => {
+        const isCollapsed = collapsed?.has(section.id) ?? false;
+        return (
+          <section key={section.id} id={section.id} className="scroll-mt-36 overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+            <button
+              type="button"
+              onClick={() => onToggleSection?.(section.id)}
+              aria-expanded={!isCollapsed}
+              className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition hover:bg-zinc-50/80"
+            >
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-zinc-100 text-[11px] font-semibold tabular-nums text-zinc-500 ring-1 ring-inset ring-zinc-200/60">{index + 1}</span>
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-900">{section.label}</span>
+              <span className="shrink-0 text-xs tabular-nums text-zinc-400">
+                {section.fields.length} {section.fields.length === 1 ? "pole" : section.fields.length < 5 ? "pola" : "pól"}
+              </span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}>
+                <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {!isCollapsed && (
+              <div className="divide-y divide-zinc-100 border-t border-zinc-100">
+                {section.fields.map((field) => (
+                  <div key={field.path.join(".")} className="px-5 py-5">
+                    <EditableControl field={field} session={session} pageAcl={pageAcl} onChange={onChange} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -171,7 +224,7 @@ function EditableControl({
   pageAcl: Acl | undefined;
   onChange: OnChange;
 }) {
-  const { groupPrefix, ownLabel, name, node, path, columnLabels } = field;
+  const { ownLabel, name, node, path, columnLabels } = field;
   const valuePath = [...path, "value"];
 
   // "acl" z permission:"read" (bez "write") blokuje edycję dokładnie tak samo jak
@@ -183,10 +236,14 @@ function EditableControl({
     const preview = isPlainObject(node.value) || Array.isArray(node.value) ? JSON.stringify(node.value) : String(node.value);
     return (
       <div>
-        {groupPrefix && <div className="text-xs font-semibold uppercase tracking-wide text-zinc-400">{groupPrefix}</div>}
-        <div className="text-sm font-medium text-zinc-500">{ownLabel}</div>
-        <div className="font-mono text-[10px] text-zinc-400">{name}</div>
-        <div className="mt-1 text-sm text-zinc-400">{preview} · tylko do odczytu</div>
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="text-[13px] font-medium text-zinc-500">{ownLabel}</div>
+          <code className="font-mono text-[10px] text-zinc-400">{name}</code>
+        </div>
+        <div className="mt-1.5 rounded-lg border border-dashed border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500">
+          {preview}
+          <span className="ml-2 text-xs text-zinc-400">· tylko do odczytu</span>
+        </div>
       </div>
     );
   }
@@ -197,20 +254,20 @@ function EditableControl({
 
   return (
     <div>
-      {groupPrefix && (
-        <div className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">{groupPrefix}</div>
-      )}
-      <input
-        type="text"
-        value={ownLabel}
-        onChange={(event) => onChange([...path, "label"], event.target.value)}
-        aria-label="Etykieta pola"
-        className="mb-0.5 block w-full border-none bg-transparent p-0 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-0"
-      />
-      <div className="mb-1.5 font-mono text-[10px] text-zinc-400">{name}</div>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <input
+          type="text"
+          value={ownLabel}
+          onChange={(event) => onChange([...path, "label"], event.target.value)}
+          aria-label="Etykieta pola"
+          title="Etykieta pola (można zmienić)"
+          className="-mx-1 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium text-zinc-800 outline-none transition hover:border-zinc-200 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
+        />
+        <code className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">{name}</code>
+      </div>
 
       {!declaredType && (
-        <div className="mb-1.5 text-[11px] text-amber-600">
+        <div className="mb-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-700 ring-1 ring-inset ring-amber-600/15">
           ⚠ Pole bez zadeklarowanego typu — wykryto awaryjnie: {effectiveType}. Zgłoś to do dewelopera (patrz
           scripts/migrate-field-types.ts / backend/scripts/backfill-field-types.php).
         </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AdminApiError, fetchActivity, type ActivityEntry, type Session } from "@/lib/adminApi";
+import { ui } from "@/components/admin/ui";
 
 const PAGE_SIZE = 50;
 
@@ -45,7 +46,7 @@ export default function ActivityLogPanel({ session }: { session: Session | null 
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-zinc-50 disabled:opacity-40"
+            className={ui.btnSecondarySm}
           >
             ← Nowsze
           </button>
@@ -55,21 +56,21 @@ export default function ActivityLogPanel({ session }: { session: Session | null 
           <button
             onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
             disabled={page + 1 >= totalPages}
-            className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-zinc-50 disabled:opacity-40"
+            className={ui.btnSecondarySm}
           >
             Starsze →
           </button>
         </div>
       </div>
 
-      {errorMessage && <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>}
+      {errorMessage && <p className={`${ui.alertError} mb-4`}>{errorMessage}</p>}
 
       {items === null && !errorMessage && <p className="text-sm text-zinc-500">Wczytywanie...</p>}
 
       {items !== null && items.length === 0 && <p className="text-sm text-zinc-500">Brak zdarzeń.</p>}
 
       {items !== null && items.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+        <div className={`${ui.card} overflow-hidden`}>
           <ul className="divide-y divide-zinc-100">
             {items.map((entry) => (
               <li key={entry.id} className="flex flex-wrap items-start justify-between gap-2 px-5 py-3 text-sm">

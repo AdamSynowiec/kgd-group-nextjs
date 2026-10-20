@@ -1,11 +1,11 @@
 import type { Session } from "@/lib/adminApi";
 import type { FieldType } from "@/lib/fieldType";
+import { ui } from "../ui";
 
 export type Path = (string | number)[];
 export type OnChange = (path: Path, value: unknown) => void;
 
-export const inputClass =
-  "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
+export const inputClass = ui.input;
 
 /**
  * Wspólny kontrakt KAŻDEGO edytora w rejestrze (registry.ts) — panel wybiera

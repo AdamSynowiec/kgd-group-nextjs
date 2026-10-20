@@ -4,10 +4,11 @@ import { useState } from "react";
 import { uploadAsset, type Session } from "@/lib/adminApi";
 import { isSafeUrl } from "@/lib/richText/sanitizeHtml";
 import type { ImageWidth } from "@/lib/richText/commands";
+import { ui } from "@/components/admin/ui";
 
 const buttonClass =
   "rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white";
-const inputClass = "w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm focus:border-zinc-500 focus:outline-none";
+const inputClass = `${ui.input} py-1.5`;
 
 type WidthMode = "auto" | "percent" | "px";
 

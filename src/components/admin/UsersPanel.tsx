@@ -11,9 +11,9 @@ import {
 } from "@/lib/adminApi";
 import { can } from "@/lib/permissions";
 import Can from "@/components/admin/Can";
+import { ui } from "@/components/admin/ui";
 
-const inputClass =
-  "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
+const inputClass = ui.input;
 
 /**
  * Zarządzanie kontami panelu — dodawanie i usuwanie. Lista przychodzi już
@@ -85,19 +85,19 @@ function NewUserForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-zinc-200 bg-white p-6"
+      className={`${ui.card} space-y-4 p-6`}
     >
       <h2 className="text-sm font-semibold text-zinc-900">Nowe konto</h2>
 
       {errorMessage && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className={ui.alertError}>
           {errorMessage}
         </p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Login</label>
+          <label className={ui.label}>Login</label>
           <input
             value={login}
             onChange={(event) => setLogin(event.target.value)}
@@ -106,7 +106,7 @@ function NewUserForm({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Hasło</label>
+          <label className={ui.label}>Hasło</label>
           <input
             type="password"
             value={password}
@@ -117,7 +117,7 @@ function NewUserForm({
           <p className="mt-1 text-xs text-zinc-400">min. 8 znaków</p>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Rola</label>
+          <label className={ui.label}>Rola</label>
           <select value={role} onChange={(event) => setRole(event.target.value)} disabled={submitting} className={inputClass}>
             {roles.length === 0 && <option value="">Brak ról — dodaj jedną w sekcji &quot;Role&quot;</option>}
             {roles.map((r) => (
@@ -132,7 +132,7 @@ function NewUserForm({
       <button
         type="submit"
         disabled={submitting || login.trim() === "" || password === "" || role === ""}
-        className="rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50"
+        className={ui.btnPrimary}
       >
         {submitting ? "Dodawanie..." : "Dodaj konto"}
       </button>
@@ -176,7 +176,7 @@ function UserList({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+    <div className={`${ui.card} overflow-hidden`}>
       {errorMessage && (
         <p className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">
           {errorMessage}
@@ -190,7 +190,7 @@ function UserList({
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium text-zinc-900">{user.login}</span>
-                  <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-600">
+                  <span className={`${ui.badge} ${ui.badgeNeutral} shrink-0`}>
                     {user.role}
                   </span>
                   {isSelf && (
@@ -206,7 +206,7 @@ function UserList({
                   onClick={() => handleDelete(user)}
                   disabled={isSelf || pendingId === user.id}
                   title={isSelf ? "Nie możesz usunąć własnego konta." : undefined}
-                  className="shrink-0 rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
+                  className={`${ui.btnDanger} shrink-0`}
                 >
                   {pendingId === user.id ? "Usuwanie..." : "Usuń"}
                 </button>

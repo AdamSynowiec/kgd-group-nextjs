@@ -14,8 +14,9 @@ import {
   type UserPermissions,
 } from "@/lib/adminApi";
 import { PERMISSIONS } from "@/lib/permissions";
+import { ui } from "@/components/admin/ui";
 
-const selectClass = "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none";
+const selectClass = ui.input;
 
 /**
  * Sekcja "Uprawnienia": (1) grid rola->uprawnienia (checkboxy, zapis per
@@ -64,7 +65,7 @@ function RoleGrid({ roles, session }: { roles: RoleAccount[]; session: Session |
   }, [session]);
 
   if (errorMessage) {
-    return <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>;
+    return <p className={ui.alertError}>{errorMessage}</p>;
   }
 
   if (grants === null) {
@@ -113,7 +114,7 @@ function RoleGrid({ roles, session }: { roles: RoleAccount[]; session: Session |
           const dirty = !isAdmin && pending[role.name] !== undefined;
 
           return (
-            <div key={role.name} className="rounded-xl border border-zinc-200 bg-white p-5">
+            <div key={role.name} className={`${ui.card} p-5`}>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <span className="font-medium text-zinc-900">{role.label}</span>
@@ -123,7 +124,7 @@ function RoleGrid({ roles, session }: { roles: RoleAccount[]; session: Session |
                   <button
                     onClick={() => save(role.name)}
                     disabled={!dirty || savingRole === role.name}
-                    className="rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-40"
+                    className={ui.btnPrimarySm}
                   >
                     {savingRole === role.name ? "Zapisywanie..." : "Zapisz"}
                   </button>
@@ -226,10 +227,10 @@ function UserPermissionsView({ users, session }: { users: UserAccount[]; session
         </select>
       </div>
 
-      {errorMessage && <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>}
+      {errorMessage && <p className={`${ui.alertError} mb-4`}>{errorMessage}</p>}
 
       {selectedId !== "" && data && (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+        <div className={`${ui.card} overflow-hidden`}>
           <ul className="divide-y divide-zinc-100">
             {PERMISSIONS.map((permission) => {
               const grantedByRole = data.granted.includes(permission) || data.granted.includes("*");
