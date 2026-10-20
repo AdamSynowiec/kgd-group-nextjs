@@ -4,10 +4,14 @@ import { getChildPages, getPageBySlug } from "@/lib/content";
 import { unwrap } from "@/lib/editable";
 import { buildMetadata } from "@/lib/seo";
 import BlogPost from "@/components/blog/BlogPost";
+import { isBlogBuildSkipped } from "@/lib/blog-build";
 
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
+  // Deploy bez bloga (push na main) — tylko placeholder, patrz src/lib/blog-build.ts.
+  if (isBlogBuildSkipped()) return [{ slug: "page" }];
+
   const children = await getChildPages("/blog");
   const slugs = children.map((child) => child.slug.replace(/^\/blog\//, ""));
 

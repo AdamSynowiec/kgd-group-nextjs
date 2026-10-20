@@ -1,0 +1,15 @@
+# Ścieżki, których deploy po `git push` NIE wgrywa na FTP — dodatkowo do bloga.
+# Blog jest pomijany po pushu automatycznie (wpisy dodaje zewnętrzny system i sam
+# zleca pełny build); pełny deploy z blogiem: [full] w opisie commita.
+# Jedna na linię (albo po przecinku), względem katalogu strony. Przykłady:
+#
+#   /inwestycja/rudava-park  jedna strona inwestycji
+#   kgd-building/            cała sekcja
+#   api/                     backend (gdy nie zmieniał się PHP)
+#
+# Pominięte strony zostają na serwerze w POPRZEDNIEJ wersji — nic nie jest kasowane.
+# Wykluczaj tylko to, czego zmiana nie dotyczy. Gdy zmieniasz rzeczy wspólne
+# (nagłówek, stopka, kontakt, globalne style, fonty), zostaw ten plik pusty —
+# pominięte strony mogłyby stracić style po usunięciu starych plików CSS/JS.
+# Po deployu warto plik wyczyścić, żeby następny push nie pominął czegoś przez przypadek.
+# Lista użyta w danym deployu jest w podsumowaniu przebiegu w GitHub Actions.

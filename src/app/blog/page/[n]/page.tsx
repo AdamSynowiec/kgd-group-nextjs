@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getPageBySlug } from "@/lib/content";
 import BlogHero from "@/components/blog/BlogHero";
 import BlogPostGrid, { getBlogPageCount } from "@/components/blog/BlogPostGrid";
+import { isBlogBuildSkipped } from "@/lib/blog-build";
 
 /**
  * /blog/page/2, /blog/page/3, ... — strona 1 to /blog (osobny plik, nie tu),
@@ -14,6 +15,9 @@ import BlogPostGrid, { getBlogPageCount } from "@/components/blog/BlogPostGrid";
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
+  // Deploy bez bloga (push na main) — tylko placeholder strony 2, patrz src/lib/blog-build.ts.
+  if (isBlogBuildSkipped()) return [{ n: "2" }];
+
   const totalPages = await getBlogPageCount();
 
   // "output: export" nie pozwala na PUSTĄ listę parametrów dla trasy

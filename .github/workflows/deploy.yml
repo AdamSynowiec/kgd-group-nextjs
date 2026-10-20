@@ -5,10 +5,22 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      # Domyślnie false: tak przychodzi build od zewnętrznego systemu bloga (ingest.php,
+      # bez parametrów) i "Pełny build" z panelu — wtedy blog MUSI się zbudować i wgrać.
       skip_blog:
-        description: "Nie wgrywaj /blog (szybszy deploy). Tylko gdy zmiany nie dotykają stopki, nawigacji, kontaktu ani wspólnych komponentów."
+        description: "Nie buduj i nie wgrywaj /blog (szybszy deploy). Tylko gdy zmiany nie dotykają stopki, nawigacji, kontaktu ani wspólnych komponentów."
         type: boolean
         default: false
+      exclude:
+        description: "Pomiń przy wgrywaniu (po przecinku), np. blog/, /inwestycja/rudava-park, api/. Doliczane do pliku .deploy-exclude."
+        type: string
+        default: ""
+
+# Jeden deploy naraz (np. push + build zlecony przez system bloga) — kolejny czeka,
+# zamiast wgrywać na FTP równolegle i nadpisywać sobie stan synchronizacji.
+concurrency:
+  group: deploy-ftp
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -44,8 +56,61 @@ jobs:
       - name: Clean Next.js cache
         run: rm -rf .next
 
+      # Zakres deployu:
+      #   push na main            -> BEZ bloga (wpisy dodaje zewnętrzny system i sam zleca build),
+      #                              chyba że opis commita zawiera [full] — wtedy wszystko;
+      #   ręcznie / panel / ingest -> wg pola skip_blog (domyślnie false = z blogiem).
+      - name: Decide deploy scope
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          INPUT_SKIP_BLOG: ${{ inputs.skip_blog }}
+        run: |
+          if [ "$EVENT" = "push" ]; then
+            if printf '%s' "$COMMIT_MESSAGE" | grep -qiF '[full]'; then
+              skip=false
+              echo "### 🔁 Push z [full] — pełny deploy razem z blogiem" >> "$GITHUB_STEP_SUMMARY"
+            else
+              skip=true
+              echo "### ⏩ Push — blog pominięty (budowa i wgrywanie). Pełny deploy: [full] w opisie commita albo \"Pełny build\" w panelu." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            skip="${INPUT_SKIP_BLOG:-false}"
+          fi
+          echo "skip_blog=$skip" >> "$GITHUB_OUTPUT"
+          echo "skip_blog=$skip"
+
       - name: Build
+        env:
+          SKIP_BLOG_BUILD: ${{ steps.scope.outputs.skip_blog == 'true' && '1' || '' }}
         run: npm run build
+
+      # Pliki JS/CSS z wcześniejszych buildów zostają w out/_next/static (nazwy są
+      # haszami treści, więc nic się nie nadpisuje). Bez tego deploy kasowałby z serwera
+      # pliki, których nie ma w nowym buildzie — a strony pominięte w tym deployu (blog,
+      # wykluczenia) wciąż się do nich odwołują i straciłyby style/skrypty.
+      - name: Restore previous static assets
+        uses: actions/cache/restore@v4
+        with:
+          path: .static-archive
+          key: next-static-${{ github.run_id }}
+          restore-keys: next-static-
+
+      - name: Keep previous static assets in out/
+        run: |
+          mkdir -p .static-archive out/_next/static
+          before=$(find out/_next/static -type f | wc -l)
+          cp -rn .static-archive/. out/_next/static/
+          after=$(find out/_next/static -type f | wc -l)
+          echo "Zachowane pliki z poprzednich buildów: $((after - before))"
+          rm -rf .static-archive && cp -r out/_next/static .static-archive
+
+      - name: Save static assets archive
+        uses: actions/cache/save@v4
+        with:
+          path: .static-archive
+          key: next-static-${{ github.run_id }}
 
       - name: Assemble backend into out/api
         run: |
@@ -66,6 +131,35 @@ jobs:
           test -f ./out/api/index.php || (echo "❌ api/index.php missing!" && exit 1)
           echo "✅ Build OK: $(sha256sum ./out/index.html)"
 
+      # Lista wykluczeń = plik .deploy-exclude + pole "exclude" (ręczne uruchomienie)
+      # + blog/, gdy zakres deployu go pomija (krok "Decide deploy scope"). Normalizacja
+      # i blokada niebezpiecznych wzorców (_next/**) — scripts/deploy-exclude.sh.
+      - name: Prepare FTP exclude list
+        id: exclude
+        env:
+          INPUT_EXCLUDE: ${{ inputs.exclude }}
+          SKIP_BLOG: ${{ steps.scope.outputs.skip_blog }}
+        run: |
+          patterns="$(bash scripts/deploy-exclude.sh)"
+          {
+            echo "patterns<<EXCLUDE_EOF"
+            echo "$patterns"
+            echo "EXCLUDE_EOF"
+          } >> "$GITHUB_OUTPUT"
+          skipped="$(echo "$patterns" | grep -v '^\*\*/\.env$' || true)"
+          if [ -n "$skipped" ]; then
+            {
+              echo "### ⏭️ Pominięte przy wgrywaniu na FTP"
+              echo "Te ścieżki zostały na serwerze w poprzedniej wersji:"
+              echo '```'
+              echo "$skipped"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=Deploy z wykluczeniami::$(echo "$skipped" | paste -sd ' ' -)"
+          else
+            echo "### ✅ Pełny deploy — nic nie pominięto" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
@@ -78,6 +172,5 @@ jobs:
           # .env na serwerze (dane do bazy, tokeny) przeżywa clean-slate — nie ma
           # go w out/, więc bez tego wpisu zostałby skasowany jako "plik, którego
           # już nie ma lokalnie". Wgrywasz go raz ręcznie, zostaje tam na stałe.
-          exclude: |
-            **/.env
-            ${{ inputs.skip_blog && 'blog/**' || '' }}
+          # Wykluczone ścieżki nie są ani wgrywane, ani kasowane na serwerze.
+          exclude: ${{ steps.exclude.outputs.patterns }}
