@@ -126,3 +126,11 @@ export function FileIcon({ className }: IconProps) {
     </Line>
   );
 }
+
+export function ChartIcon({ className }: IconProps) {
+  return (
+    <Line className={className}>
+      <path d="M4 20h16M6.5 20v-6M11 20V9M15.5 20v-8M20 20V5" />
+    </Line>
+  );
+}
