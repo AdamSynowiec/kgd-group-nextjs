@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Sidebar from "@/components/admin/Sidebar";
 import Topbar from "@/components/admin/Topbar";
 import { CloseIcon } from "@/components/admin/icons";
+import { useMounted } from "@/components/admin/useMounted";
 import type { Session } from "@/lib/adminApi";
 
 /**
@@ -23,6 +24,9 @@ export default function AdminShell({
   children: ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  // Sesja pochodzi z localStorage — przed zamontowaniem renderujemy jak bez sesji (zgodnie z HTML z eksportu).
+  const mounted = useMounted();
+  const shownSession = mounted ? session : null;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -34,7 +38,7 @@ export default function AdminShell({
   return (
     <div className="flex min-h-screen bg-zinc-50 font-sans text-zinc-900 antialiased">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-zinc-200/80 bg-zinc-100/60 lg:block">
-        <Sidebar session={session} onLogout={onLogout} />
+        <Sidebar session={shownSession} onLogout={onLogout} />
       </aside>
 
       {menuOpen && (
@@ -44,13 +48,13 @@ export default function AdminShell({
             <button onClick={() => setMenuOpen(false)} aria-label="Zamknij menu" className="absolute right-3 top-4 grid h-8 w-8 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-200/60">
               <CloseIcon className="h-4 w-4" />
             </button>
-            <Sidebar session={session} onLogout={onLogout} onNavigate={() => setMenuOpen(false)} />
+            <Sidebar session={shownSession} onLogout={onLogout} onNavigate={() => setMenuOpen(false)} />
           </aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar title={title} session={session} onOpenMenu={() => setMenuOpen(true)} />
+        <Topbar title={title} session={shownSession} onOpenMenu={() => setMenuOpen(true)} />
         <main className="flex-1 px-4 py-6 sm:px-8 sm:py-8">
           <div className="mx-auto w-full max-w-[1400px]">{children}</div>
         </main>

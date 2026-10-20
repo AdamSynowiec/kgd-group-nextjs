@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartIcon, ExternalIcon, LogoutIcon, PagesIcon, SettingsIcon } from "@/components/admin/icons";
+import { ChartIcon, ExternalIcon, HomeIcon, LogoutIcon, PagesIcon, SettingsIcon } from "@/components/admin/icons";
 import { useBrand } from "@/components/admin/BrandProvider";
 import { can, type Permission } from "@/lib/permissions";
 import type { Session } from "@/lib/adminApi";
@@ -15,7 +15,13 @@ import type { Session } from "@/lib/adminApi";
 // bez users.list/roles.list/roles.permissions.manage (patrz
 // src/app/admin/settings/page.tsx).
 const NAV_GROUPS: { title: string; items: { label: string; href: string; Icon: typeof PagesIcon; anyOf?: Permission[] }[] }[] = [
-  { title: "Treść", items: [{ label: "Strony", href: "/admin", Icon: PagesIcon, anyOf: ["pages.list"] }] },
+  {
+    title: "Treść",
+    items: [
+      { label: "Cockpit", href: "/admin", Icon: HomeIcon },
+      { label: "Strony", href: "/admin/strony", Icon: PagesIcon, anyOf: ["pages.list"] },
+    ],
+  },
   {
     title: "System",
     items: [

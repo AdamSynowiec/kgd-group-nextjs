@@ -1,0 +1,161 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import PageList from "@/components/admin/PageList";
+import PageEditor from "@/components/admin/PageEditor";
+import AdminShell from "@/components/admin/AdminShell";
+import {
+  AdminApiError,
+  fetchMe,
+  fetchPage,
+  fetchPages,
+  loadSession,
+  storeSession,
+  type PageSummary,
+  type Session,
+} from "@/lib/adminApi";
+
+/**
+ * /admin/strony — lista i edycja stron (start panelu to cockpit w /admin). Pełnoprawny widok aplikacji (nie statyczny plik HTML w backendzie).
+ * Cała logika działa w przeglądarce: strona po zbudowaniu to pusta powłoka,
+ * dane i autoryzacja przychodzą z API dopiero po wejściu. Backend
+ * (backend/admin.php + SessionAuth, token wystawiany po zweryfikowaniu
+ * danych z tabeli `users`) jest jedynym źródłem prawdy o dostępie — to on
+ * zwraca 401, gdy sesja jest niepoprawna albo wygasła; frontend tylko na to
+ * reaguje, nie decyduje o uprawnieniach sam. Brak ważnej sesji (401)
+ * przekierowuje na osobną stronę /admin/login — logowanie nie jest stanem
+ * wewnątrz tego komponentu.
+ */
+
+type ViewState =
+  | { status: "checking" }
+  | { status: "list"; pages: PageSummary[] }
+  | { status: "editing"; slug: string; content: Record<string, unknown> }
+  | { status: "error"; message: string };
+
+function viewTitle(view: ViewState): string {
+  switch (view.status) {
+    case "editing":
+      return "Edycja strony";
+    case "error":
+      return "Błąd";
+    case "checking":
+      return "Wczytywanie...";
+    default:
+      return "Strony";
+  }
+}
+
+export default function AdminPage() {
+  const router = useRouter();
+  // Odczyt localStorage jest synchroniczny — leniwy inicjalizator useState
+  // (nie efekt) to właściwe miejsce na to, patrz https://react.dev/learn/you-might-not-need-an-effect.
+  const [session, setSession] = useState<Session | null>(() => loadSession());
+  const [view, setView] = useState<ViewState>({ status: "checking" });
+
+  const goToLogin = useCallback(() => {
+    storeSession(null);
+    setSession(null);
+    router.replace("/admin/login");
+  }, [router]);
+
+  const checkAccessAndLoad = useCallback(
+    async (currentSession: Session | null) => {
+      setView({ status: "checking" });
+      try {
+        // /me obok /pages, nie zamiast: odświeża "permissions" (patrz
+        // src/lib/permissions.ts, Can.tsx) niezależnie od tego, czy
+        // currentSession jest null (dev: ADMIN_AUTH_ENABLED=false — backend
+        // wtedy i tak zwraca permissions:["*"], patrz PermissionsController::me())
+        // czy realnym tokenem. Bez tego każdy <Can> chowałby się w trybie
+        // deweloperskim bez logowania, bo "session === null" przestałoby
+        // samo w sobie znaczyć "pokaż wszystko" (dawny warunek w Topbar.tsx).
+        const [pages, me] = await Promise.all([fetchPages(currentSession), fetchMe(currentSession)]);
+        setSession((prev) => ({
+          token: prev?.token ?? "",
+          login: me.login ?? prev?.login ?? "",
+          role: me.role ?? prev?.role ?? "",
+          permissions: me.permissions,
+        }));
+        setView({ status: "list", pages });
+      } catch (error) {
+        if (error instanceof AdminApiError && error.status === 401) {
+          goToLogin();
+          return;
+        }
+        setView({ status: "error", message: error instanceof Error ? error.message : "Nieznany błąd." });
+      }
+    },
+    [goToLogin]
+  );
+
+  // Prawdziwe zapytanie sieciowe do zewnętrznego systemu (backend) przy
+  // montowaniu — dokładnie przypadek, do którego useEffect jest przeznaczony
+  // (patrz https://react.dev/learn/you-might-not-need-an-effect#fetching-data).
+  // Reguła set-state-in-effect widzi przez checkAccessAndLoad, że na starcie
+  // ustawiamy status "checking", i traktuje to jak synchroniczny setState —
+  // ale to właśnie stan ładowania przed odpowiedzią z sieci, nie kaskada.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- patrz komentarz wyżej: to jest fetch danych przy montowaniu, nie kaskada stanu
+    void checkAccessAndLoad(session);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ma się uruchomić tylko raz, przy montowaniu
+  }, []);
+
+  async function handleEdit(slug: string) {
+    setView({ status: "checking" });
+    try {
+      const content = await fetchPage(slug, session);
+      setView({ status: "editing", slug, content });
+    } catch (error) {
+      if (error instanceof AdminApiError && error.status === 401) {
+        goToLogin();
+        return;
+      }
+      setView({ status: "error", message: error instanceof Error ? error.message : "Nieznany błąd." });
+    }
+  }
+
+  function handleBack() {
+    void checkAccessAndLoad(session);
+  }
+
+  return (
+    <AdminShell title={viewTitle(view)} session={session} onLogout={goToLogin}>
+      {view.status === "checking" && <LoadingSkeleton />}
+
+      {view.status === "list" && <PageList initialPages={view.pages} session={session} onEdit={handleEdit} />}
+
+      {view.status === "editing" && (
+        <PageEditor slug={view.slug} initialContent={view.content} session={session} onBack={handleBack} />
+      )}
+
+      {view.status === "error" && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+          <div className="font-medium">Nie udało się wczytać danych</div>
+          <div className="mt-1 text-red-600">{view.message}</div>
+          <button onClick={handleBack} className="mt-3 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100/50">
+            Spróbuj ponownie
+          </button>
+        </div>
+      )}
+    </AdminShell>
+  );
+}
+
+/** Szkielet listy na czas wczytywania — zamiast samego napisu. */
+function LoadingSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4" aria-busy="true" aria-label="Wczytywanie">
+      <div className="h-7 w-40 rounded-md bg-zinc-200/80" />
+      <div className="grid grid-cols-3 gap-3 sm:max-w-xl">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-[68px] rounded-xl bg-zinc-200/60" />
+        ))}
+      </div>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="h-16 rounded-xl bg-zinc-200/50" />
+      ))}
+    </div>
+  );
+}
