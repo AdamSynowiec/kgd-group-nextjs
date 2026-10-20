@@ -344,7 +344,7 @@ export type PriceReportStatus = {
   name: string;
   sourceSlug: string;
   generatedAt: string;
-  result: "ok" | "skipped" | "error";
+  result: "ok" | "skipped" | "error" | "disabled";
   message: string;
   datasetUrl: string;
   md5Url: string;
@@ -362,6 +362,9 @@ export type PriceReportInvestment = {
   name: string;
   sourceSlug: string;
   published: boolean;
+  /** false = raportowanie wyłączone (np. zakończona inwestycja) — cron i "Generuj wszystkie" ją pomijają. */
+  enabled: boolean;
+  disabled: { at: string; by: string | null; reason: string } | null;
   datasetUrl: string;
   md5Url: string;
   hasDataset: boolean;
@@ -389,6 +392,11 @@ export function fetchPriceReportFile(
   session: Session | null
 ): Promise<{ name: string; size: number; url: string; truncated: boolean; content: string }> {
   return request<{ name: string; size: number; url: string; truncated: boolean; content: string }>("/price-reports/file", { params: { key, name }, session });
+}
+
+/** POST /price-reports/toggle — włącza/wyłącza raportowanie inwestycji (uprawnienie reports.generate). */
+export function togglePriceReport(session: Session | null, key: string, enabled: boolean, reason = ""): Promise<{ key: string; enabled: boolean }> {
+  return request<{ key: string; enabled: boolean }>("/price-reports/toggle", { method: "POST", body: { key, enabled, reason }, session });
 }
 
 /** POST /price-reports/generate — jedna inwestycja (key) albo wszystkie (bez key); uprawnienie reports.generate. */

@@ -60,13 +60,14 @@ final class PriceReportGenerator
     }
 
     /**
-     * Wszystkie inwestycje z tabelą historii cen (także szkice — panel je pokazuje,
-     * ale generate() ich nie publikuje).
+     * Wszystkie inwestycje z tabelą historii cen (także szkice i wyłączone — panel je
+     * pokazuje, ale generate() ich nie publikuje).
      *
-     * @return list<array{key: string, name: string, sourceSlug: string, published: bool}>
+     * @return list<array{key: string, name: string, sourceSlug: string, published: bool, enabled: bool, disabled: array{at: string, by: ?string, reason: string}|null}>
      */
     public function discover(): array
     {
+        $disabled = $this->disabledMap();
         $found = [];
         foreach ($this->pages->listAll() as $summary) {
             $slug = (string) $summary['slug'];
@@ -86,6 +87,8 @@ final class PriceReportGenerator
                 'name' => $this->investmentName($slug, $page['content']),
                 'sourceSlug' => $slug,
                 'published' => ($page['content']['status'] ?? 'published') !== 'draft',
+                'enabled' => !isset($disabled[$key]),
+                'disabled' => $disabled[$key] ?? null,
             ];
         }
         ksort($found);
@@ -112,6 +115,22 @@ final class PriceReportGenerator
                 if ($key !== null && $investment['key'] !== $key) {
                     continue;
                 }
+                if (!$investment['enabled']) {
+                    // Wyłączona (np. zakończona inwestycja): bez nowych plików — katalog i dotychczasowy
+                    // dataset.xml zostają bez zmian (dane historyczne na dane.gov.pl).
+                    if ($key !== null) {
+                        throw new RuntimeException("Raportowanie dla \"{$investment['name']}\" jest wyłączone — włącz je, żeby wygenerować raport.");
+                    }
+                    $results[] = [
+                        'key' => $investment['key'],
+                        'name' => $investment['name'],
+                        'sourceSlug' => $investment['sourceSlug'],
+                        'result' => 'disabled',
+                        'message' => 'Raportowanie wyłączone.',
+                        'warnings' => [],
+                    ];
+                    continue;
+                }
                 $results[] = $this->generateOne($investment);
             }
             if ($key !== null && $results === []) {
@@ -123,6 +142,52 @@ final class PriceReportGenerator
             flock($lock, LOCK_UN);
             fclose($lock);
         }
+    }
+
+    /**
+     * Włącza / wyłącza raportowanie inwestycji (np. zakończonej — wszystkie lokale sprzedane).
+     * Stan w raporty-cen/settings.json (na serwerze, jak same raporty — deploy go nie rusza).
+     */
+    public function setEnabled(string $key, bool $enabled, ?string $by, string $reason = ''): void
+    {
+        $this->directory($key); // walidacja klucza
+        if (!in_array($key, array_column($this->discover(), 'key'), true)) {
+            throw new RuntimeException("Nie ma inwestycji z tabelą historii cen o kluczu \"{$key}\".");
+        }
+        $this->ensureRoot();
+        $settings = $this->settings();
+        $disabled = is_array($settings['disabled'] ?? null) ? $settings['disabled'] : [];
+        if ($enabled) {
+            unset($disabled[$key]);
+        } else {
+            $disabled[$key] = [
+                'at' => (new DateTimeImmutable('now', $this->zone))->format(DATE_ATOM),
+                'by' => $by,
+                'reason' => mb_substr(trim($reason), 0, 300),
+            ];
+        }
+        $settings['disabled'] = $disabled === [] ? new \stdClass() : $disabled;
+        $this->writeAtomic($this->root . '/settings.json', (string) json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    /** @return array<string, mixed> */
+    private function settings(): array
+    {
+        $file = $this->root . '/settings.json';
+        if (!is_file($file)) {
+            return [];
+        }
+        $decoded = json_decode((string) file_get_contents($file), true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /** @return array<string, array{at: string, by: ?string, reason: string}> */
+    private function disabledMap(): array
+    {
+        $disabled = $this->settings()['disabled'] ?? [];
+
+        return is_array($disabled) ? array_filter($disabled, 'is_array') : [];
     }
 
     /** Katalog raportów danej inwestycji (może jeszcze nie istnieć). */
@@ -155,7 +220,7 @@ final class PriceReportGenerator
     // ---------------------------------------------------------------------------------
 
     /**
-     * @param array{key: string, name: string, sourceSlug: string, published: bool} $investment
+     * @param array{key: string, name: string, sourceSlug: string, published: bool, enabled: bool} $investment
      * @return array<string, mixed>
      */
     private function generateOne(array $investment): array
@@ -588,8 +653,10 @@ final class PriceReportGenerator
         $this->ensureDirectory($this->root);
         // Bez listingu katalogów i z poprawnym typem/kodowaniem plików dla przeglądarek i harvestera.
         $htaccess = $this->root . '/.htaccess';
-        if (!is_file($htaccess)) {
-            $this->writeAtomic($htaccess, "Options -Indexes\nAddType \"text/csv; charset=utf-8\" .csv\nAddType \"application/xml; charset=utf-8\" .xml\nAddType \"text/plain; charset=utf-8\" .md5\n<FilesMatch \"^(status\\.json|\\.lock)$\">\n  Require all denied\n</FilesMatch>\n");
+        $rules = "Options -Indexes\nAddType \"text/csv; charset=utf-8\" .csv\nAddType \"application/xml; charset=utf-8\" .xml\nAddType \"text/plain; charset=utf-8\" .md5\n<FilesMatch \"^(status\\.json|settings\\.json|\\.lock)$\">\n  Require all denied\n</FilesMatch>\n";
+        // Nadpisywany przy zmianie reguł (np. nowy plik do ukrycia), nie tylko przy pierwszym uruchomieniu.
+        if (!is_file($htaccess) || file_get_contents($htaccess) !== $rules) {
+            $this->writeAtomic($htaccess, $rules);
         }
     }
 

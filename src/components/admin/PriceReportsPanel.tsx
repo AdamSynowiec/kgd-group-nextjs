@@ -9,6 +9,7 @@ import {
   fetchPriceReportFiles,
   fetchPriceReports,
   generatePriceReports,
+  togglePriceReport,
   type PriceReportFile,
   type PriceReportInvestment,
   type PriceReportStatus,
@@ -61,11 +62,48 @@ export default function PriceReportsPanel({ session }: { session: Session | null
     }
   }
 
+  async function toggle(investment: PriceReportInvestment, enabled: boolean) {
+    let reason = "";
+    if (!enabled) {
+      const answer = window.prompt(
+        `Wyłączyć raportowanie dla „${investment.name}”?\n\nCron i „Generuj wszystkie” przestaną dopisywać nowe pliki. Katalog i dataset.xml zostają (dane historyczne na dane.gov.pl).\n\nPowód (opcjonalnie):`,
+        "Inwestycja zakończona — wszystkie lokale sprzedane"
+      );
+      if (answer === null) return;
+      reason = answer;
+    }
+    setGenerating(investment.key);
+    setNotice(null);
+    try {
+      await togglePriceReport(session, investment.key, enabled, reason);
+      setNotice({ tone: "ok", text: enabled ? `Raportowanie „${investment.name}” włączone.` : `Raportowanie „${investment.name}” wyłączone.` });
+      await load();
+    } catch (err) {
+      setNotice({ tone: "error", text: err instanceof Error ? err.message : "Nie udało się zmienić ustawienia." });
+    } finally {
+      setGenerating(null);
+    }
+  }
+
   const open = investments?.find((investment) => investment.key === openKey) ?? null;
 
   if (open) {
-    return <FolderView investment={open} session={session} onBack={() => setOpenKey(null)} onGenerate={() => generate(open.key)} generating={generating !== null} notice={notice} />;
+    return (
+      <FolderView
+        investment={open}
+        session={session}
+        onBack={() => setOpenKey(null)}
+        onGenerate={() => generate(open.key)}
+        onToggle={(enabled) => toggle(open, enabled)}
+        generating={generating !== null}
+        notice={notice}
+      />
+    );
   }
+
+  // Wyłączone (zakończone) inwestycje na końcu listy.
+  const sorted = investments === null ? null : [...investments].sort((a, b) => Number(!a.enabled) - Number(!b.enabled));
+  const disabledCount = investments?.filter((investment) => !investment.enabled).length ?? 0;
 
   return (
     <div className="space-y-5">
@@ -102,10 +140,16 @@ export default function PriceReportsPanel({ session }: { session: Session | null
 
       {investments !== null && investments.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {investments.map((investment) => (
+          {(sorted ?? []).map((investment) => (
             <InvestmentCard key={investment.key} investment={investment} onOpen={() => setOpenKey(investment.key)} />
           ))}
         </div>
+      )}
+
+      {disabledCount > 0 && (
+        <p className="text-xs text-zinc-500">
+          Wyłączone z raportowania: {disabledCount}. Ich katalogi i dotychczasowe pliki zostają dostępne, ale nie powstają nowe raporty.
+        </p>
       )}
     </div>
   );
@@ -116,9 +160,16 @@ function InvestmentCard({ investment, onOpen }: { investment: PriceReportInvestm
   const warnings = status?.warnings.length ?? 0;
 
   return (
-    <button onClick={onOpen} className={`${ui.card} group flex flex-col p-4 text-left transition hover:border-zinc-300 hover:shadow-[0_4px_16px_-6px_rgba(16,24,40,0.12)]`}>
+    <button
+      onClick={onOpen}
+      className={`${ui.card} group flex flex-col p-4 text-left transition hover:border-zinc-300 hover:shadow-[0_4px_16px_-6px_rgba(16,24,40,0.12)] ${investment.enabled ? "" : "bg-zinc-50/80 opacity-70 hover:opacity-100"}`}
+    >
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-500 ring-1 ring-inset ring-amber-500/15 transition group-hover:bg-amber-100/70">
+        <span
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ring-1 ring-inset transition ${
+            investment.enabled ? "bg-amber-50 text-amber-500 ring-amber-500/15 group-hover:bg-amber-100/70" : "bg-zinc-100 text-zinc-400 ring-zinc-300/40"
+          }`}
+        >
           <FolderIcon className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
@@ -134,7 +185,8 @@ function InvestmentCard({ investment, onOpen }: { investment: PriceReportInvestm
         <Stat label="Ostrzeżeń" value={warnings} tone={warnings > 0 ? "text-amber-600" : undefined} />
       </dl>
 
-      {status?.result === "error" && <p className="mt-3 line-clamp-2 text-xs text-red-600">{status.message}</p>}
+      {investment.enabled && status?.result === "error" && <p className="mt-3 line-clamp-2 text-xs text-red-600">{status.message}</p>}
+      {!investment.enabled && investment.disabled?.reason && <p className="mt-3 line-clamp-2 text-xs text-zinc-500">{investment.disabled.reason}</p>}
     </button>
   );
 }
@@ -155,6 +207,7 @@ function todayWarsaw(): string {
 
 function StatusBadge({ investment }: { investment: PriceReportInvestment }) {
   const status = investment.status;
+  if (!investment.enabled) return <span className={`${ui.badge} ${ui.badgeNeutral} shrink-0`}>Wyłączona</span>;
   if (!investment.published) return <span className={`${ui.badge} ${ui.badgeNeutral} shrink-0`}>Szkic</span>;
   if (!status) return <span className={`${ui.badge} ${ui.badgeNeutral} shrink-0`}>Brak raportu</span>;
   if (status.result === "error") return <span className={`${ui.badge} shrink-0 bg-red-50 text-red-700 ring-red-600/15`}>Błąd</span>;
@@ -174,6 +227,7 @@ function FolderView({
   session,
   onBack,
   onGenerate,
+  onToggle,
   generating,
   notice,
 }: {
@@ -181,6 +235,7 @@ function FolderView({
   session: Session | null;
   onBack: () => void;
   onGenerate: () => void;
+  onToggle: (enabled: boolean) => void;
   generating: boolean;
   notice: { tone: "ok" | "error"; text: string } | null;
 }) {
@@ -220,14 +275,47 @@ function FolderView({
           </div>
         </div>
         <Can session={session} permission="reports.generate">
-          <button onClick={onGenerate} disabled={generating || !investment.published} className={`${ui.btnPrimary} shrink-0`} title={investment.published ? undefined : "Strona historii cen jest szkicem"}>
-            {generating ? <Spinner /> : <RocketIcon className="h-4 w-4" />}
-            {generating ? "Generowanie…" : "Generuj teraz"}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={investment.enabled}
+              onClick={() => onToggle(!investment.enabled)}
+              disabled={generating}
+              className="group inline-flex items-center gap-2.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:bg-zinc-50 disabled:opacity-50"
+              title={investment.enabled ? "Wyłącz raportowanie (np. zakończona inwestycja)" : "Włącz raportowanie"}
+            >
+              <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${investment.enabled ? "bg-emerald-500" : "bg-zinc-300"}`}>
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${investment.enabled ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+              </span>
+              {investment.enabled ? "Raportowanie włączone" : "Raportowanie wyłączone"}
+            </button>
+            {investment.enabled && (
+              <button onClick={onGenerate} disabled={generating || !investment.published} className={ui.btnPrimary} title={investment.published ? undefined : "Strona historii cen jest szkicem"}>
+                {generating ? <Spinner /> : <RocketIcon className="h-4 w-4" />}
+                {generating ? "Generowanie…" : "Generuj teraz"}
+              </button>
+            )}
+          </div>
         </Can>
       </div>
 
       {notice && <p className={notice.tone === "ok" ? ui.alertSuccess : ui.alertError}>{notice.text}</p>}
+
+      {!investment.enabled && (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-sm text-zinc-600">
+          <span className="font-medium text-zinc-800">Raportowanie wyłączone</span>
+          {investment.disabled && (
+            <span className="text-zinc-500">
+              {" "}
+              · {formatDateTime(investment.disabled.at)}
+              {investment.disabled.by ? ` · ${investment.disabled.by}` : ""}
+            </span>
+          )}
+          {investment.disabled?.reason && <div className="mt-0.5 text-zinc-500">{investment.disabled.reason}</div>}
+          <div className="mt-1 text-xs text-zinc-500">Nowe pliki nie powstają; dotychczasowy dataset.xml i pliki CSV pozostają dostępne pod tymi samymi adresami.</div>
+        </div>
+      )}
 
       {status && (
         <div className={status.result === "error" ? ui.alertError : status.result === "skipped" ? "rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-sm text-zinc-600" : `${ui.card} px-4 py-3 text-sm text-zinc-700`}>

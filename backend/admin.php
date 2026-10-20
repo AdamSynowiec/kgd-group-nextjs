@@ -232,6 +232,10 @@ $router->get('/price-reports/file', static function (Request $req) use ($priceRe
     $authorization()->require($currentSession, 'reports.list');
     $priceReportController()->file($req);
 });
+$router->post('/price-reports/toggle', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.generate');
+    $priceReportController()->toggle($req, $currentSession);
+});
 $router->post('/price-reports/generate', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'reports.generate');
     $priceReportController()->generate($req, $currentSession);

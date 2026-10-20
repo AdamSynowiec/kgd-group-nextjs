@@ -116,6 +116,37 @@ final class PriceReportController
         JsonResponse::ok($results);
     }
 
+    /**
+     * POST /price-reports/toggle  body: {"key": "rudava-park", "enabled": false, "reason": "Inwestycja zakończona"}
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function toggle(Request $request, ?array $currentSession): void
+    {
+        $body = $request->jsonBody();
+        $key = $this->key($body['key'] ?? null);
+        if (!is_bool($body['enabled'] ?? null)) {
+            throw new ApiException('Brak pola "enabled" (true/false).', 400);
+        }
+        $reason = is_string($body['reason'] ?? null) ? $body['reason'] : '';
+
+        try {
+            $this->generator->setEnabled($key, $body['enabled'], $currentSession['login'] ?? null, $reason);
+        } catch (RuntimeException $exception) {
+            throw new ApiException($exception->getMessage(), 400);
+        }
+
+        $this->activity->log(
+            $currentSession['userId'] ?? null,
+            $currentSession['login'] ?? null,
+            $body['enabled'] ? 'price-reports.enable' : 'price-reports.disable',
+            $key,
+            $reason !== '' ? ['reason' => $reason] : null
+        );
+
+        JsonResponse::ok(['key' => $key, 'enabled' => $body['enabled']]);
+    }
+
     private function key(mixed $key): string
     {
         if (!is_string($key) || preg_match('/^[a-z0-9][a-z0-9-]*$/', $key) !== 1) {

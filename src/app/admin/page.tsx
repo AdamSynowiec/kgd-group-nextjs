@@ -164,7 +164,7 @@ export default function AdminCockpit() {
 
   const reportStats = useMemo(() => {
     if (reports.status !== "ready") return null;
-    const active = reports.data.filter((item) => item.published);
+    const active = reports.data.filter((item) => item.published && item.enabled);
     const fresh = active.filter((item) => item.status?.result === "ok" && item.status.dataDate === today);
     const errors = active.filter((item) => item.status?.result === "error");
     const missing = active.filter((item) => !fresh.includes(item) && !errors.includes(item));
