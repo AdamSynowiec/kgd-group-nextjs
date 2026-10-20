@@ -28,10 +28,12 @@ export const poppins = Poppins({
   preload: false,
 });
 
-// Montserrat jest fontem zmiennym — bez listy wag next/font pobiera jeden plik
-// (na podzbiór znaków) pokrywający 100–900, zamiast osobnego pliku na każdą wagę.
+// Montserrat występuje tylko w akapitach strony głównej (src/components/home/P.tsx, font-light),
+// więc tylko waga 300: 18 + 31 KB zamiast 37 + 69 KB pliku zmiennego 100–900 (latin + latin-ext),
+// które stały na ścieżce krytycznej (HTML → CSS → font). Inna waga Montserrata = dopisać ją tutaj.
 export const montserrat = Montserrat({
   subsets: ["latin", "latin-ext"],
+  weight: "300",
   variable: "--montserrat-src",
   display: "swap",
   preload: false,
