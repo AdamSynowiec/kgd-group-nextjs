@@ -27,7 +27,6 @@
 -- Komponent: src/components/investments/foxhills/Apartments.tsx. Wymaga MySQL 5.7+ / MariaDB 10.2+.
 -- =============================================================================
 
-SET @slug = '/inwestycja/foxhills';
 
 SET @summary_label = '{"value":"Podsumowanie","editable":true,"label":"Karta lokalu — napis pierwszego przycisku (podsumowanie)","type":"string"}';
 
@@ -41,7 +40,7 @@ SET @standard_url = '{"value":"","editable":true,"label":"Standard wykończenia 
 
 -- "$.sections[3].component" -> "$.sections[3]"
 SET @sec = (SELECT REPLACE(JSON_UNQUOTE(JSON_SEARCH(content, 'one', 'Apartments', NULL, '$.sections[*].component')), '.component', '')
-            FROM pages WHERE slug = @slug);
+            FROM pages WHERE slug = '/inwestycja/foxhills');
 
 UPDATE pages
 SET content = JSON_INSERT(content,
@@ -51,7 +50,7 @@ SET content = JSON_INSERT(content,
   CONCAT(@sec, '.fields.standardLabel'), JSON_EXTRACT(@standard_label, '$'),
   CONCAT(@sec, '.fields.standardUrl'), JSON_EXTRACT(@standard_url, '$')
 )
-WHERE slug = @slug AND @sec IS NOT NULL;
+WHERE slug = '/inwestycja/foxhills' AND @sec IS NOT NULL;
 
 -- Kontrola
-SELECT JSON_EXTRACT(content, CONCAT(@sec, '.fields.unitViews.value[*].label')) AS zakladki FROM pages WHERE slug = @slug;
+SELECT JSON_EXTRACT(content, CONCAT(@sec, '.fields.unitViews.value[*].label')) AS zakladki FROM pages WHERE slug = '/inwestycja/foxhills';

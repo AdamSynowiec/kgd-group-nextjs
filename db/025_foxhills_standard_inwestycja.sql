@@ -16,7 +16,6 @@
 -- Wymaga MySQL 5.7+ / MariaDB 10.2+.
 -- =============================================================================
 
-SET @slug = '/inwestycja/foxhills';
 
 SET @build_standard = '{"id":"buildstandard","hashId":"standard-budynkow","component":"BuildStandard","type":"section","label":"Standard (budynki i instalacje)","fields":{"eyebrow":{"value":"","editable":true,"label":"Nadtytuł","type":"string"},"header":{"value":"STANDARD","editable":true,"label":"Nagłówek","type":"string"},"accent":{"value":"","editable":true,"label":"Akcent (kursywa)","type":"string"},"text":{"value":"Trwałe materiały, wysoka jakość wykonania i nowoczesne rozwiązania, które zapewniają codzienny komfort i spokój na lata.","editable":true,"label":"Opis","type":"string"},"image":{"value":"/investments/foxhills/standard/balkon.webp","editable":true,"label":"Zdjęcie","type":"asset"},"imageAlt":{"value":"Detal elewacji Fox Hills Residences — taras ze szklaną balustradą","editable":true,"label":"Opis zdjęcia (alt)","type":"string"},"items":{"value":[{"icon":"heating","title":"OGRZEWANIE","text":"Nowoczesny, energooszczędny system ogrzewania - pompa ciepła i ogrzewanie podłogowe."},{"icon":"snowflake","title":"KLIMATYZACJA","text":"Przygotowana instalacja pod montaż klimatyzacji."},{"icon":"smarthome","title":"SMART HOME","text":"Możliwość integracji z systemem inteligentnego domu - sterowanie komfortem, bezpieczeństwem i energią"},{"icon":"gear","title":"INSTALACJE","text":"Nowoczesne instalacje elektryczne, wodno-kanalizacyjne i techniczne, zgodne z aktualnymi standardami."},{"icon":"car","title":"GARAŻE/ MIEJSCA POSTOJOWE","text":"Prywatne garaże lub miejsca postojowe na terenie osiedla, z przygotowaniem pod ładowarki do aut elektrycznych."},{"icon":"stairs","title":"STANDARD CZĘŚCI WSPÓLNYCH","text":"Reprezentacyjne części wspólne wykończone z dbałością o detale."}],"editable":true,"label":"Cechy standardu (ikony: heating, snowflake, smarthome, gear, car, stairs, home, key, shield …)","type":"table"}}}';
 
@@ -27,30 +26,30 @@ SET @investment_outlook = '{"id":"investmentoutlook","hashId":"perspektywa","com
 -- "$.sections[5].component" -> 5
 -- 1) BuildStandard — przed Standards
 SET @idx = (SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(JSON_UNQUOTE(JSON_SEARCH(content, 'one', 'Standards', NULL, '$.sections[*].component')), '[', -1), ']', 1)
-            FROM pages WHERE slug = @slug);
+            FROM pages WHERE slug = '/inwestycja/foxhills');
 UPDATE pages
 SET content = JSON_ARRAY_INSERT(content, CONCAT('$.sections[', @idx, ']'), JSON_EXTRACT(@build_standard, '$'))
-WHERE slug = @slug
+WHERE slug = '/inwestycja/foxhills'
   AND @idx IS NOT NULL
   AND JSON_SEARCH(content, 'one', 'BuildStandard', NULL, '$.sections[*].component') IS NULL;
 
 -- 2) Investment — po Standards
 SET @idx = (SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(JSON_UNQUOTE(JSON_SEARCH(content, 'one', 'Standards', NULL, '$.sections[*].component')), '[', -1), ']', 1)
-            FROM pages WHERE slug = @slug);
+            FROM pages WHERE slug = '/inwestycja/foxhills');
 UPDATE pages
 SET content = JSON_ARRAY_INSERT(content, CONCAT('$.sections[', @idx + 1, ']'), JSON_EXTRACT(@investment, '$'))
-WHERE slug = @slug
+WHERE slug = '/inwestycja/foxhills'
   AND @idx IS NOT NULL
   AND JSON_SEARCH(content, 'one', 'Investment', NULL, '$.sections[*].component') IS NULL;
 
 -- 3) InvestmentOutlook — po Investment
 SET @idx = (SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(JSON_UNQUOTE(JSON_SEARCH(content, 'one', 'Investment', NULL, '$.sections[*].component')), '[', -1), ']', 1)
-            FROM pages WHERE slug = @slug);
+            FROM pages WHERE slug = '/inwestycja/foxhills');
 UPDATE pages
 SET content = JSON_ARRAY_INSERT(content, CONCAT('$.sections[', @idx + 1, ']'), JSON_EXTRACT(@investment_outlook, '$'))
-WHERE slug = @slug
+WHERE slug = '/inwestycja/foxhills'
   AND @idx IS NOT NULL
   AND JSON_SEARCH(content, 'one', 'InvestmentOutlook', NULL, '$.sections[*].component') IS NULL;
 
 -- Kontrola: lista sekcji po migracji
-SELECT JSON_EXTRACT(content, '$.sections[*].component') AS sections FROM pages WHERE slug = @slug;
+SELECT JSON_EXTRACT(content, '$.sections[*].component') AS sections FROM pages WHERE slug = '/inwestycja/foxhills';

@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import NavBar from "./NavBar";
 import Hero from "./Hero";
 import AboutUs from "./AboutUs";
+import Golf from "./Golf";
 import Features from "./Features";
 import Apartments from "./Apartments";
 import Standards from "./Standards";
@@ -39,6 +40,7 @@ const template: Record<string, ComponentType<SectionProps>> = {
   NavBar: NavBar as ComponentType<SectionProps>,
   Hero: Hero as ComponentType<SectionProps>,
   AboutUs: AboutUs as ComponentType<SectionProps>,
+  Golf: Golf as ComponentType<SectionProps>,
   Features: Features as ComponentType<SectionProps>,
   Apartments: Apartments as ComponentType<SectionProps>,
   Standards: Standards as ComponentType<SectionProps>,
