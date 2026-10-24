@@ -8,6 +8,7 @@ use App\Controller\ActivityController;
 use App\Controller\AdminController;
 use App\Controller\AuthController;
 use App\Controller\BuildController;
+use App\Controller\PageLockController;
 use App\Controller\PermissionsController;
 use App\Controller\PriceReportController;
 use App\Controller\RolesController;
@@ -22,6 +23,7 @@ use App\Http\SessionAuth;
 use App\Http\SessionToken;
 use App\PriceReport\PriceReportGenerator;
 use App\Repository\MysqlActivityLogRepository;
+use App\Repository\MysqlPageLockRepository;
 use App\Repository\MysqlPageRepository;
 use App\Repository\MysqlPermissionRepository;
 use App\Repository\MysqlRoleRepository;
@@ -50,8 +52,13 @@ $activityLogRepository = static fn (): MysqlActivityLogRepository => new MysqlAc
 
 // Połączenie z bazą jest leniwe — otwiera się dopiero, gdy faktycznie
 // obsługujemy trasę, która go potrzebuje.
-$adminController = static fn (): AdminController =>
-    new AdminController(new MysqlPageRepository(Connection::get($config)), $activityLogRepository());
+$adminController = static fn (): AdminController => new AdminController(
+    new MysqlPageRepository(Connection::get($config)),
+    $activityLogRepository(),
+    new MysqlPageLockRepository(Connection::get($config))
+);
+$pageLockController = static fn (): PageLockController =>
+    new PageLockController(new MysqlPageLockRepository(Connection::get($config)), $activityLogRepository());
 
 $roleRepository = static fn (): MysqlRoleRepository => new MysqlRoleRepository(Connection::get($config));
 $permissionRepository = static fn (): MysqlPermissionRepository => new MysqlPermissionRepository(Connection::get($config));
@@ -212,6 +219,24 @@ $router->get('/me', static fn (Request $req) => $permissionsController()->me($re
 $router->get('/activity', static function (Request $req) use ($activityController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'activity.list');
     $activityController()->list($req);
+});
+
+// Blokada edycji stron — jedna osoba naraz (PageLockController.php, db/029).
+$router->post('/page-lock/acquire', static function (Request $req) use ($pageLockController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'pages.update');
+    $pageLockController()->acquire($req, $currentSession);
+});
+$router->post('/page-lock/heartbeat', static function (Request $req) use ($pageLockController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'pages.update');
+    $pageLockController()->heartbeat($req, $currentSession);
+});
+$router->post('/page-lock/release', static function (Request $req) use ($pageLockController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'pages.update');
+    $pageLockController()->release($req);
+});
+$router->get('/page-locks', static function (Request $req) use ($pageLockController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'pages.list');
+    $pageLockController()->list($currentSession);
 });
 
 // Raportowanie cen (dane.gov.pl) — katalogi raportów inwestycji, podgląd plików,

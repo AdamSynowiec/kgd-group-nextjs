@@ -126,12 +126,56 @@ export function fetchPage(slug: string, session: Session | null): Promise<Record
   return request<Record<string, unknown>>("/page", { params: { slug }, session });
 }
 
+/** lockId = identyfikator blokady edycji (PageLockController) — zapis z cudzą blokadą backend odrzuca (409). */
 export function savePage(
   slug: string,
   content: Record<string, unknown>,
-  session: Session | null
+  session: Session | null,
+  lockId?: string
 ): Promise<{ saved: boolean }> {
-  return request<{ saved: boolean }>("/page", { method: "POST", params: { slug }, body: content, session });
+  return request<{ saved: boolean }>("/page", { method: "POST", params: lockId ? { slug, lockId } : { slug }, body: content, session });
+}
+
+// --- Blokada edycji stron (jedna osoba naraz) — backend/src/Controller/PageLockController.php ---
+
+export type PageLockHolder = { login: string; acquiredAt: string; heartbeatAt: string; mine: boolean; sameUser: boolean };
+
+/** Losowy identyfikator jednego otwarcia edytora (32 znaki hex). */
+export function newLockId(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function acquirePageLock(
+  slug: string,
+  lockId: string,
+  session: Session | null,
+  force = false
+): Promise<{ acquired: boolean; holder: PageLockHolder | null; ttlSeconds: number }> {
+  return request<{ acquired: boolean; holder: PageLockHolder | null; ttlSeconds: number }>("/page-lock/acquire", { method: "POST", body: { slug, lockId, force }, session });
+}
+
+export function heartbeatPageLock(slug: string, lockId: string, session: Session | null): Promise<{ held: boolean; holder: PageLockHolder | null }> {
+  return request<{ held: boolean; holder: PageLockHolder | null }>("/page-lock/heartbeat", { method: "POST", body: { slug, lockId }, session });
+}
+
+/**
+ * Zwolnienie blokady. keepalive — działa też przy zamykaniu karty (beforeunload/pagehide),
+ * kiedy zwykły fetch byłby przerwany. Błędy ignorowane: blokada i tak wygaśnie po TTL.
+ */
+export function releasePageLock(slug: string, lockId: string, session: Session | null): void {
+  const params = new URLSearchParams({ route: "/page-lock/release" });
+  void fetch(`${adminBaseUrl()}?${params.toString()}`, {
+    method: "POST",
+    keepalive: true,
+    headers: { "Content-Type": "application/json", ...authHeader(session) },
+    body: JSON.stringify({ slug, lockId }),
+  }).catch(() => undefined);
+}
+
+export function fetchPageLocks(session: Session | null): Promise<(PageLockHolder & { slug: string })[]> {
+  return request<(PageLockHolder & { slug: string })[]>("/page-locks", { session });
 }
 
 /** POST /pages, body: {"slug": "/blog/moj-wpis", "content": {...}} — patrz src/lib/pageTemplates.ts dla treści startowej. */

@@ -9,6 +9,7 @@ use App\Exception\NotFoundException;
 use App\Http\JsonResponse;
 use App\Http\Request;
 use App\Repository\ActivityLogRepositoryInterface;
+use App\Repository\MysqlPageLockRepository;
 use App\Repository\PageRepositoryInterface;
 use App\Support\Acl;
 use App\Support\EditableMerge;
@@ -30,7 +31,8 @@ final class AdminController
 {
     public function __construct(
         private readonly PageRepositoryInterface $pages,
-        private readonly ActivityLogRepositoryInterface $activity
+        private readonly ActivityLogRepositoryInterface $activity,
+        private readonly ?MysqlPageLockRepository $locks = null
     ) {
     }
 
@@ -127,6 +129,19 @@ final class AdminController
         $pageAcl = $current['content']['acl'] ?? null;
         if (!Acl::canWrite($pageAcl, $role)) {
             throw new ApiException('Brak uprawnień do zapisu tej strony.', 403);
+        }
+
+        // Blokada edycji (PageLockController): jeśli stronę trzyma inne otwarcie edytora —
+        // np. ktoś przejął edycję przez "Edytuj mimo to" — ten zapis nadpisałby jego zmiany.
+        // Błąd samej blokady (np. migracja db/029 jeszcze nieuruchomiona) nie może zablokować zapisu.
+        try {
+            $lock = $this->locks?->current($slug);
+        } catch (PDOException $exception) {
+            error_log('[page-lock] ' . $exception->getMessage());
+            $lock = null;
+        }
+        if ($lock !== null && $lock['lockId'] !== ($request->query['lockId'] ?? '')) {
+            throw new ApiException("Strona jest teraz edytowana przez {$lock['login']} — zapis zablokowany, żeby nie nadpisać jego zmian.", 409);
         }
 
         $merged = EditableMerge::apply($current['content'], $incoming, $role, $pageAcl);

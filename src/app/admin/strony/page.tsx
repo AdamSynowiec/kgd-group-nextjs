@@ -5,13 +5,17 @@ import { useRouter } from "next/navigation";
 import PageList from "@/components/admin/PageList";
 import PageEditor from "@/components/admin/PageEditor";
 import AdminShell from "@/components/admin/AdminShell";
+import PageLockedNotice from "@/components/admin/PageLockedNotice";
 import {
   AdminApiError,
+  acquirePageLock,
   fetchMe,
   fetchPage,
   fetchPages,
   loadSession,
+  newLockId,
   storeSession,
+  type PageLockHolder,
   type PageSummary,
   type Session,
 } from "@/lib/adminApi";
@@ -31,13 +35,17 @@ import {
 type ViewState =
   | { status: "checking" }
   | { status: "list"; pages: PageSummary[] }
-  | { status: "editing"; slug: string; content: Record<string, unknown> }
+  /** lockId = blokada edycji tej strony (PageLockController); null = blokady nie udało się założyć (np. brak migracji db/029). */
+  | { status: "editing"; slug: string; content: Record<string, unknown>; lockId: string | null }
+  | { status: "locked"; slug: string; title: string; lockId: string; holder: PageLockHolder }
   | { status: "error"; message: string };
 
 function viewTitle(view: ViewState): string {
   switch (view.status) {
     case "editing":
       return "Edycja strony";
+    case "locked":
+      return "Strona jest edytowana";
     case "error":
       return "Błąd";
     case "checking":
@@ -102,17 +110,40 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ma się uruchomić tylko raz, przy montowaniu
   }, []);
 
-  async function handleEdit(slug: string) {
+  /** Treść pobierana DOPIERO po zajęciu strony — po czekaniu/przejęciu edytor startuje od najnowszej zapisanej wersji. */
+  async function openEditor(slug: string, lockId: string | null) {
     setView({ status: "checking" });
     try {
       const content = await fetchPage(slug, session);
-      setView({ status: "editing", slug, content });
+      setView({ status: "editing", slug, content, lockId });
     } catch (error) {
       if (error instanceof AdminApiError && error.status === 401) {
         goToLogin();
         return;
       }
       setView({ status: "error", message: error instanceof Error ? error.message : "Nieznany błąd." });
+    }
+  }
+
+  async function handleEdit(slug: string) {
+    const title = view.status === "list" ? (view.pages.find((page) => page.slug === slug)?.title ?? slug) : slug;
+    setView({ status: "checking" });
+    const lockId = newLockId();
+    try {
+      const result = await acquirePageLock(slug, lockId, session);
+      if (!result.acquired && result.holder) {
+        setView({ status: "locked", slug, title: title.split("|")[0].trim(), lockId, holder: result.holder });
+        return;
+      }
+      await openEditor(slug, lockId);
+    } catch (error) {
+      if (error instanceof AdminApiError && error.status === 401) {
+        goToLogin();
+        return;
+      }
+      // Blokada niedostępna (np. migracja db/029 jeszcze nieuruchomiona) — edycja działa jak dawniej, bez blokady.
+      console.warn("[page-lock] blokada niedostępna:", error);
+      await openEditor(slug, null);
     }
   }
 
@@ -127,7 +158,19 @@ export default function AdminPage() {
       {view.status === "list" && <PageList initialPages={view.pages} session={session} onEdit={handleEdit} />}
 
       {view.status === "editing" && (
-        <PageEditor slug={view.slug} initialContent={view.content} session={session} onBack={handleBack} />
+        <PageEditor key={view.lockId ?? view.slug} slug={view.slug} initialContent={view.content} session={session} lockId={view.lockId} onBack={handleBack} />
+      )}
+
+      {view.status === "locked" && (
+        <PageLockedNotice
+          slug={view.slug}
+          title={view.title}
+          lockId={view.lockId}
+          holder={view.holder}
+          session={session}
+          onAcquired={() => void openEditor(view.slug, view.lockId)}
+          onBack={handleBack}
+        />
       )}
 
       {view.status === "error" && (

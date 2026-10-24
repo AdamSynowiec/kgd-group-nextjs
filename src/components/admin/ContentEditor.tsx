@@ -33,6 +33,8 @@ export default function ContentEditor({
   onSave,
   beforeFields,
   extraDirty = false,
+  lockNotice,
+  saveBlocked = false,
 }: {
   /** Tekst linku powrotu, np. "Wszystkie strony". */
   backLabel: string;
@@ -47,6 +49,10 @@ export default function ContentEditor({
   beforeFields?: ReactNode;
   /** Niezapisane zmiany poza polami treści (np. status/data w PageEditor.tsx). */
   extraDirty?: boolean;
+  /** Komunikat pod paskiem edytora (np. "edycję przejął X" — PageEditor.tsx). */
+  lockNotice?: ReactNode;
+  /** true = zapis zablokowany (ktoś inny ma blokadę edycji tej strony). */
+  saveBlocked?: boolean;
 }) {
   const [content, setContent] = useState(initialContent);
   const [contentDirty, setContentDirty] = useState(false);
@@ -81,6 +87,10 @@ export default function ContentEditor({
 
   // Ctrl/⌘+S i ostrzeżenie przy zamykaniu karty — ref zamiast zależności, żeby nasłuch był jeden.
   const saveRef = useRef(handleSave);
+  const saveBlockedRef = useRef(saveBlocked);
+  useEffect(() => {
+    saveBlockedRef.current = saveBlocked;
+  });
   useEffect(() => {
     saveRef.current = handleSave;
   });
@@ -88,7 +98,7 @@ export default function ContentEditor({
     const onKey = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        if (canSave) void saveRef.current();
+        if (canSave && !saveBlockedRef.current) void saveRef.current();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -165,7 +175,7 @@ export default function ContentEditor({
           </div>
 
           <Can session={session} permission="pages.update">
-            <button onClick={handleSave} disabled={saveState === "saving"} className={`${ui.btnPrimary} shrink-0`}>
+            <button onClick={handleSave} disabled={saveState === "saving" || saveBlocked} className={`${ui.btnPrimary} shrink-0`} title={saveBlocked ? "Zapis zablokowany — stronę edytuje ktoś inny" : undefined}>
               {saveState === "saving" ? (
                 <>
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -182,6 +192,8 @@ export default function ContentEditor({
         </div>
         {saveState === "error" && <p className="mx-auto mt-2 max-w-[1400px] text-sm text-red-600 sm:hidden">{errorMessage}</p>}
       </div>
+
+      {lockNotice && <div className="mb-6">{lockNotice}</div>}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">

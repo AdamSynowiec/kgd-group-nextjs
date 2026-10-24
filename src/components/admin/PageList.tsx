@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AdminApiError, createPage, deletePage, type PageSummary, type Session } from "@/lib/adminApi";
+import { AdminApiError, createPage, deletePage, fetchPageLocks, type PageLockHolder, type PageSummary, type Session } from "@/lib/adminApi";
 import { PAGE_TEMPLATES, getPageTemplate } from "@/lib/pageTemplates";
 import { slugify } from "@/lib/slugify";
 import { can } from "@/lib/permissions";
@@ -106,6 +106,22 @@ export default function PageList({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => loadCollapsedSections());
+  // Kto teraz edytuje którą stronę (blokady edycji) — odświeżane co 20 s.
+  const [locks, setLocks] = useState<Map<string, PageLockHolder>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      fetchPageLocks(session)
+        .then((items) => !cancelled && setLocks(new Map(items.map((item) => [item.slug, item]))))
+        .catch(() => undefined); // blokady to tylko podpowiedź — brak tabeli/błąd nie psuje listy
+    void load();
+    const timer = setInterval(load, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [session]);
 
   function toggleSection(key: string) {
     setCollapsedSections((prev) => {
@@ -190,7 +206,7 @@ export default function PageList({
 
       {isSearching ? (
         <div className={`${ui.card} overflow-hidden`}>
-          <PageRows items={filtered.map((page) => ({ page, depth: 0 }))} session={session} onEdit={onEdit} onDeleted={removePage} />
+          <PageRows items={filtered.map((page) => ({ page, depth: 0 }))} session={session} locks={locks} onEdit={onEdit} onDeleted={removePage} />
         </div>
       ) : (
         <div className="space-y-4">
@@ -208,7 +224,7 @@ export default function PageList({
                 </button>
                 {!collapsed && (
                   <div className="border-t border-zinc-100">
-                    <PageRows items={flattenTree(section.items)} session={session} onEdit={onEdit} onDeleted={removePage} />
+                    <PageRows items={flattenTree(section.items)} session={session} locks={locks} onEdit={onEdit} onDeleted={removePage} />
                   </div>
                 )}
               </section>
@@ -398,11 +414,13 @@ function formatDate(value: string): string {
 function PageRows({
   items,
   session,
+  locks,
   onEdit,
   onDeleted,
 }: {
   items: { page: PageSummary; depth: number }[];
   session: Session | null;
+  locks: Map<string, PageLockHolder>;
   onEdit: (slug: string) => void;
   onDeleted: (slug: string) => void;
 }) {
@@ -446,6 +464,12 @@ function PageRows({
               <span className="min-w-0">
                 <span className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium text-zinc-900 group-hover:text-indigo-700">{page.title}</span>
+                  {locks.has(page.slug) && (
+                    <span className={`${ui.badge} shrink-0 bg-orange-50 text-orange-700 ring-orange-600/15`} title="Strona jest teraz otwarta w edytorze">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-orange-500" />
+                      {locks.get(page.slug)!.sameUser ? "otwarta u Ciebie" : `edytuje ${locks.get(page.slug)!.login}`}
+                    </span>
+                  )}
                   {page.status === "draft" ? (
                     <span className={`${ui.badge} ${ui.badgeWarning} shrink-0`}>
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />

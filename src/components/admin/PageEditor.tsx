@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ContentEditor from "@/components/admin/ContentEditor";
 import { ui } from "@/components/admin/ui";
-import { savePage, type Session } from "@/lib/adminApi";
+import { acquirePageLock, heartbeatPageLock, releasePageLock, savePage, type PageLockHolder, type Session } from "@/lib/adminApi";
+
+/** Odnawianie blokady edycji — z zapasem względem jej TTL (60 s, MysqlPageLockRepository). */
+const HEARTBEAT_MS = 15000;
 
 type Status = "draft" | "published";
 
@@ -22,13 +25,53 @@ export default function PageEditor({
   slug,
   initialContent,
   session,
+  lockId,
   onBack,
 }: {
   slug: string;
   initialContent: Record<string, unknown>;
   session: Session | null;
+  /** Blokada edycji tej strony (null = bez blokady, np. migracja db/029 nieuruchomiona). */
+  lockId: string | null;
   onBack: () => void;
 }) {
+  // Ktoś przejął edycję ("Edytuj mimo to") — od tej chwili zapis jest zablokowany (backend i tak odrzuci go 409).
+  const [lostTo, setLostTo] = useState<PageLockHolder | null>(null);
+  const [reclaiming, setReclaiming] = useState(false);
+
+  // Blokada: odnawianie co 15 s, zwolnienie przy wyjściu z edytora i przy zamykaniu karty.
+  useEffect(() => {
+    if (!lockId) return;
+    let cancelled = false;
+    const beat = async () => {
+      try {
+        const result = await heartbeatPageLock(slug, lockId, session);
+        if (!cancelled) setLostTo(result.held ? null : result.holder);
+      } catch {
+        // chwilowy błąd sieci — kolejna próba za 15 s; blokada wytrzyma 60 s
+      }
+    };
+    const timer = setInterval(() => void beat(), HEARTBEAT_MS);
+    const onPageHide = () => releasePageLock(slug, lockId, session);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("pagehide", onPageHide);
+      releasePageLock(slug, lockId, session);
+    };
+  }, [slug, lockId, session]);
+
+  async function reclaim() {
+    if (!lockId) return;
+    setReclaiming(true);
+    try {
+      const result = await acquirePageLock(slug, lockId, session, true);
+      if (result.acquired) setLostTo(null);
+    } finally {
+      setReclaiming(false);
+    }
+  }
   const initialStatus: Status = initialContent.status === "published" ? "published" : "draft";
   const initialDate = typeof initialContent.updatedAt === "string" ? initialContent.updatedAt : "";
   const [status, setStatus] = useState<Status>(initialStatus);
@@ -41,7 +84,7 @@ export default function PageEditor({
     // CollectionItemEditor.tsx).
     const effectiveDate = date || todayIsoDate();
 
-    await savePage(slug, { ...content, status, updatedAt: effectiveDate }, session);
+    await savePage(slug, { ...content, status, updatedAt: effectiveDate }, session, lockId ?? undefined);
 
     if (effectiveDate !== date) {
       setDate(effectiveDate);
@@ -58,6 +101,28 @@ export default function PageEditor({
       onBack={onBack}
       onSave={handleSave}
       extraDirty={status !== saved.status || date !== saved.date}
+      saveBlocked={lostTo !== null}
+      lockNotice={
+        lostTo ? (
+          <div className="flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3.5 text-sm text-amber-900 sm:flex-row sm:items-center">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-sm font-semibold text-white">
+              {lostTo.login.charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold">{lostTo.sameUser ? "Tę stronę otwarto w innej karcie" : `Edycję przejął(a) ${lostTo.login}`}</div>
+              <div className="text-amber-800">Zapis jest zablokowany, żeby nie nadpisać tamtych zmian. Twoje niezapisane zmiany są tylko w tej karcie — skopiuj je, jeśli są potrzebne.</div>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button onClick={reclaim} disabled={reclaiming} className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[13px] font-medium text-amber-900 transition hover:bg-amber-100 disabled:opacity-50">
+                {reclaiming ? "Przejmowanie…" : "Przejmij z powrotem"}
+              </button>
+              <button onClick={onBack} className="rounded-lg bg-amber-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-amber-700">
+                Wróć do listy
+              </button>
+            </div>
+          </div>
+        ) : null
+      }
       beforeFields={
         <div className={`${ui.card} p-4`}>
           <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-zinc-400">Publikacja</div>
