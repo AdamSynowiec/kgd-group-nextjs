@@ -41,7 +41,12 @@ export type { FieldType };
  * src/lib/content.ts). Egzekwowane w EditableField.tsx (panel) i
  * EditableMerge.php (backend, realna granica bezpieczeństwa).
  */
-export type EditableValue<T = unknown> = { value: T; editable: boolean; label?: string; type: FieldType; acl?: Acl };
+/**
+ * "details" (opcjonalny, tylko type:"table") — dodatkowy edytor otwierany przyciskiem "Więcej" w każdym
+ * wierszu tabeli (dziś: "unitCard" — karta lokalu, patrz src/components/admin/fields/UnitCardDialog.tsx).
+ * Część definicji pola, jak "type" — panel go nie zmienia.
+ */
+export type EditableValue<T = unknown> = { value: T; editable: boolean; label?: string; type: FieldType; acl?: Acl; details?: string };
 
 export function isEditableValue(node: unknown): node is EditableValue {
   return (

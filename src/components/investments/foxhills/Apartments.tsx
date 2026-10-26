@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { legacyTabs, parseArea, roomsTotal, visibleTabs, type LegacyUnitView, type UnitCardData } from "@/lib/investments/unitCards";
 import { Icon } from "./icons";
 import { Button, Container, Eyebrow, NUM, Reveal, SectionHeader } from "./ui";
 
@@ -26,15 +27,9 @@ type Unit = {
   image?: string;
   /** Obrys lokalu na planie (współrzędne zdjęcia "x,y x,y ...", kilka wielokątów rozdziel znakiem |). */
   polygon?: string;
+  /** Karta lokalu: przyciski ("Parter", "Piętro", ...) i PDF-y — panel: "Więcej" w wierszu, patrz src/lib/investments/unitCards.ts. */
+  card?: UnitCardData;
 };
-
-/**
- * Zakładka karty lokalu (np. "Parter", "Piętro"): przycisk w karcie, który podmienia zdjęcie i opis.
- * Wiersz z "unit" dotyczy jednego lokalu; wiersz z samym "type" — wszystkich lokali tego typu
- * (używany, gdy lokal nie ma własnych wierszy). Kolejność wierszy = kolejność przycisków.
- * "rooms": "Salon z aneksem kuchennym: 42,5 | Łazienka: 6,2" — metraż po dwukropku jest opcjonalny.
- */
-type UnitView = { unit?: string; type?: string; label: string; image?: string; text?: string; rooms?: string };
 
 type ApartmentsFields = {
   eyebrow?: EditableValue<string> | string;
@@ -49,7 +44,8 @@ type ApartmentsFields = {
   types?: EditableValue<UnitType[]> | UnitType[];
   typesHeader?: EditableValue<string> | string;
   units?: EditableValue<Unit[]> | Unit[];
-  unitViews?: EditableValue<UnitView[]> | UnitView[];
+  /** Poprzedni format zakładek (db/026) — używany dla lokalu, który nie ma jeszcze własnej karty ("card"). */
+  unitViews?: EditableValue<LegacyUnitView[]> | LegacyUnitView[];
   summaryLabel?: EditableValue<string> | string;
   listHeader?: EditableValue<string> | string;
   prospectusLabel?: EditableValue<string> | string;
@@ -90,20 +86,6 @@ const num = (value: number | string | undefined, fallback = 0) => {
 const fmt = (value: number | string, digits = 2) => num(value).toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: digits });
 const formatArea = (value: number | string) => `${fmt(value)} m²`;
 const formatMoney = (value: number | string) => `${Math.round(num(value)).toLocaleString("pl-PL").replace(/ /g, " ")} zł`;
-
-/** "Salon z aneksem kuchennym: 42,5 | Łazienka" → [{ name, area }] (metraż opcjonalny). */
-function parseRooms(raw?: string): { name: string; area: number | null }[] {
-  if (!raw) return [];
-  return raw
-    .split("|")
-    .map((chunk) => {
-      const colon = chunk.lastIndexOf(":");
-      const name = (colon > -1 ? chunk.slice(0, colon) : chunk).trim();
-      const area = colon > -1 ? num(chunk.slice(colon + 1), NaN) : NaN;
-      return { name, area: Number.isFinite(area) && area > 0 ? area : null };
-    })
-    .filter((room) => room.name);
-}
 
 /** Cena łączna: pole "price" z panelu, a gdy puste — PUM × cena za m². */
 const totalPrice = (unit: Unit) => unit.price || (num(unit.pricePerM2) > 0 ? formatMoney(num(unit.area) * num(unit.pricePerM2)) : "Cena na zapytanie");
@@ -155,13 +137,13 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   const types = useMemo(() => unwrap(fields.types) ?? [], [fields.types]);
   const typesHeader = unwrap(fields.typesHeader);
   const units = useMemo(() => unwrap(fields.units) ?? [], [fields.units]);
-  const unitViews = useMemo(() => (unwrap(fields.unitViews) ?? []).filter((view) => view.label?.trim()), [fields.unitViews]);
+  const unitViews = useMemo(() => unwrap(fields.unitViews) ?? [], [fields.unitViews]);
   const summaryLabel = unwrap(fields.summaryLabel) || "Podsumowanie";
   const listHeader = unwrap(fields.listHeader);
   const prospectusLabel = unwrap(fields.prospectusLabel);
   const prospectusUrl = unwrap(fields.prospectusUrl);
   const prospectusRequestLabel = unwrap(fields.prospectusRequestLabel);
-  // Przyciski w karcie lokalu: PDF, gdy jest adres; bez pliku — prośba przez formularz kontaktowy.
+  // Przyciski w karcie lokalu: PDF lokalu (a bez niego wspólny niżej); bez żadnego pliku — prośba przez formularz kontaktowy.
   const cardProspectusLabel = unwrap(fields.cardProspectusLabel) || "Prospekt informacyjny";
   const standardLabel = unwrap(fields.standardLabel) || "Standard wykończenia";
   const standardUrl = unwrap(fields.standardUrl);
@@ -174,7 +156,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [sort, setSort] = useState<SortState>({ key: "unit", dir: 1 });
   const [open, setOpen] = useState<Unit | null>(null);
-  // Zakładka karty lokalu: 0 = podsumowanie, 1..n = wiersze z unitViews. Nowy lokal zawsze startuje od podsumowania.
+  // Zakładka karty lokalu: 0 = podsumowanie, 1..n = przyciski z karty lokalu (unit.card.tabs). Nowy lokal zawsze startuje od podsumowania.
   const [view, setView] = useState(0);
   const [viewFor, setViewFor] = useState<Unit | null>(null);
   if (open !== viewFor) {
@@ -215,17 +197,14 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   const zoneShapes = interactive.filter((zone) => !zonesWithShapes.has(zone.id));
   const activeUnit = unitShapes.find((unit) => unit.unit === hoveredUnit);
   const typeOf = (unit: Unit) => types.find((item) => item.kind === unit.type || item.name === unit.type);
-  /** Zakładki lokalu: własne wiersze (kolumna "unit"), a gdy ich nie ma — wspólne dla typu (sama kolumna "type"). */
-  const viewsFor = (unit: Unit) => {
-    const own = unitViews.filter((row) => row.unit?.trim() === unit.unit);
-    return own.length > 0 ? own : unitViews.filter((row) => !row.unit?.trim() && row.type?.trim() === unit.type);
-  };
-  const openViews = open ? viewsFor(open) : [];
+  /** Przyciski karty lokalu: z jego karty, a dopóki jej nie ma — stare zakładki (unitViews). */
+  const openCard = open?.card;
+  const openViews = open ? (visibleTabs(openCard).length > 0 ? visibleTabs(openCard) : legacyTabs(unitViews, open.unit, open.type)) : [];
   const activeView = view > 0 ? openViews[view - 1] : undefined;
   const summaryImage = open ? open.image || typeOf(open)?.image : undefined;
   const cardImage = activeView?.image || summaryImage;
-  const activeRooms = parseRooms(activeView?.rooms);
-  const roomsTotal = activeRooms.reduce((sum, room) => sum + (room.area ?? 0), 0);
+  const activeRooms = (activeView?.rooms ?? []).filter((room) => room.name?.trim()).map((room) => ({ name: room.name.trim(), area: parseArea(room.area) }));
+  const activeRoomsTotal = roomsTotal(activeView?.rooms);
 
   // Okno karty lokalu: Escape zamyka, tło strony nie przewija się pod spodem.
   useEffect(() => {
@@ -901,10 +880,10 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                             {room.area !== null && <dd className={`${NUM} shrink-0 text-[18px] text-[#E7E7E7]`}>{formatArea(room.area)}</dd>}
                           </div>
                         ))}
-                        {roomsTotal > 0 && (
+                        {activeRoomsTotal > 0 && (
                           <div className="flex items-baseline justify-between gap-6 pt-4">
                             <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Razem</dt>
-                            <dd className={`${NUM} shrink-0 text-[22px] text-[#E7E7E7]`}>{formatArea(Math.round(roomsTotal * 100) / 100)}</dd>
+                            <dd className={`${NUM} shrink-0 text-[22px] text-[#E7E7E7]`}>{formatArea(activeRoomsTotal)}</dd>
                           </div>
                         )}
                       </dl>
@@ -961,8 +940,8 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
 
                 <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3">
                   {[
-                    { label: cardProspectusLabel, url: prospectusUrl },
-                    { label: standardLabel, url: standardUrl },
+                    { label: cardProspectusLabel, url: openCard?.prospectusUrl?.trim() || prospectusUrl },
+                    { label: standardLabel, url: openCard?.standardUrl?.trim() || standardUrl },
                   ].map(({ label, url }) => (
                     <a
                       key={label}

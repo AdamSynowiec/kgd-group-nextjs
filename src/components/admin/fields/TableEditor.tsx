@@ -3,8 +3,10 @@
 import { useState, type DragEvent } from "react";
 import { looksLikeAssetKey, looksLikeAssetPath } from "@/lib/fieldType";
 import type { Session } from "@/lib/adminApi";
+import { legacyTabs, visibleTabs, type LegacyUnitView, type UnitCardData } from "@/lib/investments/unitCards";
 import { labelFor } from "./labels";
 import AssetEditor from "./AssetEditor";
+import UnitCardDialog, { cardSummary } from "./UnitCardDialog";
 import { inputClass, type FieldEditorProps, type OnChange, type Path } from "./types";
 
 const removeButtonClass =
@@ -201,6 +203,9 @@ function RowActionsCell({ index, onDuplicate, onRemove }: { index: number; onDup
  *   3) płaski słownik klucz/wartość (errors, consents, ...) -> stałe wiersze
  *      klucz/wartość, bez dodawania/usuwania (klucze są odczytywane po
  *      nazwie w kodzie, np. errors.emailRequired w Contact).
+ *
+ * Pole z "details": "unitCard" (meta.rowDetails) dostaje w każdym wierszu przycisk
+ * "Więcej" — okno z kartą lokalu (UnitCardDialog.tsx), zapisywaną w kluczu "card" wiersza.
  */
 export default function TableEditor({ value, path, session, onChange, meta }: FieldEditorProps) {
   if (isPlainObject(value)) {
@@ -218,6 +223,8 @@ export default function TableEditor({ value, path, session, onChange, meta }: Fi
         session={session}
         onChange={onChange}
         columnLabels={meta?.columnLabels}
+        rowDetails={meta?.rowDetails}
+        siblings={meta?.siblings}
       />
     );
   }
@@ -716,14 +723,21 @@ function ObjectRowsTable({
   session,
   onChange,
   columnLabels,
+  rowDetails,
+  siblings,
 }: {
   rows: Record<string, unknown>[];
   path: Path;
   session: Session | null;
   onChange: OnChange;
   columnLabels?: Record<string, string>;
+  rowDetails?: string;
+  siblings?: Record<string, unknown>;
 }) {
-  const columns = resolveColumnOrder(rows, columnLabels);
+  // Karta lokalu żyje w kluczu "card" wiersza — edytowana w oknie "Więcej", nie jako kolumna.
+  const detailsKey = rowDetails === "unitCard" ? "card" : null;
+  const [openDetails, setOpenDetails] = useState<number | null>(null);
+  const columns = resolveColumnOrder(rows, columnLabels).filter((key) => key !== detailsKey);
   const columnKinds = Object.fromEntries(columns.map((key) => [key, detectColumnKind(rows, key)])) as Record<
     string,
     ColumnKind
@@ -818,6 +832,7 @@ function ObjectRowsTable({
                   {columnLabels?.[key] ?? labelFor(key)}
                 </th>
               ))}
+              {detailsKey && <th className="whitespace-nowrap border-b border-zinc-200 px-2 py-2 text-left text-xs font-semibold text-zinc-600">Karta lokalu</th>}
               <th className="border-b border-zinc-200 px-2 py-2" />
             </tr>
           </thead>
@@ -887,6 +902,18 @@ function ObjectRowsTable({
                     </td>
                   );
                 })}
+                {detailsKey && (
+                  <td className="px-2 py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setOpenDetails(rowIndex)}
+                      className="inline-flex max-w-[16rem] items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-left text-xs font-medium text-zinc-700 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700"
+                    >
+                      <span className="shrink-0">Więcej</span>
+                      <span className="truncate font-normal text-zinc-400">{cardSummary(row[detailsKey] as UnitCardData | undefined) || "pusta"}</span>
+                    </button>
+                  </td>
+                )}
                 <td className="px-2 py-1.5">
                   <RowActionsCell index={rowIndex} onDuplicate={() => onChange(path, duplicateRows(rows, new Set([rowIndex])))} onRemove={() => handleRemoveRow(rowIndex)} />
                 </td>
@@ -898,6 +925,27 @@ function ObjectRowsTable({
       <button type="button" onClick={handleAddRow} className={addButtonClass}>
         + Dodaj wiersz
       </button>
+
+      {detailsKey && openDetails !== null && rows[openDetails] && (() => {
+        const row = rows[openDetails];
+        const unit = cellText(row.unit).trim();
+        return (
+          <UnitCardDialog
+            row={row}
+            card={(row[detailsKey] as UnitCardData | undefined) ?? {}}
+            copySources={rows.flatMap((other, index) =>
+              index !== openDetails && visibleTabs(other[detailsKey] as UnitCardData | undefined).length > 0 ? [{ unit: cellText(other.unit), card: other[detailsKey] as UnitCardData }] : []
+            )}
+            legacy={Array.isArray(siblings?.unitViews) ? legacyTabs(siblings.unitViews as LegacyUnitView[], unit, cellText(row.type).trim()) : []}
+            globalProspectus={cellText(siblings?.prospectusUrl).trim()}
+            globalStandard={cellText(siblings?.standardUrl).trim()}
+            summaryLabel={cellText(siblings?.summaryLabel).trim() || "Podsumowanie"}
+            session={session}
+            onChange={(card) => onChange([...path, openDetails, detailsKey], card)}
+            onClose={() => setOpenDetails(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

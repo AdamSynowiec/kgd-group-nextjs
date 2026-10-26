@@ -22,7 +22,14 @@ type FlatField = {
   path: Path;
   /** Dla type:"table" pola "rows" — nagłówki kolumn z sąsiedniego pola "columns" (patrz PriceHistory). */
   columnLabels?: Record<string, string>;
+  /** Rozpakowane wartości pól obok (ten sam obiekt) — patrz meta.siblings w fields/types.ts. */
+  siblings?: Record<string, unknown>;
 };
+
+/** {klucz: węzeł edytowalny} -> {klucz: value} — kontekst dla edytorów potrzebujących sąsiednich pól (np. stare zakładki "unitViews"). */
+function siblingValues(record: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).flatMap(([key, value]) => (isEditableValue(value) ? [[key, value.value]] : [])));
+}
 
 /** [{key,label}] (kształt pola "columns") -> {key: label} — do podpowiedzi nagłówków kolumn sąsiedniego pola "rows". */
 function extractColumnLabels(value: unknown): Record<string, string> | undefined {
@@ -60,7 +67,8 @@ function collectFields(
   key: string | null,
   role: string | null | undefined,
   pageAcl: Acl | undefined,
-  columnLabelsForRows?: Record<string, string>
+  columnLabelsForRows?: Record<string, string>,
+  siblings?: Record<string, unknown>
 ): FlatField[] {
   if (isEditableValue(node)) {
     // Brak WŁASNEGO "acl" -> dziedziczy "acl" całej strony (pageAcl); brak obu ->
@@ -79,6 +87,7 @@ function collectFields(
         node,
         path,
         columnLabels: key === "rows" ? columnLabelsForRows : undefined,
+        siblings,
       },
     ];
   }
@@ -100,6 +109,7 @@ function collectFields(
       isEditableValue(siblingColumnsNode) && siblingColumnsNode.type === "table"
         ? extractColumnLabels(siblingColumnsNode.value)
         : undefined;
+    const siblingsHere = siblingValues(record);
 
     return Object.entries(record).flatMap(([childKey, value]) => {
       if (TRANSPARENT_KEYS.has(childKey)) {
@@ -111,7 +121,7 @@ function collectFields(
       const nextGroup =
         isPlainObject && group === null ? groupLabelFor(childKey, value as Record<string, unknown>) : group;
 
-      return collectFields(value, [...path, childKey], nextGroup, childKey, role, pageAcl, siblingColumnLabels);
+      return collectFields(value, [...path, childKey], nextGroup, childKey, role, pageAcl, siblingColumnLabels, siblingsHere);
     });
   }
 
@@ -224,7 +234,7 @@ function EditableControl({
   pageAcl: Acl | undefined;
   onChange: OnChange;
 }) {
-  const { ownLabel, name, node, path, columnLabels } = field;
+  const { ownLabel, name, node, path, columnLabels, siblings } = field;
   const valuePath = [...path, "value"];
 
   // "acl" z permission:"read" (bez "write") blokuje edycję dokładnie tak samo jak
@@ -280,7 +290,7 @@ function EditableControl({
         path={valuePath}
         session={session}
         onChange={onChange}
-        meta={{ columnLabels }}
+        meta={{ columnLabels, siblings, rowDetails: typeof node.details === "string" ? node.details : undefined }}
       />
     </div>
   );

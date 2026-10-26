@@ -26,6 +26,10 @@ export type FieldEditorProps<T = unknown> = {
   meta?: {
     /** Dla type:"table" pola o kluczu "rows" — nagłówki kolumn z sąsiedniego pola "columns" (patrz PriceHistory). */
     columnLabels?: Record<string, string>;
+    /** Wartości (już rozpakowane) pól leżących obok w tym samym obiekcie fields — np. stare "unitViews" dla karty lokalu. */
+    siblings?: Record<string, unknown>;
+    /** Dla type:"table" — "details" zapisane przy polu (np. "unitCard"): każdy wiersz dostaje przycisk "Więcej" z oknem edycji. */
+    rowDetails?: string;
   };
 };
 

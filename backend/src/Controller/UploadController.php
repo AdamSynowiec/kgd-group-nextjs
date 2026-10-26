@@ -30,6 +30,8 @@ if (!defined('APP_ENTRY')) {
 final class UploadController
 {
     private const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+    /** PDF-y (prospekt, standard wykończenia w karcie lokalu) bywają większe niż zdjęcia. */
+    private const MAX_PDF_BYTES = 30 * 1024 * 1024; // 30 MB
 
     /** rozszerzenie -> lista dopuszczalnych MIME z finfo (weryfikacja realnej zawartości, nie tylko nazwy pliku). */
     private const ALLOWED_TYPES = [
@@ -38,6 +40,7 @@ final class UploadController
         'png' => ['image/png'],
         'webp' => ['image/webp'],
         'gif' => ['image/gif'],
+        'pdf' => ['application/pdf'],
         // SVG celowo bez weryfikacji finfo (to XML, nie da się sprawdzić po MIME
         // równie prosto) — panel jest dostępny tylko zalogowanym redaktorom,
         // ten sam poziom zaufania co reszta treści w bazie.
@@ -65,11 +68,13 @@ final class UploadController
             throw new ApiException('Nieprawidłowe żądanie przesyłania pliku.', 400);
         }
 
-        if ($file['size'] > self::MAX_BYTES) {
-            throw new ApiException('Plik jest za duży — limit to 8 MB.', 400);
+        $extension = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+
+        $maxBytes = $extension === 'pdf' ? self::MAX_PDF_BYTES : self::MAX_BYTES;
+        if ($file['size'] > $maxBytes) {
+            throw new ApiException('Plik jest za duży — limit to ' . intdiv($maxBytes, 1024 * 1024) . ' MB.', 400);
         }
 
-        $extension = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
         if (!array_key_exists($extension, self::ALLOWED_TYPES)) {
             throw new ApiException(
                 'Niedozwolony typ pliku. Dozwolone: ' . implode(', ', array_keys(self::ALLOWED_TYPES)) . '.',
