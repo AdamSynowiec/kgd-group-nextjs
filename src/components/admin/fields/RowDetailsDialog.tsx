@@ -5,6 +5,8 @@ import { uploadAsset, type Session } from "@/lib/adminApi";
 import { legacyTabs, parseArea, roomsTotal, visibleTabs, type CardRoom, type CardTab, type LegacyUnitView } from "@/lib/investments/unitCards";
 import { CloseIcon, ExternalIcon, FileIcon, PlusIcon, TrashIcon } from "../icons";
 import { ui } from "../ui";
+import PlanEditor from "./PlanEditor";
+import { shapesFor, usePlanImage } from "./PlanEditorDialog";
 import { getIn, type DetailField, type RowDetailsConfig } from "./rowDetails";
 import LibraryButton from "../assets/LibraryButton";
 import { inputClass } from "./types";
@@ -15,7 +17,7 @@ const str = (value: unknown) => (typeof value === "string" ? value.trim() : type
 const fileName = (url: string) => decodeURIComponent(url.split("/").pop() ?? url);
 const formatArea = (value: number) => `${value.toLocaleString("pl-PL", { maximumFractionDigits: 2 })} m²`;
 
-type Pane = "summary" | "files" | number;
+type Pane = "summary" | "files" | "plan" | number;
 
 /**
  * Okno "Więcej" wiersza tabeli — układ z konfiguracji (rowDetails.ts): po lewej nawigacja
@@ -180,6 +182,18 @@ export default function RowDetailsDialog({
               })}
               {config.tabs && <AddTabButton existing={tabs.map((tab) => tab.label)} onAdd={addTab} />}
 
+              {config.plan && (
+                <>
+                  <div className="mt-5 px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Plan</div>
+                  <NavItem
+                    active={pane === "plan"}
+                    onClick={() => setPane("plan")}
+                    title="Obrys na planie"
+                    subtitle={str(row[config.plan.key]) ? "zaznaczony" : "brak — narysuj"}
+                    icon
+                  />
+                </>
+              )}
               {config.files && (
                 <>
                   <div className="mt-5 px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Pliki</div>
@@ -203,7 +217,8 @@ export default function RowDetailsDialog({
             )}
           </nav>
 
-          <div className="min-h-0 overflow-y-auto p-5 sm:p-6">
+          <div className={`min-h-0 ${pane === "plan" ? "" : "overflow-y-auto p-5 sm:p-6"}`}>
+            {pane === "plan" && config.plan && <PlanPane config={config} row={row} rows={rows} rowIndex={rowIndex} siblings={siblings} onSet={onSet} />}
             {activeIndex !== null ? (
               <TabEditor
                 key={activeIndex}
@@ -216,7 +231,7 @@ export default function RowDetailsDialog({
                 }}
                 onRemove={() => removeTab(activeIndex)}
               />
-            ) : pane === "files" && config.files ? (
+            ) : pane === "plan" ? null : pane === "files" && config.files ? (
               <div className="max-w-2xl space-y-5">
                 <PaneTitle title={config.files.label ?? "Pliki"} text={config.files.text ?? ""} />
                 {fileFields.map((field) => {
@@ -244,6 +259,32 @@ export default function RowDetailsDialog({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Obrys tego wiersza na planie — inne obrysy widoczne dla orientacji, ale nieedytowalne. */
+function PlanPane({
+  config,
+  row,
+  rows,
+  rowIndex,
+  siblings,
+  onSet,
+}: {
+  config: RowDetailsConfig;
+  row: Record<string, unknown>;
+  rows: Record<string, unknown>[];
+  rowIndex: number;
+  siblings: Record<string, unknown>;
+  onSet: (key: string, value: unknown) => void;
+}) {
+  const plan = usePlanImage(config.plan!, siblings);
+  if (!plan) return <p className="p-6 text-sm text-zinc-500">Brak zdjęcia planu — ustaw je w polu planu tej sekcji.</p>;
+  const shapes = shapesFor(config.plan!, rows).map((shape) => (shape.index === rowIndex ? { ...shape, polygon: str(row[config.plan!.key]) } : shape));
+  return (
+    <div className="h-full min-h-[520px]">
+      <PlanEditor image={plan.image} width={plan.width} height={plan.height} shapes={shapes} active={rowIndex} onChange={(index, polygon) => index === rowIndex && onSet(config.plan!.key, polygon)} />
     </div>
   );
 }

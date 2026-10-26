@@ -9,7 +9,8 @@
  * Części okna (każda opcjonalna):
  *   summary — formularz pól wiersza (tekst, liczba, długi tekst, zdjęcie),
  *   tabs    — lista przycisków-zakładek {label, image, text, rooms: [{name, area}]} pod kluczem tabs.key,
- *   files   — pliki PDF.
+ *   files   — pliki PDF,
+ *   plan    — obrys wiersza na zdjęciu planu (PlanEditor.tsx; nad tabelą także "Obrysy na planie" dla wszystkich).
  * Klucz pola może być zagnieżdżony: "card.prospectusUrl" = row.card.prospectusUrl.
  *
  * Pola, które żyją tylko w oknie (zakładki, pliki, zdjęcia, długie teksty, klucze zagnieżdżone), znikają
@@ -44,6 +45,8 @@ export type RowDetailsConfig = {
   summary?: { label?: string; labelSibling?: string; text?: string; fields: DetailField[] };
   tabs?: { key: string; label?: string; legacySibling?: string };
   files?: { label?: string; text?: string; fields: DetailField[] };
+  /** Obrys na planie: klucz wiersza z wielokątem i pola strony ze zdjęciem planu oraz jego wymiarami. */
+  plan?: { key: string; label?: string; imageSibling: string; widthSibling?: string; heightSibling?: string; labelKey?: string; statusKey?: string };
 };
 
 export const ROW_DETAIL_PRESETS: Record<string, RowDetailsConfig> = {
@@ -81,6 +84,7 @@ export const ROW_DETAIL_PRESETS: Record<string, RowDetailsConfig> = {
         { key: "card.standardUrl", label: "Standard wykończenia", type: "file", fallbackSibling: "standardUrl", emptyText: "Brak pliku — przycisk prowadzi do formularza kontaktowego" },
       ],
     },
+    plan: { key: "polygon", label: "Obrysy na planie", imageSibling: "planImage", widthSibling: "planWidth", heightSibling: "planHeight", labelKey: "unit", statusKey: "status" },
   },
 };
 
@@ -93,7 +97,7 @@ export function resolveRowDetails(raw: unknown): RowDetailsConfig | null {
   const base = typeof raw.preset === "string" ? (ROW_DETAIL_PRESETS[raw.preset] ?? {}) : {};
   const config = { ...base, ...raw } as RowDetailsConfig & { preset?: string };
   delete config.preset;
-  return config.summary || config.tabs || config.files ? config : null;
+  return config.summary || config.tabs || config.files || config.plan ? config : null;
 }
 
 /** Wartość pod kluczem "a.b.c". */
@@ -111,6 +115,14 @@ export function detailOwnedKeys(config: RowDetailsConfig): string[] {
     if (field.key.includes(".") || field.type === "image" || field.type === "textarea" || field.type === "file") own(field.key);
   }
   return [...keys];
+}
+
+/**
+ * Klucze ukryte w tabeli: te z okna plus obrys na planie (edytowany wizualnie). Obrys NIE należy do
+ * detailOwnedKeys — kopiowanie "Więcej" na inny lokal nie przenosi jego położenia na planie.
+ */
+export function detailHiddenKeys(config: RowDetailsConfig): string[] {
+  return [...detailOwnedKeys(config), ...(config.plan ? [config.plan.key] : [])];
 }
 
 /** Krótki opis zawartości okna do komórki tabeli: "Parter, Piętro · 2 pliki". */

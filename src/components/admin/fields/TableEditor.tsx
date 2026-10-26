@@ -7,7 +7,8 @@ import { labelFor } from "./labels";
 import AssetEditor from "./AssetEditor";
 import LibraryButton from "../assets/LibraryButton";
 import RowDetailsDialog from "./RowDetailsDialog";
-import { detailOwnedKeys, detailsSummary, resolveRowDetails } from "./rowDetails";
+import PlanEditorDialog from "./PlanEditorDialog";
+import { detailHiddenKeys, detailOwnedKeys, detailsSummary, resolveRowDetails } from "./rowDetails";
 import { useSheet, type CellWrite } from "./useSheet";
 import { inputClass, type FieldEditorProps, type OnChange, type Path } from "./types";
 
@@ -749,7 +750,9 @@ function ObjectRowsTable({
   const details = resolveRowDetails(rowDetails);
   const ownedKeys = details ? detailOwnedKeys(details) : [];
   const [openDetails, setOpenDetails] = useState<number | null>(null);
-  const columns = resolveColumnOrder(rows, columnLabels).filter((key) => !ownedKeys.includes(key));
+  const [planOpen, setPlanOpen] = useState(false);
+  const hiddenKeys = details ? detailHiddenKeys(details) : [];
+  const columns = resolveColumnOrder(rows, columnLabels).filter((key) => !hiddenKeys.includes(key));
   const columnKinds = Object.fromEntries(columns.map((key) => [key, detectColumnKind(rows, key)])) as Record<
     string,
     ColumnKind
@@ -867,6 +870,20 @@ function ObjectRowsTable({
         onMoveSelected={handleMoveSelected}
         onClear={clear}
       />
+      {details?.plan && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50/70 px-3 py-2.5">
+          <button type="button" onClick={() => setPlanOpen(true)} className={bulkButtonClass}>
+            {details.plan.label ?? "Obrysy na planie"}
+          </button>
+          <span className="text-xs text-zinc-500">
+            Zaznaczanie lokali na zdjęciu planu: rysowanie nowych obrysów i poprawianie punktów · obrys ma{" "}
+            {rows.filter((row) => cellText(row[details.plan!.key]).trim() !== "").length} z {rows.length}
+          </span>
+        </div>
+      )}
+      {details?.plan && planOpen && (
+        <PlanEditorDialog config={details.plan} rows={rows} siblings={siblings ?? {}} onSet={(index, polygon) => onChange([...path, index, details.plan!.key], polygon)} onClose={() => setPlanOpen(false)} />
+      )}
       {sheetColumns.length > 0 && (
         <p className="mb-1.5 text-[11px] leading-relaxed text-zinc-400">
           Jak w Excelu: kliknij komórkę i pisz · przeciągnij / Shift = zakres · <kbd>Ctrl+C</kbd> <kbd>Ctrl+X</kbd> <kbd>Ctrl+V</kbd> (także z Excela) · <kbd>Delete</kbd> czyści ·{" "}
