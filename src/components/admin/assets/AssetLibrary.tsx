@@ -37,6 +37,8 @@ const matchesAccept = (asset: AssetItem, accept?: AssetAccept) => !accept || (ac
  * Katalogi są tylko porządkiem w bazie (AssetController.php): przeniesienie pliku czy katalogu nie zmienia
  * adresu pliku, więc strony, które go używają, działają dalej.
  *
+ * W trybie "pick" z multiple klik dodaje/odejmuje plik z zaznaczenia, a "Wybierz zaznaczone" oddaje wszystkie naraz.
+ *
  * Przeciąganie: pliki i katalogi na katalog (w drzewie albo w siatce) — przeniesienie; pliki z dysku na siatkę — wgranie
  * do otwartego katalogu. Klik — zaznaczenie, Ctrl/⌘ — dodaj do zaznaczenia, Shift — zakres.
  */
@@ -44,12 +46,17 @@ export default function AssetLibrary({
   session,
   mode = "manage",
   accept,
+  multiple = false,
   onPick,
+  onPickMany,
 }: {
   session: Session | null;
   mode?: "manage" | "pick";
   accept?: AssetAccept;
+  /** Tryb "pick": można zaznaczyć i wybrać kilka plików (onPickMany). */
+  multiple?: boolean;
   onPick?: (asset: AssetItem) => void;
+  onPickMany?: (assets: AssetItem[]) => void;
 }) {
   const [folders, setFolders] = useState<AssetFolder[]>([]);
   const [current, setCurrent] = useState<number | null>(null);
@@ -124,9 +131,24 @@ export default function AssetLibrary({
     for (const folder of pathTo(folderId)) setExpanded((prev) => new Set(prev).add(folder.id));
   }
 
+  function toggleAsset(asset: AssetItem) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(asset.id)) next.delete(asset.id);
+      else next.add(asset.id);
+      return next;
+    });
+    setLastClicked(asset.id);
+  }
+
   function clickAsset(asset: AssetItem, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
-    if (mode === "pick") {
+    if (mode === "pick" && !multiple) {
       setSelected(new Set([asset.id]));
+      return;
+    }
+    // Wybór wielu: zwykły klik dodaje/odejmuje (Shift — zakres, jak w zakładce).
+    if (mode === "pick" && !event.shiftKey) {
+      toggleAsset(asset);
       return;
     }
     if (event.shiftKey && lastClicked !== null) {
@@ -365,6 +387,27 @@ export default function AssetLibrary({
           )}
         </div>
 
+        {mode === "pick" && multiple && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2 text-sm">
+            <span className="text-zinc-600">{selected.size > 0 ? `Zaznaczono: ${selected.size}` : "Klikaj pliki, aby zaznaczyć kilka (Shift — zakres)."}</span>
+            {selected.size > 0 && (
+              <>
+                <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-zinc-500 hover:text-zinc-800">
+                  Odznacz
+                </button>
+                <button type="button" onClick={() => onPickMany?.(visible.filter((asset) => selected.has(asset.id)))} className={`${ui.btnPrimarySm} ml-auto`}>
+                  Wybierz zaznaczone ({selected.size})
+                </button>
+              </>
+            )}
+            {selected.size === 0 && (
+              <button type="button" onClick={() => setSelected(new Set(visible.map((asset) => asset.id)))} className="ml-auto text-xs text-zinc-500 hover:text-zinc-800">
+                Zaznacz wszystkie
+              </button>
+            )}
+          </div>
+        )}
+
         {mode === "manage" && selected.size > 0 && (
           <div className="flex flex-wrap items-center gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2 text-sm">
             <span className="font-medium text-zinc-700">Zaznaczono: {selected.size}</span>
@@ -469,8 +512,8 @@ export default function AssetLibrary({
                       draggable={canManage && mode === "manage"}
                       onDragStart={(event) => dragAssets(event, asset)}
                       onClick={(event) => clickAsset(asset, event)}
-                      onDoubleClick={() => mode === "pick" && onPick?.(asset)}
-                      onKeyDown={(event) => event.key === "Enter" && (mode === "pick" ? onPick?.(asset) : clickAsset(asset, event))}
+                      onDoubleClick={() => mode === "pick" && (multiple ? onPickMany?.([asset]) : onPick?.(asset))}
+                      onKeyDown={(event) => event.key === "Enter" && (mode === "pick" ? (multiple ? onPickMany?.([asset]) : onPick?.(asset)) : clickAsset(asset, event))}
                       className={`group relative cursor-pointer overflow-hidden rounded-lg border bg-white text-left transition ${
                         isSelected ? "border-indigo-500 ring-2 ring-indigo-200" : "border-zinc-200 hover:border-zinc-300 hover:shadow-sm"
                       }`}
@@ -495,6 +538,15 @@ export default function AssetLibrary({
                         </div>
                       </div>
                       <span
+                        role="checkbox"
+                        aria-checked={isSelected}
+                        aria-label={`Zaznacz ${asset.name}`}
+                        onClick={(event) => {
+                          // Kwadracik zawsze dodaje / odejmuje plik z zaznaczenia (bez Ctrl).
+                          if (mode === "pick" && !multiple) return;
+                          event.stopPropagation();
+                          toggleAsset(asset);
+                        }}
                         className={`absolute left-2 top-2 grid h-5 w-5 place-items-center rounded-md border transition ${
                           isSelected ? "border-indigo-600 bg-indigo-600 text-white" : "border-zinc-300 bg-white/90 text-transparent opacity-0 group-hover:opacity-100"
                         }`}
@@ -514,7 +566,7 @@ export default function AssetLibrary({
               asset={detail}
               folderName={pathTo(detail.folderId).map((folder) => folder.name).join(" / ") || "Wszystkie pliki"}
               session={session}
-              mode={mode}
+              mode={multiple ? "manage" : mode}
               canManage={canManage}
               canDelete={canDelete}
               onRename={(name) => void run(() => renameAsset(detail.id, name, session))}

@@ -508,12 +508,15 @@ function RoomsEditor({ rooms, onChange }: { rooms: CardRoom[]; onChange: (rooms:
               <th className="w-px px-2 py-1.5" />
               <th className="px-2 py-1.5">Pomieszczenie</th>
               <th className="w-32 px-2 py-1.5">Metraż</th>
+              <th className="w-px whitespace-nowrap px-2 py-1.5 text-center" title="Pokazuj w tabeli, ale nie doliczaj do sumy (np. taras, balkon)">
+                Nie wliczaj
+              </th>
               <th className="w-px px-2 py-1.5" />
             </tr>
           </thead>
           <tbody>
             {rooms.map((room, index) => (
-              <tr key={index} className="border-t border-zinc-100">
+              <tr key={index} className={`border-t border-zinc-100 ${room.excluded ? "bg-zinc-50" : ""}`}>
                 <td className="px-1 py-1">
                   <div className="flex flex-col">
                     <button type="button" onClick={() => move(index, index - 1)} disabled={index === 0} aria-label="W górę" className="px-1 text-[9px] leading-none text-zinc-400 hover:text-zinc-800 disabled:opacity-25">
@@ -546,6 +549,15 @@ function RoomsEditor({ rooms, onChange }: { rooms: CardRoom[]; onChange: (rooms:
                     <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400">m²</span>
                   </div>
                 </td>
+                <td className="px-1.5 py-1 text-center">
+                  <input
+                    type="checkbox"
+                    checked={room.excluded === true}
+                    onChange={(event) => setRoom(index, { excluded: event.target.checked || undefined })}
+                    aria-label={`Nie wliczaj pomieszczenia ${index + 1} do sumy`}
+                    className="h-4 w-4 cursor-pointer accent-indigo-600"
+                  />
+                </td>
                 <td className="px-1.5 py-1">
                   <button type="button" onClick={() => onChange(rooms.filter((_, i) => i !== index))} aria-label={`Usuń pomieszczenie ${index + 1}`} className={ui.iconBtn}>
                     <CloseIcon className="h-3.5 w-3.5" />
@@ -555,7 +567,7 @@ function RoomsEditor({ rooms, onChange }: { rooms: CardRoom[]; onChange: (rooms:
             ))}
             {rooms.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-3 py-4 text-center text-xs text-zinc-400">
+                <td colSpan={5} className="px-3 py-4 text-center text-xs text-zinc-400">
                   Brak pomieszczeń — tabela nie pojawi się na stronie.
                 </td>
               </tr>
@@ -565,8 +577,11 @@ function RoomsEditor({ rooms, onChange }: { rooms: CardRoom[]; onChange: (rooms:
             <tfoot>
               <tr className="border-t border-zinc-200 bg-zinc-50/80">
                 <td />
-                <td className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Razem (liczone automatycznie)</td>
+                <td className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                  Razem (liczone automatycznie{rooms.some((room) => room.excluded) ? ", bez zaznaczonych „nie wliczaj”" : ""})
+                </td>
                 <td className="px-3 py-2 pr-4 text-right text-sm font-semibold tabular-nums text-zinc-900">{formatArea(total)}</td>
+                <td />
                 <td />
               </tr>
             </tfoot>

@@ -10,12 +10,15 @@ import AssetLibrary, { type AssetAccept } from "./AssetLibrary";
 export default function AssetPickerDialog({
   session,
   accept,
+  multiple = false,
   onPick,
   onClose,
 }: {
   session: Session | null;
   accept?: AssetAccept;
-  onPick: (asset: AssetItem) => void;
+  /** Kilka plików naraz — onPick dostaje je wszystkie (w kolejności z biblioteki). */
+  multiple?: boolean;
+  onPick: (assets: AssetItem[]) => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -37,7 +40,8 @@ export default function AssetPickerDialog({
           <div className="min-w-0 flex-1">
             <div className="text-[15px] font-semibold text-zinc-900">Wybierz z biblioteki</div>
             <div className="text-[12px] text-zinc-500">
-              {accept === "image" ? "Zdjęcia" : accept === "pdf" ? "Pliki PDF" : "Pliki"} · kliknij, a potem „Wybierz ten plik” (albo dwuklik). Można też wgrać nowy.
+              {accept === "image" ? "Zdjęcia" : accept === "pdf" ? "Pliki PDF" : "Pliki"} ·{" "}
+              {multiple ? "zaznacz kilka i kliknij „Wybierz zaznaczone”." : "kliknij, a potem „Wybierz ten plik” (albo dwuklik)."} Można też wgrać nowe.
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Zamknij" className={ui.iconBtn}>
@@ -49,8 +53,13 @@ export default function AssetPickerDialog({
             session={session}
             mode="pick"
             accept={accept}
+            multiple={multiple}
             onPick={(asset) => {
-              onPick(asset);
+              onPick([asset]);
+              onClose();
+            }}
+            onPickMany={(assets) => {
+              onPick(assets);
               onClose();
             }}
           />

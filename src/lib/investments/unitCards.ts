@@ -13,7 +13,8 @@
  * Każdy przycisk ma ten sam układ: zdjęcie/rzut, opis i tabela "pomieszczenie | m²" (suma liczy się sama).
  */
 
-export type CardRoom = { name: string; area?: string | number };
+/** excluded — pokazywane w tabeli, ale bez wliczania do sumy (np. taras, balkon). */
+export type CardRoom = { name: string; area?: string | number; excluded?: boolean };
 export type CardTab = { label: string; image?: string; text?: string; rooms?: CardRoom[] };
 export type UnitCardData = { prospectusUrl?: string; standardUrl?: string; tabs?: CardTab[] };
 
@@ -27,8 +28,9 @@ export function parseArea(value: string | number | undefined): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+/** Suma metrażu bez pomieszczeń oznaczonych "nie wliczaj" (excluded). */
 export function roomsTotal(rooms: CardRoom[] | undefined): number {
-  return Math.round((rooms ?? []).reduce((sum, room) => sum + (parseArea(room.area) ?? 0), 0) * 100) / 100;
+  return Math.round((rooms ?? []).reduce((sum, room) => sum + (room.excluded ? 0 : (parseArea(room.area) ?? 0)), 0) * 100) / 100;
 }
 
 /** Przyciski, które faktycznie pokazujemy (bez pustych nazw). */

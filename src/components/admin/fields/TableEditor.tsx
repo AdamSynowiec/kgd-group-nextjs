@@ -5,6 +5,7 @@ import { looksLikeAssetKey, looksLikeAssetPath } from "@/lib/fieldType";
 import type { Session } from "@/lib/adminApi";
 import { labelFor } from "./labels";
 import AssetEditor from "./AssetEditor";
+import LibraryButton from "../assets/LibraryButton";
 import RowDetailsDialog from "./RowDetailsDialog";
 import { detailOwnedKeys, detailsSummary, resolveRowDetails } from "./rowDetails";
 import { useSheet, type CellWrite } from "./useSheet";
@@ -388,9 +389,12 @@ function PrimitiveRowsTable({ rows, path, session, onChange }: { rows: unknown[]
           </tbody>
         </table>
       </div>
-      <button type="button" onClick={handleAdd} className={addButtonClass}>
-        + Dodaj wiersz
-      </button>
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={handleAdd} className={addButtonClass}>
+          + Dodaj wiersz
+        </button>
+        {isAssetList && <LibraryButton session={session} accept="image" className="mt-3" onPickMany={(urls) => onChange(path, [...rows.filter((cell) => cell !== ""), ...urls])} />}
+      </div>
     </div>
   );
 }
@@ -508,9 +512,12 @@ function AssetListCell({
           </button>
         </div>
       ))}
-      <button type="button" onClick={handleAdd} className="text-xs font-medium text-zinc-500 hover:text-zinc-800">
-        + Dodaj zdjęcie
-      </button>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button type="button" onClick={handleAdd} className="text-xs font-medium text-zinc-500 hover:text-zinc-800">
+          + Dodaj zdjęcie
+        </button>
+        <LibraryButton session={session} accept="image" onPickMany={(urls) => onChange(path, [...list.filter(Boolean), ...urls])} />
+      </div>
     </div>
   );
 }
@@ -802,6 +809,9 @@ function ObjectRowsTable({
     },
   });
 
+  /** Pierwsza kolumna ze zdjęciem — "Dodaj wiersze z biblioteki" tworzy wiersz na każdy wybrany plik. */
+  const imageColumn = columns.find((key) => columnKinds[key] === "asset");
+
   function handleRemoveRow(rowIndex: number) {
     onChange(path, rows.filter((_, i) => i !== rowIndex));
   }
@@ -1001,9 +1011,20 @@ function ObjectRowsTable({
           </tbody>
         </table>
       </div>
-      <button type="button" onClick={handleAddRow} className={addButtonClass}>
-        + Dodaj wiersz
-      </button>
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={handleAddRow} className={addButtonClass}>
+          + Dodaj wiersz
+        </button>
+        {imageColumn && (
+          <LibraryButton
+            session={session}
+            accept="image"
+            className="mt-3"
+            label="Dodaj wiersze z biblioteki"
+            onPickMany={(urls) => onChange(path, [...rows, ...urls.map((url) => ({ ...blankRow(), [imageColumn]: url }))])}
+          />
+        )}
+      </div>
 
       {details && openDetails !== null && rows[openDetails] && (
         <RowDetailsDialog

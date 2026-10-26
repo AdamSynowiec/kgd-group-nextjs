@@ -60,16 +60,16 @@ type ApartmentsFields = {
 type StatusKey = "available" | "reserved" | "sold";
 
 const STATUS: Record<StatusKey, { label: string; dot: string; badge: string }> = {
-  available: { label: "Dostępny", dot: "bg-[#E7E7E7]", badge: "border-[#BCC0C1]/60 bg-[#BCC0C1]/15 text-[#E7E7E7]" },
-  reserved: { label: "Rezerwacja", dot: "bg-[#8E9396]", badge: "border-dashed border-[#BCC0C1]/70 bg-transparent text-[#BCC0C1]" },
-  sold: { label: "Sprzedany", dot: "bg-[#555859]", badge: "border-[#555859]/50 bg-[#555859]/10 text-[#8E9396]" },
+  available: { label: "Dostępny", dot: "bg-[#4ADE80]", badge: "border-[#4ADE80]/50 bg-[#4ADE80]/10 text-[#86EFAC]" },
+  reserved: { label: "Rezerwacja", dot: "bg-[#FACC15]", badge: "border-[#FACC15]/50 bg-[#FACC15]/10 text-[#FDE68A]" },
+  sold: { label: "Sprzedany", dot: "bg-[#F87171]", badge: "border-[#F87171]/50 bg-[#F87171]/10 text-[#FCA5A5]" },
 };
 
-/** Wygląd obrysu lokalu na planie wg statusu (monochromatycznie, w palecie księgi znaku). */
+/** Wygląd obrysu lokalu na planie wg statusu: zielony — dostępny, żółty — rezerwacja, czerwony — sprzedany. */
 const UNIT_SHAPE: Record<StatusKey, { fill: string; fillActive: string; stroke: string; dash?: string; legend: string }> = {
-  available: { fill: "rgba(247,247,247,0.12)", fillActive: "rgba(247,247,247,0.26)", stroke: "rgba(247,247,247,0.85)", legend: "border border-[#F7F7F7]/90 bg-[#F7F7F7]/20" },
-  reserved: { fill: "rgba(188,192,193,0.08)", fillActive: "rgba(188,192,193,0.22)", stroke: "rgba(188,192,193,0.9)", dash: "8 6", legend: "border border-dashed border-[#BCC0C1] bg-[#BCC0C1]/10" },
-  sold: { fill: "rgba(23,26,28,0.55)", fillActive: "rgba(23,26,28,0.35)", stroke: "rgba(85,88,89,0.9)", legend: "border border-[#555859] bg-[#171A1C]/70" },
+  available: { fill: "rgba(74,222,128,0.18)", fillActive: "rgba(74,222,128,0.34)", stroke: "rgba(74,222,128,0.95)", legend: "border border-[#4ADE80] bg-[#4ADE80]/25" },
+  reserved: { fill: "rgba(250,204,21,0.18)", fillActive: "rgba(250,204,21,0.32)", stroke: "rgba(250,204,21,0.95)", legend: "border border-[#FACC15] bg-[#FACC15]/25" },
+  sold: { fill: "rgba(248,113,113,0.2)", fillActive: "rgba(248,113,113,0.32)", stroke: "rgba(248,113,113,0.9)", legend: "border border-[#F87171] bg-[#F87171]/25" },
 };
 
 function statusOf(raw: string): StatusKey {
@@ -88,6 +88,9 @@ const formatArea = (value: number | string) => `${fmt(value)} m²`;
 const formatMoney = (value: number | string) => `${Math.round(num(value)).toLocaleString("pl-PL").replace(/ /g, " ")} zł`;
 
 /** Cena łączna: pole "price" z panelu, a gdy puste — PUM × cena za m². */
+/** Cenę i kartę lokalu pokazujemy tylko dla lokali dostępnych — sprzedane i zarezerwowane mają sam status. */
+const forSale = (unit: Unit) => statusOf(unit.status) === "available";
+
 const totalPrice = (unit: Unit) => unit.price || (num(unit.pricePerM2) > 0 ? formatMoney(num(unit.area) * num(unit.pricePerM2)) : "Cena na zapytanie");
 
 type SortKey = "unit" | "type" | "rooms" | "area" | "status";
@@ -173,7 +176,8 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   };
 
   const rows = useMemo(() => {
-    const filtered = units.filter((unit) => (!selected || unit.zone === selected) && (typeFilter === "all" || unit.type === typeFilter) && (!onlyAvailable || statusOf(unit.status) === "available"));
+    // Niezależnie od strefy wybranej na planie / w "Strefach osiedla" — te filtrują tylko panel boczny.
+    const filtered = units.filter((unit) => (typeFilter === "all" || unit.type === typeFilter) && (!onlyAvailable || statusOf(unit.status) === "available"));
     const order: Record<StatusKey, number> = { available: 0, reserved: 1, sold: 2 };
     return [...filtered].sort((a, b) => {
       let result = 0;
@@ -182,7 +186,9 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
       else result = String(a[sort.key]).localeCompare(String(b[sort.key]), "pl", { numeric: true });
       return result * sort.dir;
     });
-  }, [units, selected, typeFilter, onlyAvailable, sort]);
+  }, [units, typeFilter, onlyAvailable, sort]);
+
+  const openUnit = (unit: Unit) => forSale(unit) && setOpen(unit);
 
   const toggleSort = (key: SortKey) => setSort((current) => (current.key === key ? { key, dir: current.dir === 1 ? -1 : 1 } : { key, dir: 1 }));
 
@@ -203,7 +209,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
   const activeView = view > 0 ? openViews[view - 1] : undefined;
   const summaryImage = open ? open.image || typeOf(open)?.image : undefined;
   const cardImage = activeView?.image || summaryImage;
-  const activeRooms = (activeView?.rooms ?? []).filter((room) => room.name?.trim()).map((room) => ({ name: room.name.trim(), area: parseArea(room.area) }));
+  const activeRooms = (activeView?.rooms ?? []).filter((room) => room.name?.trim()).map((room) => ({ name: room.name.trim(), area: parseArea(room.area), excluded: room.excluded === true }));
   const activeRoomsTotal = roomsTotal(activeView?.rooms);
 
   // Okno karty lokalu: Escape zamyka, tło strony nie przewija się pod spodem.
@@ -276,14 +282,14 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                       onMouseLeave={() => setHoveredUnit(null)}
                       onFocus={() => setHoveredUnit(unit.unit)}
                       onBlur={() => setHoveredUnit(null)}
-                      onClick={() => setOpen(unit)}
+                      onClick={() => openUnit(unit)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          setOpen(unit);
+                          openUnit(unit);
                         }
                       }}
-                      style={{ cursor: "pointer", opacity: dim ? 0.35 : 1, transition: "opacity .35s" }}
+                      style={{ cursor: forSale(unit) ? "pointer" : "default", opacity: dim ? 0.35 : 1, transition: "opacity .35s" }}
                       className="outline-none"
                     >
                       {(unit.polygon ?? "").split("|").map((points, index) => (
@@ -419,12 +425,14 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                           <dt className="text-[10px] uppercase tracking-[0.2em] text-[#BCC0C1]/80">{num(activeUnit.garden) > 0 ? "Ogród" : "Pokoje"}</dt>
                           <dd className={`mt-1 ${NUM} text-[20px] text-[#E7E7E7]`}>{num(activeUnit.garden) > 0 ? formatArea(activeUnit.garden ?? 0) : num(activeUnit.rooms)}</dd>
                         </div>
-                        <div className="col-span-2">
-                          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#BCC0C1]/80">Cena</dt>
-                          <dd className={`mt-1 ${NUM} text-[20px] text-[#E7E7E7]`}>{totalPrice(activeUnit)}</dd>
-                        </div>
+                        {forSale(activeUnit) && (
+                          <div className="col-span-2">
+                            <dt className="text-[10px] uppercase tracking-[0.2em] text-[#BCC0C1]/80">Cena</dt>
+                            <dd className={`mt-1 ${NUM} text-[20px] text-[#E7E7E7]`}>{totalPrice(activeUnit)}</dd>
+                          </div>
+                        )}
                       </dl>
-                      <p className="mt-4 text-[10px] uppercase tracking-[0.25em] text-[#E7E7E7]/40">Kliknij, aby otworzyć kartę lokalu</p>
+                      {forSale(activeUnit) && <p className="mt-4 text-[10px] uppercase tracking-[0.25em] text-[#E7E7E7]/40">Kliknij, aby otworzyć kartę lokalu</p>}
                     </motion.div>
                   );
                 })()}
@@ -469,7 +477,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                             </div>
                           </dl>
                         )}
-                        {summary.total > 0 && <p className="mt-3 text-[10px] uppercase tracking-[0.25em] text-[#E7E7E7]/40">Kliknij, aby filtrować listę</p>}
+                        {summary.total > 0 && <p className="mt-3 text-[10px] uppercase tracking-[0.25em] text-[#E7E7E7]/40">Kliknij, aby zobaczyć lokale strefy</p>}
                       </div>
                     </motion.div>
                   );
@@ -537,10 +545,11 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                         <li key={unit.unit}>
                           <button
                             type="button"
-                            onClick={() => setOpen(unit)}
+                            onClick={() => openUnit(unit)}
                             onMouseEnter={() => unit.polygon && setHoveredUnit(unit.unit)}
                             onMouseLeave={() => setHoveredUnit(null)}
-                            className="group flex w-full items-center gap-4 py-3 text-left"
+                            aria-disabled={!forSale(unit)}
+                            className={`group flex w-full items-center gap-4 py-3 text-left ${forSale(unit) ? "" : "cursor-default"}`}
                           >
                             <span className={`h-2 w-2 flex-none rounded-full ${state.dot}`} />
                             <span className="flex-1">
@@ -632,7 +641,6 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
               <Eyebrow>{listHeader ?? "Lista lokali"}</Eyebrow>
               <h3 className="mt-5 font-dmserif text-[32px] font-medium text-[#E7E7E7] sm:text-[42px]">
                 <span className={NUM}>{rows.length}</span> {rows.length === 1 ? "lokal" : rows.length > 1 && rows.length < 5 ? "lokale" : "lokali"}
-                {selectedZone && <span className="font-dmserif font-light italic text-[#BCC0C1]"> · {selectedZone.name}</span>}
               </h3>
             </div>
 
@@ -704,13 +712,21 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-5 text-[12px] font-light text-[#E7E7E7]/75">
-                        <div className={`${NUM} text-[18px] text-[#E7E7E7]`}>{totalPrice(unit)}</div>
-                        {num(unit.pricePerM2) > 0 && <div className="mt-0.5 text-[11px] text-[#E7E7E7]/50">{fmt(unit.pricePerM2 ?? 0, 0)} zł/m²</div>}
+                        {forSale(unit) ? (
+                          <>
+                            <div className={`${NUM} text-[18px] text-[#E7E7E7]`}>{totalPrice(unit)}</div>
+                            {num(unit.pricePerM2) > 0 && <div className="mt-0.5 text-[11px] text-[#E7E7E7]/50">{fmt(unit.pricePerM2 ?? 0, 0)} zł/m²</div>}
+                          </>
+                        ) : (
+                          <span className="text-[#E7E7E7]/35">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-5 text-right">
-                        <button type="button" onClick={() => setOpen(unit)} className="inline-flex items-center gap-2 whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.25em] text-[#BCC0C1] transition-all hover:gap-3 hover:text-[#E7E7E7]">
-                          Szczegóły <Icon name="arrow" className="h-3.5 w-3.5" />
-                        </button>
+                        {forSale(unit) && (
+                          <button type="button" onClick={() => setOpen(unit)} className="inline-flex items-center gap-2 whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.25em] text-[#BCC0C1] transition-all hover:gap-3 hover:text-[#E7E7E7]">
+                            Szczegóły <Icon name="arrow" className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -760,17 +776,21 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                         {num(unit.plot) > 0 && ` · Działka: ${formatArea(unit.plot ?? 0)}`}
                       </dd>
                     </div>
-                    <div className="col-span-2">
-                      <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Cena</dt>
-                      <dd className="mt-1 font-light text-[#E7E7E7]/85">
-                        <span className={`${NUM} text-[20px]`}>{totalPrice(unit)}</span>
-                        {num(unit.pricePerM2) > 0 && <span className="ml-2 text-[11px] text-[#E7E7E7]/50">{fmt(unit.pricePerM2 ?? 0, 0)} zł/m²</span>}
-                      </dd>
-                    </div>
+                    {forSale(unit) && (
+                      <div className="col-span-2">
+                        <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Cena</dt>
+                        <dd className="mt-1 font-light text-[#E7E7E7]/85">
+                          <span className={`${NUM} text-[20px]`}>{totalPrice(unit)}</span>
+                          {num(unit.pricePerM2) > 0 && <span className="ml-2 text-[11px] text-[#E7E7E7]/50">{fmt(unit.pricePerM2 ?? 0, 0)} zł/m²</span>}
+                        </dd>
+                      </div>
+                    )}
                   </dl>
-                  <button type="button" onClick={() => setOpen(unit)} className="mt-5 inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.25em] text-[#BCC0C1]">
-                    Szczegóły lokalu <Icon name="arrow" className="h-3.5 w-3.5" />
-                  </button>
+                  {forSale(unit) && (
+                    <button type="button" onClick={() => setOpen(unit)} className="mt-5 inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.25em] text-[#BCC0C1]">
+                      Szczegóły lokalu <Icon name="arrow" className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -876,8 +896,11 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                       <dl className="mt-6">
                         {activeRooms.map((room, index) => (
                           <div key={`${index}-${room.name}`} className="flex items-baseline justify-between gap-6 border-b border-[#BCC0C1]/15 py-3">
-                            <dt className="text-[14px] font-light text-[#E7E7E7]/80">{room.name}</dt>
-                            {room.area !== null && <dd className={`${NUM} shrink-0 text-[18px] text-[#E7E7E7]`}>{formatArea(room.area)}</dd>}
+                            <dt className="text-[14px] font-light text-[#E7E7E7]/80">
+                              {room.name}
+                              {room.excluded && <span className="ml-2 text-[10px] uppercase tracking-[0.2em] text-[#E7E7E7]/40">poza sumą</span>}
+                            </dt>
+                            {room.area !== null && <dd className={`${NUM} shrink-0 text-[18px] ${room.excluded ? "text-[#E7E7E7]/50" : "text-[#E7E7E7]"}`}>{formatArea(room.area)}</dd>}
                           </div>
                         ))}
                         {activeRoomsTotal > 0 && (
