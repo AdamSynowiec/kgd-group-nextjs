@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { uploadAsset } from "@/lib/adminApi";
+import LibraryButton from "../assets/LibraryButton";
 import { inputClass, type FieldEditorProps } from "./types";
 
 /**
@@ -89,7 +90,10 @@ export default function AssetEditor({ label, value, path, session, onChange }: F
           className={`${inputClass} font-mono text-[12px]`}
           placeholder="/investments/.../plik.webp"
         />
-        {(uploading || !url) && <p className="text-[11px] text-zinc-400">{uploading ? "Przesyłanie…" : "Kliknij podgląd albo upuść na nim plik."}</p>}
+        <div className="flex items-center justify-between gap-2">
+          {(uploading || !url) && <p className="text-[11px] text-zinc-400">{uploading ? "Przesyłanie…" : "Kliknij podgląd albo upuść na nim plik."}</p>}
+          <LibraryButton session={session} accept="image" onPick={(picked) => onChange(path, picked)} className="ml-auto" />
+        </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
     </div>

@@ -8,6 +8,7 @@ use App\Exception\ApiException;
 use App\Http\JsonResponse;
 use App\Http\Request;
 use App\Repository\ActivityLogRepositoryInterface;
+use App\Repository\MysqlAssetRepository;
 
 if (!defined('APP_ENTRY')) {
     http_response_code(403);
@@ -47,8 +48,11 @@ final class UploadController
         'svg' => null,
     ];
 
-    public function __construct(private readonly ActivityLogRepositoryInterface $activity)
-    {
+    public function __construct(
+        private readonly ActivityLogRepositoryInterface $activity,
+        /** Biblioteka "Assets" (AssetController) — każdy wgrany plik od razu się w niej pojawia. */
+        private readonly ?MysqlAssetRepository $assets = null
+    ) {
     }
 
     /** @param array{userId: int, login: string, role: string, exp: int}|null $currentSession */
@@ -113,6 +117,12 @@ final class UploadController
             ['originalName' => (string) $file['name'], 'size' => (int) $file['size']]
         );
 
-        JsonResponse::ok(['url' => '/api/uploads/' . $filename]);
+        // ?folderId= — katalog biblioteki, do którego trafia plik (wgrany z zakładki "Assets").
+        $folderId = filter_var($request->query['folderId'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $assetId = $this->assets !== null
+            ? AssetController::register($this->assets, $destination, (string) $file['name'], $folderId === false ? null : $folderId, $currentSession['login'] ?? null)
+            : null;
+
+        JsonResponse::ok(['url' => '/api/uploads/' . $filename, 'assetId' => $assetId]);
     }
 }

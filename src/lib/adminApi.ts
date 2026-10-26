@@ -197,11 +197,12 @@ export function deletePage(slug: string, session: Session | null): Promise<{ del
  * względny od korzenia domeny (np. "/api/uploads/abc123.webp"), gotowy do
  * zapisania wprost w polu "value" tak samo jak wklejony ręcznie tekst.
  */
-export async function uploadAsset(file: File, session: Session | null): Promise<string> {
+export async function uploadAsset(file: File, session: Session | null, folderId?: number | null): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const params = new URLSearchParams({ route: "/upload" });
+  // folderId — katalog biblioteki "Assets", do którego trafia plik (bez niego: najwyższy poziom).
+  const params = new URLSearchParams({ route: "/upload", ...(folderId ? { folderId: String(folderId) } : {}) });
   const response = await fetch(`${adminBaseUrl()}?${params.toString()}`, {
     method: "POST",
     headers: authHeader(session),
@@ -446,4 +447,57 @@ export function togglePriceReport(session: Session | null, key: string, enabled:
 /** POST /price-reports/generate — jedna inwestycja (key) albo wszystkie (bez key); uprawnienie reports.generate. */
 export function generatePriceReports(session: Session | null, key?: string): Promise<PriceReportStatus[]> {
   return request<PriceReportStatus[]>("/price-reports/generate", { method: "POST", body: key ? { key } : {}, session });
+}
+
+// --- Assets: biblioteka wgranych plików — backend/src/Controller/AssetController.php ---
+
+export type AssetFolder = { id: number; parentId: number | null; name: string; count: number };
+export type AssetItem = {
+  id: number;
+  filename: string;
+  url: string;
+  name: string;
+  folderId: number | null;
+  mime: string | null;
+  size: number;
+  width: number | null;
+  height: number | null;
+  uploadedBy: string | null;
+  createdAt: string;
+};
+
+/** Katalogi (całe drzewo) + pliki katalogu (null = najwyższy poziom) albo wyniki wyszukiwania (q — we wszystkich). */
+export function fetchAssets(folderId: number | null, query: string, session: Session | null): Promise<{ folders: AssetFolder[]; folderId: number | null; assets: AssetItem[] }> {
+  return request("/assets", { params: { folder: folderId ? String(folderId) : "root", ...(query ? { q: query } : {}) }, session });
+}
+
+export function createAssetFolder(name: string, parentId: number | null, session: Session | null): Promise<{ id: number; folders: AssetFolder[] }> {
+  return request("/assets/folders", { method: "POST", body: { name, parentId }, session });
+}
+
+/** Zmiana nazwy i/lub przeniesienie katalogu (parentId: null = najwyższy poziom). */
+export function updateAssetFolder(id: number, change: { name?: string; parentId?: number | null }, session: Session | null): Promise<{ folders: AssetFolder[] }> {
+  return request("/assets/folders/update", { method: "POST", body: { id, ...change }, session });
+}
+
+/** Pliki i podkatalogi usuwanego katalogu przechodzą piętro wyżej — z dysku nic nie znika. */
+export function deleteAssetFolder(id: number, session: Session | null): Promise<{ folders: AssetFolder[] }> {
+  return request("/assets/folders", { method: "DELETE", params: { id: String(id) }, session });
+}
+
+export function moveAssets(ids: number[], folderId: number | null, session: Session | null): Promise<{ moved: number }> {
+  return request("/assets/update", { method: "POST", body: { ids, folderId }, session });
+}
+
+export function renameAsset(id: number, name: string, session: Session | null): Promise<AssetItem> {
+  return request("/assets/update", { method: "POST", body: { id, name }, session });
+}
+
+export function fetchAssetUsage(id: number, session: Session | null): Promise<{ pages: string[] }> {
+  return request("/assets/usage", { params: { id: String(id) }, session });
+}
+
+/** Bez force backend odmawia (409), gdy plik jest używany na stronie. */
+export function deleteAsset(id: number, force: boolean, session: Session | null): Promise<{ deleted: boolean }> {
+  return request("/assets", { method: "DELETE", params: { id: String(id), ...(force ? { force: "1" } : {}) }, session });
 }

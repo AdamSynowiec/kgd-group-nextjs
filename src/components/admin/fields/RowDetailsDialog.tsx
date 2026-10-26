@@ -6,6 +6,7 @@ import { legacyTabs, parseArea, roomsTotal, visibleTabs, type CardRoom, type Car
 import { CloseIcon, ExternalIcon, FileIcon, PlusIcon, TrashIcon } from "../icons";
 import { ui } from "../ui";
 import { getIn, type DetailField, type RowDetailsConfig } from "./rowDetails";
+import LibraryButton from "../assets/LibraryButton";
 import { inputClass } from "./types";
 
 const TAB_SUGGESTIONS = ["Parter", "Piętro", "Poddasze", "Garaż", "Rzut", "Ogród"];
@@ -636,7 +637,10 @@ function ImageSlot({ url, session, onChange }: { url: string; session: Session |
   const { uploading, error, dragOver, dropProps, inputProps } = useUpload(session, onChange);
   return (
     <div className="min-w-0">
-      <div className={ui.label}>Zdjęcie / rzut</div>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[13px] font-medium text-zinc-700">Zdjęcie / rzut</span>
+        <LibraryButton session={session} accept="image" onPick={onChange} />
+      </div>
       <label
         {...dropProps}
         className={`group relative grid aspect-[4/3] cursor-pointer place-items-center overflow-hidden rounded-lg border transition ${
@@ -672,7 +676,10 @@ function DocSlot({ label, url, empty, session, onChange }: { label: string; url:
 
   return (
     <div>
-      <div className="mb-1.5 text-[13px] font-medium text-zinc-700">{label}</div>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[13px] font-medium text-zinc-700">{label}</span>
+        <LibraryButton session={session} accept="pdf" onPick={onChange} />
+      </div>
       {url ? (
         <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2.5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-red-50 text-[10px] font-bold text-red-600 ring-1 ring-inset ring-red-600/15">PDF</span>

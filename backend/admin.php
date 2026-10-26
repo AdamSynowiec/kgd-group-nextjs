@@ -5,6 +5,7 @@ declare(strict_types=1);
 define('APP_ENTRY', true);
 
 use App\Controller\ActivityController;
+use App\Controller\AssetController;
 use App\Controller\AdminController;
 use App\Controller\AuthController;
 use App\Controller\BuildController;
@@ -23,6 +24,7 @@ use App\Http\SessionAuth;
 use App\Http\SessionToken;
 use App\PriceReport\PriceReportGenerator;
 use App\Repository\MysqlActivityLogRepository;
+use App\Repository\MysqlAssetRepository;
 use App\Repository\MysqlPageLockRepository;
 use App\Repository\MysqlPageRepository;
 use App\Repository\MysqlPermissionRepository;
@@ -96,7 +98,7 @@ $buildController = new BuildController(
     $activityLogRepository()
 );
 
-$uploadController = new UploadController($activityLogRepository());
+$uploadController = new UploadController($activityLogRepository(), new MysqlAssetRepository(Connection::get($config)));
 
 $activityController = static fn (): ActivityController => new ActivityController($activityLogRepository());
 
@@ -237,6 +239,37 @@ $router->post('/page-lock/release', static function (Request $req) use ($pageLoc
 $router->get('/page-locks', static function (Request $req) use ($pageLockController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'pages.list');
     $pageLockController()->list($currentSession);
+});
+
+// Assets — biblioteka wgranych plików (AssetController.php, db/034): katalogi, przenoszenie, usuwanie.
+$assetController = static fn (): AssetController => new AssetController(new MysqlAssetRepository(Connection::get($config)), $activityLogRepository());
+$router->get('/assets', static function (Request $req) use ($assetController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'assets.list');
+    $assetController()->list($req);
+});
+$router->get('/assets/usage', static function (Request $req) use ($assetController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'assets.list');
+    $assetController()->usage($req);
+});
+$router->post('/assets/update', static function (Request $req) use ($assetController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'assets.manage');
+    $assetController()->update($req, $currentSession);
+});
+$router->post('/assets/folders', static function (Request $req) use ($assetController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'assets.manage');
+    $assetController()->createFolder($req, $currentSession);
+});
+$router->post('/assets/folders/update', static function (Request $req) use ($assetController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'assets.manage');
+    $assetController()->updateFolder($req, $currentSession);
+});
+$router->delete('/assets/folders', static function (Request $req) use ($assetController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'assets.manage');
+    $assetController()->deleteFolder($req, $currentSession);
+});
+$router->delete('/assets', static function (Request $req) use ($assetController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'assets.delete');
+    $assetController()->delete($req, $currentSession);
 });
 
 // Raportowanie cen (dane.gov.pl) — katalogi raportów inwestycji, podgląd plików,

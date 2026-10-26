@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartIcon, ExternalIcon, HomeIcon, LogoutIcon, PagesIcon, SettingsIcon } from "@/components/admin/icons";
+import { ChartIcon, ExternalIcon, FolderIcon, HomeIcon, LogoutIcon, PagesIcon, SettingsIcon } from "@/components/admin/icons";
 import { useBrand } from "@/components/admin/BrandProvider";
 import { can, type Permission } from "@/lib/permissions";
 import type { Session } from "@/lib/adminApi";
@@ -20,6 +20,7 @@ const NAV_GROUPS: { title: string; items: { label: string; href: string; Icon: t
     items: [
       { label: "Cockpit", href: "/admin", Icon: HomeIcon },
       { label: "Strony", href: "/admin/strony", Icon: PagesIcon, anyOf: ["pages.list"] },
+      { label: "Assets", href: "/admin/assets", Icon: FolderIcon, anyOf: ["assets.list"] },
     ],
   },
   {
