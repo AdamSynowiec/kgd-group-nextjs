@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 export type Cell = { r: number; c: number };
-export type CellWrite = { r: number; c: number; value: string };
+/** raw — wartość "obiektowa" (np. cała zawartość okna "Więcej"); bez niej zapisuje się tekst value. */
+export type CellWrite = { r: number; c: number; value: string; raw?: unknown };
 type Range = { top: number; bottom: number; left: number; right: number };
 
 /**
@@ -15,6 +16,10 @@ type Range = { top: number; bottom: number; left: number; right: number };
  *   Delete — czyści, Ctrl+D — wypełnia w dół wartością z pierwszego wiersza, uchwyt ■ w rogu
  *   zaznaczenia — przeciągnięcie w dół powtarza zaznaczone wartości, Ctrl+Z — cofa.
  *
+ * Kolumny "obiektowe" (isObjectColumn, np. "Więcej") kopiuje się w całości: Ctrl+C / Ctrl+V w obrębie panelu,
+ * uchwyt ■ i Ctrl+D przenoszą getRaw() — do Excela trafia tylko ich opis tekstowy. Nie da się ich pisać ani
+ * czyścić z klawiatury; Enter / F2 / dwuklik wołają onActivate (np. otwarcie okna).
+ *
  * Hook trzyma tylko stan zaznaczenia/edycji; dane i zapis należą do tabeli (getValue / write / undo).
  */
 export function useSheet({
@@ -23,10 +28,16 @@ export function useSheet({
   getValue,
   write,
   undo,
+  getRaw,
+  isObjectColumn = () => false,
+  onActivate,
 }: {
   rowCount: number;
   colCount: number;
   getValue: (r: number, c: number) => string;
+  getRaw?: (r: number, c: number) => unknown;
+  isObjectColumn?: (c: number) => boolean;
+  onActivate?: (cell: Cell) => void;
   /** Jedna operacja = jedno wywołanie (= jeden krok cofania). Wiersz poza tabelą = nowy wiersz. */
   write: (changes: CellWrite[]) => void;
   undo: () => void;
@@ -37,6 +48,8 @@ export function useSheet({
   const [editing, setEditing] = useState<{ cell: Cell; draft: string; original: string } | null>(null);
   const [fillTo, setFillTo] = useState<number | null>(null);
   const mode = useRef<"idle" | "select" | "fill">("idle");
+  // Ostatnio skopiowany blok z wartościami "obiektowymi" — wklejony z powrotem (ten sam tekst) wkleja je, nie opis.
+  const internalClipboard = useRef<{ text: string; raw: unknown[][] } | null>(null);
   // Edycja zamknięta już raz (Enter) — blur odmontowywanego pola nie zapisuje jej drugi raz.
   const closedEdit = useRef<object | null>(null);
 
@@ -66,6 +79,13 @@ export function useSheet({
   }
 
   function startEdit(cell: Cell, draft?: string) {
+    if (isObjectColumn(cell.c)) {
+      if (draft === undefined) {
+        select(cell);
+        onActivate?.(cell);
+      }
+      return;
+    }
     const original = getValue(cell.r, cell.c);
     select(cell);
     setEditing({ cell, draft: draft ?? original, original });
@@ -97,33 +117,48 @@ export function useSheet({
 
   function clearRange() {
     if (!range) return;
-    write(rangeCells(range).filter((cell) => getValue(cell.r, cell.c) !== "").map((cell) => ({ ...cell, value: "" })));
+    write(rangeCells(range).filter((cell) => !isObjectColumn(cell.c) && getValue(cell.r, cell.c) !== "").map((cell) => ({ ...cell, value: "" })));
   }
 
   function copyText(): string {
     if (!range) return "";
     const lines: string[] = [];
+    const raw: unknown[][] = [];
     for (let r = range.top; r <= range.bottom; r++) {
       const cells: string[] = [];
-      for (let c = range.left; c <= range.right; c++) cells.push(getValue(r, c).replace(/[\t\r\n]+/g, " "));
+      const rawCells: unknown[] = [];
+      for (let c = range.left; c <= range.right; c++) {
+        cells.push(getValue(r, c).replace(/[\t\r\n]+/g, " "));
+        rawCells.push(isObjectColumn(c) ? getRaw?.(r, c) : undefined);
+      }
       lines.push(cells.join("\t"));
+      raw.push(rawCells);
     }
-    return lines.join("\n");
+    const text = lines.join("\n");
+    internalClipboard.current = raw.some((cells) => cells.some((value) => value !== undefined)) ? { text, raw } : null;
+    return text;
   }
 
   function paste(text: string) {
     if (!range) return;
     const lines = text.replace(/\r\n?/g, "\n").replace(/\n$/, "").split("\n");
     const grid = lines.map((line) => line.split("\t"));
+    // Ten sam blok, który skopiowano w panelu — z wartościami "obiektowymi", nie tylko ich opisem.
+    const internal = internalClipboard.current;
+    const rawGrid = internal && internal.text.replace(/\r\n?/g, "\n") === text.replace(/\r\n?/g, "\n").replace(/\n$/, "") ? internal.raw : null;
     const changes: CellWrite[] = [];
+    const push = (r: number, c: number, value: string, raw: unknown) => {
+      // Do kolumny obiektowej trafia tylko wartość obiektowa; tekst wklejony w nią jest pomijany.
+      if (isObjectColumn(c) ? raw !== undefined : raw === undefined) changes.push({ r, c, value, raw });
+    };
     if (grid.length === 1 && grid[0].length === 1) {
       // Jedna wartość -> całe zaznaczenie.
-      for (const cell of rangeCells(range)) changes.push({ ...cell, value: grid[0][0] });
+      for (const cell of rangeCells(range)) push(cell.r, cell.c, grid[0][0], rawGrid?.[0]?.[0]);
     } else {
       grid.forEach((cells, dr) =>
         cells.forEach((value, dc) => {
           const c = range.left + dc;
-          if (c < colCount) changes.push({ r: range.top + dr, c, value });
+          if (c < colCount) push(range.top + dr, c, value, rawGrid?.[dr]?.[dc]);
         })
       );
       setAnchor({ r: range.top, c: range.left });
@@ -137,7 +172,10 @@ export function useSheet({
     const height = source.bottom - source.top + 1;
     const changes: CellWrite[] = [];
     for (let r = source.bottom + 1; r <= to; r++) {
-      for (let c = source.left; c <= source.right; c++) changes.push({ r, c, value: getValue(source.top + ((r - source.bottom - 1) % height), c) });
+      for (let c = source.left; c <= source.right; c++) {
+        const from = source.top + ((r - source.bottom - 1) % height);
+        changes.push({ r, c, value: getValue(from, c), raw: isObjectColumn(c) ? getRaw?.(from, c) : undefined });
+      }
     }
     if (changes.length > 0) write(changes);
   }
@@ -250,7 +288,7 @@ export function useSheet({
       return;
     }
     // Zwykły znak — zaczyna edycję, zastępując wartość (jak w arkuszu).
-    if (!ctrl && !event.altKey && key.length === 1) {
+    if (!ctrl && !event.altKey && key.length === 1 && !isObjectColumn(f.c)) {
       event.preventDefault();
       startEdit(f, key);
     }

@@ -42,11 +42,11 @@ export type { FieldType };
  * EditableMerge.php (backend, realna granica bezpieczeństwa).
  */
 /**
- * "details" (opcjonalny, tylko type:"table") — dodatkowy edytor otwierany przyciskiem "Więcej" w każdym
- * wierszu tabeli (dziś: "unitCard" — karta lokalu, patrz src/components/admin/fields/UnitCardDialog.tsx).
+ * "details" (opcjonalny, tylko type:"table") — okno "Więcej" w każdym wierszu tabeli: nazwa presetu
+ * (np. "unitCard") albo opis pól okna — patrz src/components/admin/fields/rowDetails.ts.
  * Część definicji pola, jak "type" — panel go nie zmienia.
  */
-export type EditableValue<T = unknown> = { value: T; editable: boolean; label?: string; type: FieldType; acl?: Acl; details?: string };
+export type EditableValue<T = unknown> = { value: T; editable: boolean; label?: string; type: FieldType; acl?: Acl; details?: unknown };
 
 export function isEditableValue(node: unknown): node is EditableValue {
   return (

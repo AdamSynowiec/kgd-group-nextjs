@@ -2,9 +2,10 @@
 
 import { useEffect, useState, type ChangeEvent, type DragEvent } from "react";
 import { uploadAsset, type Session } from "@/lib/adminApi";
-import { parseArea, roomsTotal, visibleTabs, type CardRoom, type CardTab, type UnitCardData } from "@/lib/investments/unitCards";
+import { legacyTabs, parseArea, roomsTotal, visibleTabs, type CardRoom, type CardTab, type LegacyUnitView } from "@/lib/investments/unitCards";
 import { CloseIcon, ExternalIcon, FileIcon, PlusIcon, TrashIcon } from "../icons";
 import { ui } from "../ui";
+import { getIn, type DetailField, type RowDetailsConfig } from "./rowDetails";
 import { inputClass } from "./types";
 
 const TAB_SUGGESTIONS = ["Parter", "Piętro", "Poddasze", "Garaż", "Rzut", "Ogród"];
@@ -13,70 +14,38 @@ const str = (value: unknown) => (typeof value === "string" ? value.trim() : type
 const fileName = (url: string) => decodeURIComponent(url.split("/").pop() ?? url);
 const formatArea = (value: number) => `${value.toLocaleString("pl-PL", { maximumFractionDigits: 2 })} m²`;
 
-/** Klucze wiersza lokalu edytowane wyłącznie w oknie "Więcej" — tabela ich nie pokazuje. */
-export const ROW_DETAIL_KEYS = ["card", "link", "layout", "image"];
-
-/** Dane lokalu w "Podsumowaniu" — te same pola co w tabeli (zmiana tu = zmiana w tabeli). */
-const SUMMARY_FIELDS: { key: string; label: string; numeric?: boolean; placeholder?: string }[] = [
-  { key: "zone", label: "Strefa" },
-  { key: "floor", label: "Piętro" },
-  { key: "rooms", label: "Pokoje", numeric: true },
-  { key: "area", label: "PUM (m²)", numeric: true },
-  { key: "garden", label: "Ogród (m²)", numeric: true, placeholder: "puste = bez ogrodu" },
-  { key: "plot", label: "Działka (m²)", numeric: true },
-  { key: "status", label: "Status", placeholder: "Dostępny / Rezerwacja / Sprzedany" },
-  { key: "pricePerM2", label: "Cena za m² (zł)", numeric: true },
-  { key: "price", label: "Cena łączna" },
-];
-
-/** Krótki opis karty do komórki tabeli: "Parter, Piętro · 2 PDF". */
-export function cardSummary(card: UnitCardData | undefined, row?: Record<string, unknown>): string {
-  const tabs = visibleTabs(card).map((tab) => tab.label.trim());
-  const docs = [row?.link, card?.prospectusUrl, card?.standardUrl].filter((url) => str(url)).length;
-  return [tabs.join(", "), docs > 0 ? `${docs} PDF` : ""].filter(Boolean).join(" · ");
-}
-
-type Pane = "summary" | "docs" | number;
+type Pane = "summary" | "files" | number;
 
 /**
- * Okno "Więcej" wiersza tabeli lokali: karta lokalu tak, jak widzi ją klient —
- * po lewej przyciski karty (Podsumowanie, potem własne: "Parter", "Piętro", ... w kolejności
- * na stronie) i dokumenty; po prawej zawartość wybranego przycisku. Model — src/lib/investments/unitCards.ts.
- * Zmiany trafiają od razu do treści strony (jak każde inne pole) — zapis przyciskiem "Zapisz zmiany".
+ * Okno "Więcej" wiersza tabeli — układ z konfiguracji (rowDetails.ts): po lewej nawigacja
+ * (podsumowanie, przyciski-zakładki w kolejności na stronie, pliki), po prawej edycja wybranej części.
+ * Zmiany trafiają od razu do wiersza (zapis strony przyciskiem "Zapisz zmiany").
  */
-export default function UnitCardDialog({
+export default function RowDetailsDialog({
+  config,
   row,
-  card,
-  copySources,
-  legacy,
-  globalProspectus,
-  globalStandard,
-  summaryLabel,
+  rows,
+  rowIndex,
+  siblings,
   session,
-  suggestions,
-  onChange,
-  onRowChange,
+  onSet,
   onClose,
 }: {
+  config: RowDetailsConfig;
   row: Record<string, unknown>;
-  card: UnitCardData;
-  /** Inne lokale z gotową kartą — do "Skopiuj z lokalu…". */
-  copySources: { unit: string; card: UnitCardData }[];
-  /** Zakładki ze starej tabeli (db/026), jeśli lokal jeszcze nie ma własnych. */
-  legacy: CardTab[];
-  globalProspectus: string;
-  globalStandard: string;
-  summaryLabel: string;
+  /** Cała tabela — podpowiedzi wartości i "Skopiuj przyciski z…". */
+  rows: Record<string, unknown>[];
+  rowIndex: number;
+  /** Pola strony obok tabeli (wspólne pliki, stare zakładki, nazwa podsumowania). */
+  siblings: Record<string, unknown>;
   session: Session | null;
-  /** Podpowiedzi wartości pól podsumowania (np. istniejące strefy, statusy) — klucz pola -> wartości. */
-  suggestions: Record<string, string[]>;
-  onChange: (card: UnitCardData) => void;
-  /** Zmiana zwykłego pola wiersza (dane z "Podsumowania", plik karty lokalu). */
-  onRowChange: (key: string, value: string) => void;
+  /** Ustawia pole wiersza pod kluczem "a.b" (zagnieżdżone obiekty powstają same). */
+  onSet: (key: string, value: unknown) => void;
   onClose: () => void;
 }) {
-  const tabs = card.tabs ?? [];
-  const [pane, setPane] = useState<Pane>(tabs.length > 0 ? 0 : "summary");
+  const tabsKey = config.tabs?.key;
+  const tabs = tabsKey ? ((getIn(row, tabsKey) as CardTab[] | undefined) ?? []) : [];
+  const [pane, setPane] = useState<Pane>(config.summary ? "summary" : tabs.length > 0 ? 0 : "files");
   const activeIndex = typeof pane === "number" && pane < tabs.length ? pane : null;
 
   useEffect(() => {
@@ -90,7 +59,7 @@ export default function UnitCardDialog({
     };
   }, [onClose]);
 
-  const setTabs = (next: CardTab[]) => onChange({ ...card, tabs: next });
+  const setTabs = (next: CardTab[]) => tabsKey && onSet(tabsKey, next);
 
   function addTab(label: string) {
     setTabs([...tabs, { label, image: "", text: "", rooms: [{ name: "", area: "" }] }]);
@@ -109,36 +78,49 @@ export default function UnitCardDialog({
   function removeTab(index: number) {
     if (!window.confirm(`Usunąć przycisk „${tabs[index].label || "bez nazwy"}” razem z jego zawartością?`)) return;
     setTabs(tabs.filter((_, i) => i !== index));
-    setPane(tabs.length > 1 ? Math.max(0, index - 1) : "summary");
+    setPane(tabs.length > 1 ? Math.max(0, index - 1) : config.summary ? "summary" : "files");
   }
 
   function replaceTabs(next: CardTab[], what: string) {
-    if (tabs.length > 0 && !window.confirm(`Zastąpić obecne przyciski karty (${tabs.length}) przyciskami z: ${what}?`)) return;
+    if (tabs.length > 0 && !window.confirm(`Zastąpić obecne przyciski (${tabs.length}) przyciskami z: ${what}?`)) return;
     setTabs(structuredClone(next));
-    setPane(next.length > 0 ? 0 : "summary");
+    setPane(next.length > 0 ? 0 : config.summary ? "summary" : "files");
   }
 
-  const area = parseArea(row.area as string | number | undefined);
-  const docsCount = [row.link, card.prospectusUrl, card.standardUrl].filter((url) => str(url)).length;
-  const pricePerM2 = parseArea(row.pricePerM2 as string | number | undefined);
-  const computedPrice = !str(row.price) && area && pricePerM2 ? `${Math.round(area * pricePerM2).toLocaleString("pl-PL")} zł (PUM × cena za m²)` : "";
+  const titleKey = config.title ?? "unit";
+  const rowName = (other: Record<string, unknown>, index: number) => str(other[titleKey]) || `Wiersz ${index + 1}`;
+  const copySources = tabsKey
+    ? rows.flatMap((other, index) => (index !== rowIndex && visibleTabs({ tabs: getIn(other, tabsKey) as CardTab[] }).length > 0 ? [{ name: rowName(other, index), tabs: visibleTabs({ tabs: getIn(other, tabsKey) as CardTab[] }) }] : []))
+    : [];
+  const legacySource = config.tabs?.legacySibling ? siblings[config.tabs.legacySibling] : undefined;
+  const legacy = Array.isArray(legacySource) ? legacyTabs(legacySource as LegacyUnitView[], str(row.unit), str(row.type)) : [];
+  const summaryLabel = (config.summary?.labelSibling ? str(siblings[config.summary.labelSibling]) : "") || config.summary?.label || "Podsumowanie";
+  const fileFields = config.files?.fields ?? [];
+  const filesCount = fileFields.filter((field) => str(getIn(row, field.key))).length;
+  const subtitle = (config.subtitle ?? [])
+    .map((key) => {
+      const value = str(row[key]);
+      return key === "area" && parseArea(value) ? formatArea(parseArea(value)!) : value;
+    })
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-3 backdrop-blur-[2px] sm:p-6" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Karta lokalu ${str(row.unit)}`}
+        aria-label={rowName(row, rowIndex)}
         onMouseDown={(event) => event.stopPropagation()}
         className="flex h-[min(880px,100%)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-900/10"
       >
         {/* Nagłówek */}
         <div className="flex items-center gap-4 border-b border-zinc-200 px-5 py-3.5">
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Karta lokalu</div>
+            <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">{config.column ?? "Szczegóły"}</div>
             <div className="truncate text-lg font-semibold tracking-tight text-zinc-900">
-              {str(row.unit) || "Nowy lokal"}
-              <span className="ml-2 text-sm font-normal text-zinc-500">{[str(row.type), str(row.floor), area ? formatArea(area) : "", str(row.status)].filter(Boolean).join(" · ")}</span>
+              {rowName(row, rowIndex)}
+              {subtitle && <span className="ml-2 text-sm font-normal text-zinc-500">{subtitle}</span>}
             </div>
           </div>
           {copySources.length > 0 && (
@@ -146,15 +128,15 @@ export default function UnitCardDialog({
               value=""
               onChange={(event) => {
                 const source = copySources[Number(event.target.value)];
-                if (source) replaceTabs(visibleTabs(source.card), `lokalu ${source.unit}`);
+                if (source) replaceTabs(source.tabs, source.name);
               }}
-              aria-label="Skopiuj przyciski z innego lokalu"
+              aria-label="Skopiuj przyciski z innego wiersza"
               className="hidden rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-[13px] text-zinc-700 sm:block"
             >
-              <option value="">Skopiuj przyciski z lokalu…</option>
+              <option value="">Skopiuj przyciski z…</option>
               {copySources.map((source, index) => (
-                <option key={source.unit} value={index}>
-                  {source.unit} — {visibleTabs(source.card).map((tab) => tab.label).join(", ")}
+                <option key={index} value={index}>
+                  {source.name} — {source.tabs.map((tab) => tab.label).join(", ")}
                 </option>
               ))}
             </select>
@@ -168,11 +150,10 @@ export default function UnitCardDialog({
         </div>
 
         <div className="grid min-h-0 flex-1 md:grid-cols-[250px_minmax(0,1fr)]">
-          {/* Przyciski karty */}
-          <nav aria-label="Przyciski karty" className="flex min-h-0 flex-col border-b border-zinc-200 bg-zinc-50/70 md:border-b-0 md:border-r">
+          <nav aria-label="Części okna" className="flex min-h-0 flex-col border-b border-zinc-200 bg-zinc-50/70 md:border-b-0 md:border-r">
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              <div className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Przyciski w karcie</div>
-              <NavItem active={pane === "summary"} onClick={() => setPane("summary")} title={summaryLabel} subtitle="dane lokalu, cena, zdjęcie" />
+              {(config.summary || config.tabs) && <div className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{config.tabs?.label ?? "Dane"}</div>}
+              {config.summary && <NavItem active={pane === "summary"} onClick={() => setPane("summary")} title={summaryLabel} subtitle="dane wiersza" />}
               {tabs.map((tab, index) => {
                 const total = roomsTotal(tab.rooms);
                 const rooms = (tab.rooms ?? []).filter((room) => room.name.trim()).length;
@@ -196,14 +177,24 @@ export default function UnitCardDialog({
                   </div>
                 );
               })}
-              <AddTabButton existing={tabs.map((tab) => tab.label)} onAdd={addTab} />
+              {config.tabs && <AddTabButton existing={tabs.map((tab) => tab.label)} onAdd={addTab} />}
 
-              <div className="mt-5 px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Pliki karty</div>
-              <NavItem active={pane === "docs"} onClick={() => setPane("docs")} title="Karta, prospekt, standard" subtitle={docsCount > 0 ? `${docsCount} z 3 plików` : "brak własnych plików"} icon />
+              {config.files && (
+                <>
+                  <div className="mt-5 px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Pliki</div>
+                  <NavItem
+                    active={pane === "files"}
+                    onClick={() => setPane("files")}
+                    title={config.files.label ?? "Pliki"}
+                    subtitle={filesCount > 0 ? `${filesCount} z ${fileFields.length}` : "brak własnych plików"}
+                    icon
+                  />
+                </>
+              )}
             </div>
-            {tabs.length === 0 && legacy.length > 0 && (
+            {config.tabs && tabs.length === 0 && legacy.length > 0 && (
               <div className="border-t border-zinc-200 p-3">
-                <p className="text-[12px] leading-snug text-zinc-500">Ten lokal pokazuje dziś stare zakładki: {legacy.map((tab) => tab.label).join(", ")}.</p>
+                <p className="text-[12px] leading-snug text-zinc-500">Na stronie są dziś stare zakładki: {legacy.map((tab) => tab.label).join(", ")}.</p>
                 <button type="button" onClick={() => replaceTabs(legacy, "starych zakładek")} className={`${ui.btnSecondarySm} mt-2 w-full`}>
                   Wczytaj je do edycji
                 </button>
@@ -211,7 +202,6 @@ export default function UnitCardDialog({
             )}
           </nav>
 
-          {/* Zawartość wybranego przycisku */}
           <div className="min-h-0 overflow-y-auto p-5 sm:p-6">
             {activeIndex !== null ? (
               <TabEditor
@@ -225,67 +215,102 @@ export default function UnitCardDialog({
                 }}
                 onRemove={() => removeTab(activeIndex)}
               />
-            ) : pane === "docs" ? (
+            ) : pane === "files" && config.files ? (
               <div className="max-w-2xl space-y-5">
-                <PaneTitle title="Pliki lokalu" text="Jeden plik każdego rodzaju na cały lokal — przyciski pod kartą na stronie." />
-                <DocSlot label="Karta lokalu" url={str(row.link)} empty="Brak pliku — przycisku „Karta lokalu” nie ma na stronie" session={session} onChange={(url) => onRowChange("link", url)} />
-                <DocSlot
-                  label="Prospekt informacyjny"
-                  url={str(card.prospectusUrl)}
-                  empty={globalProspectus ? `Teraz na stronie: wspólny plik inwestycji (${fileName(globalProspectus)})` : "Teraz na stronie: przycisk prowadzi do formularza kontaktowego"}
-                  session={session}
-                  onChange={(url) => onChange({ ...card, prospectusUrl: url })}
-                />
-                <DocSlot
-                  label="Standard wykończenia"
-                  url={str(card.standardUrl)}
-                  empty={globalStandard ? `Teraz na stronie: wspólny plik inwestycji (${fileName(globalStandard)})` : "Teraz na stronie: przycisk prowadzi do formularza kontaktowego"}
-                  session={session}
-                  onChange={(url) => onChange({ ...card, standardUrl: url })}
-                />
+                <PaneTitle title={config.files.label ?? "Pliki"} text={config.files.text ?? ""} />
+                {fileFields.map((field) => {
+                  const fallback = field.fallbackSibling ? str(siblings[field.fallbackSibling]) : "";
+                  return (
+                    <DocSlot
+                      key={field.key}
+                      label={field.label}
+                      url={str(getIn(row, field.key))}
+                      empty={fallback ? `Teraz na stronie: wspólny plik (${fileName(fallback)})` : (field.emptyText ?? "Brak pliku")}
+                      session={session}
+                      onChange={(url) => onSet(field.key, url)}
+                    />
+                  );
+                })}
               </div>
-            ) : (
-              <div className="max-w-2xl">
-                <PaneTitle title={summaryLabel} text="Pierwszy przycisk karty na stronie. To te same dane co w tabeli lokali — zmiana tutaj od razu zmienia wiersz w tabeli." />
-                <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-                  <ImageSlot url={str(row.image)} session={session} onChange={(image) => onRowChange("image", image)} />
-                  <div className="min-w-0 space-y-4">
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      {SUMMARY_FIELDS.map((field) => (
-                        <label key={field.key} className={field.key === "price" ? "col-span-2 sm:col-span-3" : ""}>
-                          <span className="mb-1 block text-[12px] font-medium text-zinc-600">{field.label}</span>
-                          <input
-                            value={str(row[field.key])}
-                            onChange={(event) => onRowChange(field.key, event.target.value)}
-                            inputMode={field.numeric ? "decimal" : undefined}
-                            list={suggestions[field.key]?.length ? `unit-${field.key}` : undefined}
-                            placeholder={field.key === "price" ? computedPrice || "puste = PUM × cena za m²" : field.placeholder}
-                            className={`${inputClass} py-1.5 ${field.numeric ? "tabular-nums" : ""}`}
-                          />
-                          {suggestions[field.key]?.length ? (
-                            <datalist id={`unit-${field.key}`}>
-                              {suggestions[field.key].map((value) => (
-                                <option key={value} value={value} />
-                              ))}
-                            </datalist>
-                          ) : null}
-                        </label>
-                      ))}
-                    </div>
-                    <label className="block">
-                      <span className="mb-1 block text-[12px] font-medium text-zinc-600">Układ (krótki opis)</span>
-                      <textarea value={str(row.layout)} onChange={(event) => onRowChange("layout", event.target.value)} rows={3} className={`${inputClass} resize-y leading-relaxed`} />
-                    </label>
-                  </div>
-                </div>
-                {tabs.length === 0 && (
-                  <button type="button" onClick={() => addTab("Parter")} className={`${ui.btnPrimarySm} mt-6`}>
-                    <PlusIcon className="h-3.5 w-3.5" /> Dodaj pierwszy przycisk („Parter”)
-                  </button>
-                )}
-              </div>
+            ) : config.summary ? (
+              <SummaryForm config={config} row={row} rows={rows} label={summaryLabel} session={session} onSet={onSet} />
+            ) : null}
+            {pane === "summary" && config.tabs && tabs.length === 0 && (
+              <button type="button" onClick={() => addTab("Parter")} className={`${ui.btnSecondarySm} mt-6`}>
+                <PlusIcon className="h-3.5 w-3.5" /> Dodaj pierwszy przycisk („Parter”)
+              </button>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Formularz "Podsumowania": zdjęcie po lewej, pola w siatce, długie teksty pod spodem. */
+function SummaryForm({
+  config,
+  row,
+  rows,
+  label,
+  session,
+  onSet,
+}: {
+  config: RowDetailsConfig;
+  row: Record<string, unknown>;
+  rows: Record<string, unknown>[];
+  label: string;
+  session: Session | null;
+  onSet: (key: string, value: unknown) => void;
+}) {
+  const fields = config.summary?.fields ?? [];
+  const image = fields.find((field) => field.type === "image");
+  const inputs = fields.filter((field) => field.type !== "image" && field.type !== "textarea" && field.type !== "file");
+  const texts = fields.filter((field) => field.type === "textarea");
+  const area = parseArea(str(row.area));
+  const pricePerM2 = parseArea(str(row.pricePerM2));
+  const computedPrice = area && pricePerM2 ? `${Math.round(area * pricePerM2).toLocaleString("pl-PL")} zł (PUM × cena za m²)` : "";
+  const suggestionsFor = (field: DetailField) =>
+    field.suggest ? Array.from(new Set(rows.map((other) => str(getIn(other, field.key))).filter(Boolean))).slice(0, 30) : [];
+
+  return (
+    <div className="max-w-4xl">
+      <PaneTitle title={label} text={config.summary?.text ?? ""} />
+      <div className={`mt-5 grid gap-5 ${image ? "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" : ""}`}>
+        {image && <ImageSlot url={str(getIn(row, image.key))} session={session} onChange={(url) => onSet(image.key, url)} />}
+        <div className="min-w-0 space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {inputs.map((field) => {
+              const suggestions = suggestionsFor(field);
+              const listId = `details-${field.key}`;
+              return (
+                <label key={field.key} className={field.key === "price" ? "col-span-2 sm:col-span-3" : ""}>
+                  <span className="mb-1 block text-[12px] font-medium text-zinc-600">{field.label}</span>
+                  <input
+                    value={str(getIn(row, field.key))}
+                    onChange={(event) => onSet(field.key, event.target.value)}
+                    inputMode={field.type === "number" ? "decimal" : undefined}
+                    list={suggestions.length ? listId : undefined}
+                    placeholder={field.key === "price" && computedPrice ? computedPrice : field.placeholder}
+                    className={`${inputClass} py-1.5 ${field.type === "number" ? "tabular-nums" : ""}`}
+                  />
+                  {suggestions.length > 0 && (
+                    <datalist id={listId}>
+                      {suggestions.map((value) => (
+                        <option key={value} value={value} />
+                      ))}
+                    </datalist>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          {texts.map((field) => (
+            <label key={field.key} className="block">
+              <span className="mb-1 block text-[12px] font-medium text-zinc-600">{field.label}</span>
+              <textarea value={str(getIn(row, field.key))} onChange={(event) => onSet(field.key, event.target.value)} rows={3} placeholder={field.placeholder} className={`${inputClass} resize-y leading-relaxed`} />
+            </label>
+          ))}
         </div>
       </div>
     </div>

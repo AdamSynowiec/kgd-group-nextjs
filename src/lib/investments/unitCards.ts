@@ -1,6 +1,6 @@
 /**
  * Karta lokalu — obiekt "card" w wierszu tabeli lokali (pole "units" z "details": "unitCard").
- * Panel: przycisk "Więcej" w wierszu -> src/components/admin/fields/UnitCardDialog.tsx;
+ * Panel: przycisk "Więcej" w wierszu -> src/components/admin/fields/RowDetailsDialog.tsx; konfiguracja okna: preset "unitCard" w rowDetails.ts;
  * strona: src/components/investments/foxhills/Apartments.tsx.
  *
  * {

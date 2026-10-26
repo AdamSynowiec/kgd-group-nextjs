@@ -290,7 +290,7 @@ function EditableControl({
         path={valuePath}
         session={session}
         onChange={onChange}
-        meta={{ columnLabels, siblings, rowDetails: typeof node.details === "string" ? node.details : undefined }}
+        meta={{ columnLabels, siblings, rowDetails: node.details }}
       />
     </div>
   );

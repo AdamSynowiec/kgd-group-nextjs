@@ -3,10 +3,10 @@
 import { useRef, useState, type DragEvent } from "react";
 import { looksLikeAssetKey, looksLikeAssetPath } from "@/lib/fieldType";
 import type { Session } from "@/lib/adminApi";
-import { legacyTabs, visibleTabs, type LegacyUnitView, type UnitCardData } from "@/lib/investments/unitCards";
 import { labelFor } from "./labels";
 import AssetEditor from "./AssetEditor";
-import UnitCardDialog, { cardSummary, ROW_DETAIL_KEYS } from "./UnitCardDialog";
+import RowDetailsDialog from "./RowDetailsDialog";
+import { detailOwnedKeys, detailsSummary, resolveRowDetails } from "./rowDetails";
 import { useSheet, type CellWrite } from "./useSheet";
 import { inputClass, type FieldEditorProps, type OnChange, type Path } from "./types";
 
@@ -205,9 +205,9 @@ function RowActionsCell({ index, onDuplicate, onRemove }: { index: number; onDup
  *      klucz/wartość, bez dodawania/usuwania (klucze są odczytywane po
  *      nazwie w kodzie, np. errors.emailRequired w Contact).
  *
- * Pole z "details": "unitCard" (meta.rowDetails) dostaje w każdym wierszu przycisk
- * "Więcej" — okno z kartą lokalu (UnitCardDialog.tsx): przyciski karty (klucz "card"), dane
- * podsumowania i pliki; klucze edytowane tylko tam (ROW_DETAIL_KEYS) znikają z tabeli.
+ * Pole z "details" (meta.rowDetails — preset albo opis, patrz rowDetails.ts) dostaje w każdym
+ * wierszu komórkę "Więcej" z oknem RowDetailsDialog.tsx; klucze edytowane tylko w oknie znikają
+ * z tabeli, a komórka kopiuje się w arkuszu razem z nimi (Ctrl+C/V, ■, Ctrl+D).
  *
  * Kolumny tekstowe i liczbowe listy obiektów działają jak arkusz — patrz useSheet.ts.
  */
@@ -735,21 +735,23 @@ function ObjectRowsTable({
   session: Session | null;
   onChange: OnChange;
   columnLabels?: Record<string, string>;
-  rowDetails?: string;
+  rowDetails?: unknown;
   siblings?: Record<string, unknown>;
 }) {
-  // Karta lokalu żyje w kluczu "card" wiersza — edytowana w oknie "Więcej", nie jako kolumna.
-  const detailsKey = rowDetails === "unitCard" ? "card" : null;
+  // Okno "Więcej" (rowDetails.ts) — jego pola nie są kolumnami tabeli.
+  const details = resolveRowDetails(rowDetails);
+  const ownedKeys = details ? detailOwnedKeys(details) : [];
   const [openDetails, setOpenDetails] = useState<number | null>(null);
-  const columns = resolveColumnOrder(rows, columnLabels).filter((key) => !(detailsKey && ROW_DETAIL_KEYS.includes(key)));
+  const columns = resolveColumnOrder(rows, columnLabels).filter((key) => !ownedKeys.includes(key));
   const columnKinds = Object.fromEntries(columns.map((key) => [key, detectColumnKind(rows, key)])) as Record<
     string,
     ColumnKind
   >;
   const { selected, toggle, toggleAll, clear, remap, selectWhere, isAllSelected } = useRowSelection(rows.length);
 
-  // Arkusz: kolumny tekstowe i liczbowe (zdjęcia i listy plików mają własne edytory w komórce).
-  const sheetColumns = columns.filter((key) => columnKinds[key] === "text" || columnKinds[key] === "number");
+  // Arkusz: kolumny tekstowe i liczbowe (zdjęcia i listy plików mają własne edytory w komórce),
+  // a na końcu "Więcej" — komórka obiektowa: kopiuje się cała zawartość okna (ownedKeys).
+  const sheetColumns = [...columns.filter((key) => columnKinds[key] === "text" || columnKinds[key] === "number"), ...(details ? [DETAILS_COLUMN] : [])];
   const history = useRef<Record<string, unknown>[][]>([]);
   const toCellValue = (key: string, raw: string): unknown =>
     columnKinds[key] === "number" ? Number(raw.replace(/\s/g, "").replace(",", ".")) || 0 : raw;
@@ -772,6 +774,14 @@ function ObjectRowsTable({
     for (const change of changes) {
       while (next.length <= change.r) next.push(blankRow());
       const key = sheetColumns[change.c];
+      if (key === DETAILS_COLUMN) {
+        const raw = change.raw as Record<string, unknown> | undefined;
+        for (const owned of raw ? ownedKeys : []) {
+          if (raw![owned] === undefined) delete next[change.r][owned];
+          else next[change.r][owned] = structuredClone(raw![owned]);
+        }
+        continue;
+      }
       next[change.r][key] = toCellValue(key, change.value);
     }
     history.current = [...history.current.slice(-49), rows];
@@ -781,7 +791,10 @@ function ObjectRowsTable({
   const sheet = useSheet({
     rowCount: rows.length,
     colCount: sheetColumns.length,
-    getValue: (r, c) => cellText(rows[r]?.[sheetColumns[c]]),
+    getValue: (r, c) => (sheetColumns[c] === DETAILS_COLUMN ? (details && rows[r] ? detailsSummary(details, rows[r]) : "") : cellText(rows[r]?.[sheetColumns[c]])),
+    getRaw: (r, c) => (sheetColumns[c] === DETAILS_COLUMN && rows[r] ? Object.fromEntries(ownedKeys.map((key) => [key, rows[r][key]])) : undefined),
+    isObjectColumn: (c) => sheetColumns[c] === DETAILS_COLUMN,
+    onActivate: (cell) => setOpenDetails(cell.r),
     write: writeCells,
     undo: () => {
       const previous = history.current.pop();
@@ -871,7 +884,7 @@ function ObjectRowsTable({
                   {columnLabels?.[key] ?? labelFor(key)}
                 </th>
               ))}
-              {detailsKey && <th className="whitespace-nowrap border-b border-zinc-200 px-2 py-2 text-left text-xs font-semibold text-zinc-600">Karta lokalu</th>}
+              {details && <th className="whitespace-nowrap border-b border-zinc-200 px-2 py-2 text-left text-xs font-semibold text-zinc-600">{details.column ?? "Szczegóły"}</th>}
               <th className="border-b border-zinc-200 px-2 py-2" />
             </tr>
           </thead>
@@ -950,24 +963,36 @@ function ObjectRowsTable({
                       <div title={text} className={`truncate px-2.5 py-2 text-sm text-zinc-800 ${kind === "number" ? "text-right tabular-nums" : ""} ${state.isEditing ? "invisible" : ""}`}>
                         {text || "\u00a0"}
                       </div>
-                      {state.isFocus && !state.isEditing && <span className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-indigo-500" />}
-                      {state.inFill && <span className="pointer-events-none absolute inset-0 border border-dashed border-indigo-400" />}
-                      {state.hasHandle && <span {...sheet.handleProps} className="absolute -bottom-1 -right-1 z-10 h-2.5 w-2.5 cursor-crosshair border-2 border-white bg-indigo-500" />}
+                      <SheetCellChrome state={state} handleProps={sheet.handleProps} />
                     </td>
                   );
                 })}
-                {detailsKey && (
-                  <td className="px-2 py-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setOpenDetails(rowIndex)}
-                      className="inline-flex max-w-[16rem] items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-left text-xs font-medium text-zinc-700 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700"
-                    >
-                      <span className="shrink-0">Więcej</span>
-                      <span className="truncate font-normal text-zinc-400">{cardSummary(row[detailsKey] as UnitCardData | undefined, row) || "pusta"}</span>
-                    </button>
-                  </td>
-                )}
+                {details &&
+                  (() => {
+                    const state = sheet.cell(rowIndex, sheetColumns.length - 1);
+                    const summary = detailsSummary(details, row);
+                    return (
+                      <td
+                        {...state.props}
+                        className={`relative cursor-cell select-none border-l border-zinc-100 p-0 align-middle ${state.inRange ? "bg-indigo-50/80" : state.inFill ? "bg-indigo-50/40" : ""}`}
+                      >
+                        <div className="flex items-center gap-2 px-2 py-1.5">
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={() => setOpenDetails(rowIndex)}
+                            className="shrink-0 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-medium text-zinc-700 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700"
+                          >
+                            {details.button ?? "Więcej"}
+                          </button>
+                          <span title={summary} className="max-w-[12rem] truncate text-xs text-zinc-400">
+                            {summary || "pusta"}
+                          </span>
+                        </div>
+                        <SheetCellChrome state={state} handleProps={sheet.handleProps} />
+                      </td>
+                    );
+                  })()}
                 <td className="px-2 py-1.5">
                   <RowActionsCell index={rowIndex} onDuplicate={() => onChange(path, duplicateRows(rows, new Set([rowIndex])))} onRemove={() => handleRemoveRow(rowIndex)} />
                 </td>
@@ -980,31 +1005,38 @@ function ObjectRowsTable({
         + Dodaj wiersz
       </button>
 
-      {detailsKey && openDetails !== null && rows[openDetails] && (() => {
-        const row = rows[openDetails];
-        const unit = cellText(row.unit).trim();
-        return (
-          <UnitCardDialog
-            row={row}
-            card={(row[detailsKey] as UnitCardData | undefined) ?? {}}
-            copySources={rows.flatMap((other, index) =>
-              index !== openDetails && visibleTabs(other[detailsKey] as UnitCardData | undefined).length > 0 ? [{ unit: cellText(other.unit), card: other[detailsKey] as UnitCardData }] : []
-            )}
-            legacy={Array.isArray(siblings?.unitViews) ? legacyTabs(siblings.unitViews as LegacyUnitView[], unit, cellText(row.type).trim()) : []}
-            globalProspectus={cellText(siblings?.prospectusUrl).trim()}
-            globalStandard={cellText(siblings?.standardUrl).trim()}
-            summaryLabel={cellText(siblings?.summaryLabel).trim() || "Podsumowanie"}
-            session={session}
-            suggestions={Object.fromEntries(
-              ["zone", "floor", "status"].map((key) => [key, distinctValues(rows, key).map((entry) => entry.value).filter(Boolean).slice(0, 30)])
-            )}
-            onChange={(card) => onChange([...path, openDetails, detailsKey], card)}
-            onRowChange={(key, value) => onChange([...path, openDetails, key], typeof row[key] === "number" ? toCellValue(key, value) : value)}
-            onClose={() => setOpenDetails(null)}
-          />
-        );
-      })()}
+      {details && openDetails !== null && rows[openDetails] && (
+        <RowDetailsDialog
+          config={details}
+          row={rows[openDetails]}
+          rows={rows}
+          rowIndex={openDetails}
+          siblings={siblings ?? {}}
+          session={session}
+          onSet={(key, value) => {
+            const parts = key.split(".");
+            // Kolumna liczbowa zostaje liczbą także po edycji w oknie.
+            const numeric = parts.length === 1 && typeof rows[openDetails][key] === "number" && typeof value === "string";
+            onChange([...path, openDetails, ...parts], numeric ? toCellValue(key, value as string) : value);
+          }}
+          onClose={() => setOpenDetails(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/** Klucz kolumny "Więcej" w arkuszu — nie koliduje z żadnym kluczem wiersza. */
+const DETAILS_COLUMN = "\u0000details";
+
+/** Ramka zaznaczenia, obszar wypełniania i uchwyt ■ komórki arkusza (useSheet.ts). */
+function SheetCellChrome({ state, handleProps }: { state: { isFocus: boolean; isEditing: boolean; inFill: boolean; hasHandle: boolean }; handleProps: object }) {
+  return (
+    <>
+      {state.isFocus && !state.isEditing && <span className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-indigo-500" />}
+      {state.inFill && <span className="pointer-events-none absolute inset-0 border border-dashed border-indigo-400" />}
+      {state.hasHandle && <span {...handleProps} className="absolute -bottom-1 -right-1 z-10 h-2.5 w-2.5 cursor-crosshair border-2 border-white bg-indigo-500" />}
+    </>
   );
 }
 

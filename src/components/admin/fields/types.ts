@@ -28,8 +28,8 @@ export type FieldEditorProps<T = unknown> = {
     columnLabels?: Record<string, string>;
     /** Wartości (już rozpakowane) pól leżących obok w tym samym obiekcie fields — np. stare "unitViews" dla karty lokalu. */
     siblings?: Record<string, unknown>;
-    /** Dla type:"table" — "details" zapisane przy polu (np. "unitCard"): każdy wiersz dostaje przycisk "Więcej" z oknem edycji. */
-    rowDetails?: string;
+    /** Dla type:"table" — "details" zapisane przy polu (preset np. "unitCard" albo opis okna, patrz rowDetails.ts). */
+    rowDetails?: unknown;
   };
 };
 

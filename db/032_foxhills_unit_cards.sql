@@ -3,7 +3,7 @@
 -- =============================================================================
 -- Ustawia przy polu units sekcji Apartments (/inwestycja/foxhills) "details": "unitCard".
 -- Panel /admin dokłada wtedy na końcu każdego wiersza tabeli lokali przycisk "Więcej",
--- który otwiera okno z kartą lokalu (src/components/admin/fields/UnitCardDialog.tsx):
+-- który otwiera okno z kartą lokalu (src/components/admin/fields/RowDetailsDialog.tsx; konfiguracja okna: preset "unitCard" w rowDetails.ts):
 --   - przyciski karty ("Parter", "Piętro", "Garaż" — nazwy dowolne, kolejność = kolejność
 --     na stronie), każdy w tym samym układzie: zdjęcie/rzut, opis, tabela "pomieszczenie | m²",
 --   - jeden prospekt informacyjny i jeden standard wykończenia (PDF) na lokal.
