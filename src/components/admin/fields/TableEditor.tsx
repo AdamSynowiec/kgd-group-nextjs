@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { looksLikeAssetKey, looksLikeAssetPath } from "@/lib/fieldType";
 import type { Session } from "@/lib/adminApi";
 import { legacyTabs, visibleTabs, type LegacyUnitView, type UnitCardData } from "@/lib/investments/unitCards";
 import { labelFor } from "./labels";
 import AssetEditor from "./AssetEditor";
-import UnitCardDialog, { cardSummary } from "./UnitCardDialog";
+import UnitCardDialog, { cardSummary, ROW_DETAIL_KEYS } from "./UnitCardDialog";
+import { useSheet, type CellWrite } from "./useSheet";
 import { inputClass, type FieldEditorProps, type OnChange, type Path } from "./types";
 
 const removeButtonClass =
@@ -205,7 +206,10 @@ function RowActionsCell({ index, onDuplicate, onRemove }: { index: number; onDup
  *      nazwie w kodzie, np. errors.emailRequired w Contact).
  *
  * Pole z "details": "unitCard" (meta.rowDetails) dostaje w każdym wierszu przycisk
- * "Więcej" — okno z kartą lokalu (UnitCardDialog.tsx), zapisywaną w kluczu "card" wiersza.
+ * "Więcej" — okno z kartą lokalu (UnitCardDialog.tsx): przyciski karty (klucz "card"), dane
+ * podsumowania i pliki; klucze edytowane tylko tam (ROW_DETAIL_KEYS) znikają z tabeli.
+ *
+ * Kolumny tekstowe i liczbowe listy obiektów działają jak arkusz — patrz useSheet.ts.
  */
 export default function TableEditor({ value, path, session, onChange, meta }: FieldEditorProps) {
   if (isPlainObject(value)) {
@@ -737,23 +741,21 @@ function ObjectRowsTable({
   // Karta lokalu żyje w kluczu "card" wiersza — edytowana w oknie "Więcej", nie jako kolumna.
   const detailsKey = rowDetails === "unitCard" ? "card" : null;
   const [openDetails, setOpenDetails] = useState<number | null>(null);
-  const columns = resolveColumnOrder(rows, columnLabels).filter((key) => key !== detailsKey);
+  const columns = resolveColumnOrder(rows, columnLabels).filter((key) => !(detailsKey && ROW_DETAIL_KEYS.includes(key)));
   const columnKinds = Object.fromEntries(columns.map((key) => [key, detectColumnKind(rows, key)])) as Record<
     string,
     ColumnKind
   >;
   const { selected, toggle, toggleAll, clear, remap, selectWhere, isAllSelected } = useRowSelection(rows.length);
 
-  function handleCellChange(rowIndex: number, key: string, raw: string, kind: ColumnKind) {
-    onChange([...path, rowIndex, key], kind === "number" ? Number(raw) || 0 : raw);
-  }
+  // Arkusz: kolumny tekstowe i liczbowe (zdjęcia i listy plików mają własne edytory w komórce).
+  const sheetColumns = columns.filter((key) => columnKinds[key] === "text" || columnKinds[key] === "number");
+  const history = useRef<Record<string, unknown>[][]>([]);
+  const toCellValue = (key: string, raw: string): unknown =>
+    columnKinds[key] === "number" ? Number(raw.replace(/\s/g, "").replace(",", ".")) || 0 : raw;
 
-  function handleRemoveRow(rowIndex: number) {
-    onChange(path, rows.filter((_, i) => i !== rowIndex));
-  }
-
-  function handleAddRow() {
-    const blank = Object.fromEntries(
+  function blankRow(): Record<string, unknown> {
+    return Object.fromEntries(
       columns.map((key) => {
         const kind = columnKinds[key];
         if (kind === "number") return [key, 0];
@@ -761,7 +763,38 @@ function ObjectRowsTable({
         return [key, ""];
       })
     );
-    onChange(path, [...rows, blank]);
+  }
+
+  /** Jedna operacja arkusza = jeden zapis i jeden krok cofania (Ctrl+Z). Wklejka dłuższa niż tabela dodaje wiersze. */
+  function writeCells(changes: CellWrite[]) {
+    if (changes.length === 0) return;
+    const next = rows.map((row) => ({ ...row }));
+    for (const change of changes) {
+      while (next.length <= change.r) next.push(blankRow());
+      const key = sheetColumns[change.c];
+      next[change.r][key] = toCellValue(key, change.value);
+    }
+    history.current = [...history.current.slice(-49), rows];
+    onChange(path, next);
+  }
+
+  const sheet = useSheet({
+    rowCount: rows.length,
+    colCount: sheetColumns.length,
+    getValue: (r, c) => cellText(rows[r]?.[sheetColumns[c]]),
+    write: writeCells,
+    undo: () => {
+      const previous = history.current.pop();
+      if (previous) onChange(path, previous);
+    },
+  });
+
+  function handleRemoveRow(rowIndex: number) {
+    onChange(path, rows.filter((_, i) => i !== rowIndex));
+  }
+
+  function handleAddRow() {
+    onChange(path, [...rows, blankRow()]);
   }
 
   function handleMove(from: number, to: number) {
@@ -811,7 +844,13 @@ function ObjectRowsTable({
         onMoveSelected={handleMoveSelected}
         onClear={clear}
       />
-      <div className="overflow-x-auto rounded-lg border border-zinc-200">
+      {sheetColumns.length > 0 && (
+        <p className="mb-1.5 text-[11px] leading-relaxed text-zinc-400">
+          Jak w Excelu: kliknij komórkę i pisz · przeciągnij / Shift = zakres · <kbd>Ctrl+C</kbd> <kbd>Ctrl+X</kbd> <kbd>Ctrl+V</kbd> (także z Excela) · <kbd>Delete</kbd> czyści ·{" "}
+          <kbd>Ctrl+D</kbd> wypełnia w dół · <span className="text-indigo-500">■</span> w rogu zaznaczenia przeciągnij, by skopiować · <kbd>Ctrl+Z</kbd> cofa
+        </p>
+      )}
+      <div {...sheet.containerProps} className="overflow-x-auto rounded-lg border border-zinc-200 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/20">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="bg-zinc-50/80">
@@ -890,15 +929,30 @@ function ObjectRowsTable({
                     );
                   }
 
+                  const text = cellText(cellValue);
+                  const state = sheet.cell(rowIndex, sheetColumns.indexOf(key));
                   return (
-                    <td key={key} className="px-2 py-1.5">
-                      <input
-                        aria-label={cellLabel}
-                        type={kind === "number" ? "number" : "text"}
-                        value={String(cellValue ?? "")}
-                        onChange={(event) => handleCellChange(rowIndex, key, event.target.value, kind)}
-                        className={`${inputClass} min-w-[8rem]`}
-                      />
+                    <td
+                      key={key}
+                      {...state.props}
+                      className={`relative min-w-[8rem] max-w-[18rem] cursor-cell select-none border-l border-zinc-100 p-0 align-middle ${
+                        state.inRange ? "bg-indigo-50/80" : state.inFill ? "bg-indigo-50/40" : ""
+                      }`}
+                    >
+                      {state.isEditing && sheet.editorProps && (
+                        <input
+                          {...sheet.editorProps}
+                          aria-label={cellLabel}
+                          inputMode={kind === "number" ? "decimal" : undefined}
+                          className="absolute inset-0 z-10 h-full w-full border-0 bg-white px-2.5 text-sm text-zinc-900 shadow-lg outline-none ring-2 ring-inset ring-indigo-500"
+                        />
+                      )}
+                      <div title={text} className={`truncate px-2.5 py-2 text-sm text-zinc-800 ${kind === "number" ? "text-right tabular-nums" : ""} ${state.isEditing ? "invisible" : ""}`}>
+                        {text || "\u00a0"}
+                      </div>
+                      {state.isFocus && !state.isEditing && <span className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-indigo-500" />}
+                      {state.inFill && <span className="pointer-events-none absolute inset-0 border border-dashed border-indigo-400" />}
+                      {state.hasHandle && <span {...sheet.handleProps} className="absolute -bottom-1 -right-1 z-10 h-2.5 w-2.5 cursor-crosshair border-2 border-white bg-indigo-500" />}
                     </td>
                   );
                 })}
@@ -910,7 +964,7 @@ function ObjectRowsTable({
                       className="inline-flex max-w-[16rem] items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-left text-xs font-medium text-zinc-700 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700"
                     >
                       <span className="shrink-0">Więcej</span>
-                      <span className="truncate font-normal text-zinc-400">{cardSummary(row[detailsKey] as UnitCardData | undefined) || "pusta"}</span>
+                      <span className="truncate font-normal text-zinc-400">{cardSummary(row[detailsKey] as UnitCardData | undefined, row) || "pusta"}</span>
                     </button>
                   </td>
                 )}
@@ -941,7 +995,11 @@ function ObjectRowsTable({
             globalStandard={cellText(siblings?.standardUrl).trim()}
             summaryLabel={cellText(siblings?.summaryLabel).trim() || "Podsumowanie"}
             session={session}
+            suggestions={Object.fromEntries(
+              ["zone", "floor", "status"].map((key) => [key, distinctValues(rows, key).map((entry) => entry.value).filter(Boolean).slice(0, 30)])
+            )}
             onChange={(card) => onChange([...path, openDetails, detailsKey], card)}
+            onRowChange={(key, value) => onChange([...path, openDetails, key], typeof row[key] === "number" ? toCellValue(key, value) : value)}
             onClose={() => setOpenDetails(null)}
           />
         );

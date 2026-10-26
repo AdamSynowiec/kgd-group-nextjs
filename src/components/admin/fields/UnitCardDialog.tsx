@@ -13,10 +13,26 @@ const str = (value: unknown) => (typeof value === "string" ? value.trim() : type
 const fileName = (url: string) => decodeURIComponent(url.split("/").pop() ?? url);
 const formatArea = (value: number) => `${value.toLocaleString("pl-PL", { maximumFractionDigits: 2 })} m²`;
 
+/** Klucze wiersza lokalu edytowane wyłącznie w oknie "Więcej" — tabela ich nie pokazuje. */
+export const ROW_DETAIL_KEYS = ["card", "link", "layout", "image"];
+
+/** Dane lokalu w "Podsumowaniu" — te same pola co w tabeli (zmiana tu = zmiana w tabeli). */
+const SUMMARY_FIELDS: { key: string; label: string; numeric?: boolean; placeholder?: string }[] = [
+  { key: "zone", label: "Strefa" },
+  { key: "floor", label: "Piętro" },
+  { key: "rooms", label: "Pokoje", numeric: true },
+  { key: "area", label: "PUM (m²)", numeric: true },
+  { key: "garden", label: "Ogród (m²)", numeric: true, placeholder: "puste = bez ogrodu" },
+  { key: "plot", label: "Działka (m²)", numeric: true },
+  { key: "status", label: "Status", placeholder: "Dostępny / Rezerwacja / Sprzedany" },
+  { key: "pricePerM2", label: "Cena za m² (zł)", numeric: true },
+  { key: "price", label: "Cena łączna" },
+];
+
 /** Krótki opis karty do komórki tabeli: "Parter, Piętro · 2 PDF". */
-export function cardSummary(card: UnitCardData | undefined): string {
+export function cardSummary(card: UnitCardData | undefined, row?: Record<string, unknown>): string {
   const tabs = visibleTabs(card).map((tab) => tab.label.trim());
-  const docs = [card?.prospectusUrl, card?.standardUrl].filter((url) => str(url)).length;
+  const docs = [row?.link, card?.prospectusUrl, card?.standardUrl].filter((url) => str(url)).length;
   return [tabs.join(", "), docs > 0 ? `${docs} PDF` : ""].filter(Boolean).join(" · ");
 }
 
@@ -37,7 +53,9 @@ export default function UnitCardDialog({
   globalStandard,
   summaryLabel,
   session,
+  suggestions,
   onChange,
+  onRowChange,
   onClose,
 }: {
   row: Record<string, unknown>;
@@ -50,7 +68,11 @@ export default function UnitCardDialog({
   globalStandard: string;
   summaryLabel: string;
   session: Session | null;
+  /** Podpowiedzi wartości pól podsumowania (np. istniejące strefy, statusy) — klucz pola -> wartości. */
+  suggestions: Record<string, string[]>;
   onChange: (card: UnitCardData) => void;
+  /** Zmiana zwykłego pola wiersza (dane z "Podsumowania", plik karty lokalu). */
+  onRowChange: (key: string, value: string) => void;
   onClose: () => void;
 }) {
   const tabs = card.tabs ?? [];
@@ -97,7 +119,9 @@ export default function UnitCardDialog({
   }
 
   const area = parseArea(row.area as string | number | undefined);
-  const docsCount = [card.prospectusUrl, card.standardUrl].filter((url) => str(url)).length;
+  const docsCount = [row.link, card.prospectusUrl, card.standardUrl].filter((url) => str(url)).length;
+  const pricePerM2 = parseArea(row.pricePerM2 as string | number | undefined);
+  const computedPrice = !str(row.price) && area && pricePerM2 ? `${Math.round(area * pricePerM2).toLocaleString("pl-PL")} zł (PUM × cena za m²)` : "";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-3 backdrop-blur-[2px] sm:p-6" onMouseDown={onClose}>
@@ -148,7 +172,7 @@ export default function UnitCardDialog({
           <nav aria-label="Przyciski karty" className="flex min-h-0 flex-col border-b border-zinc-200 bg-zinc-50/70 md:border-b-0 md:border-r">
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               <div className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Przyciski w karcie</div>
-              <NavItem active={pane === "summary"} onClick={() => setPane("summary")} title={summaryLabel} subtitle="automatycznie z wiersza tabeli" muted />
+              <NavItem active={pane === "summary"} onClick={() => setPane("summary")} title={summaryLabel} subtitle="dane lokalu, cena, zdjęcie" />
               {tabs.map((tab, index) => {
                 const total = roomsTotal(tab.rooms);
                 const rooms = (tab.rooms ?? []).filter((room) => room.name.trim()).length;
@@ -175,7 +199,7 @@ export default function UnitCardDialog({
               <AddTabButton existing={tabs.map((tab) => tab.label)} onAdd={addTab} />
 
               <div className="mt-5 px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Pliki karty</div>
-              <NavItem active={pane === "docs"} onClick={() => setPane("docs")} title="Prospekt i standard" subtitle={docsCount > 0 ? `${docsCount} z 2 plików` : "wspólne pliki inwestycji"} icon />
+              <NavItem active={pane === "docs"} onClick={() => setPane("docs")} title="Karta, prospekt, standard" subtitle={docsCount > 0 ? `${docsCount} z 3 plików` : "brak własnych plików"} icon />
             </div>
             {tabs.length === 0 && legacy.length > 0 && (
               <div className="border-t border-zinc-200 p-3">
@@ -203,30 +227,57 @@ export default function UnitCardDialog({
               />
             ) : pane === "docs" ? (
               <div className="max-w-2xl space-y-5">
-                <PaneTitle title="Prospekt i standard wykończenia" text="Jeden plik każdego rodzaju na cały lokal — przyciski pod kartą na stronie. Bez pliku lokal używa wspólnego pliku inwestycji, a gdy i go nie ma, przycisk prowadzi do formularza kontaktowego." />
-                <DocSlot label="Prospekt informacyjny" url={str(card.prospectusUrl)} fallback={globalProspectus} session={session} onChange={(url) => onChange({ ...card, prospectusUrl: url })} />
-                <DocSlot label="Standard wykończenia" url={str(card.standardUrl)} fallback={globalStandard} session={session} onChange={(url) => onChange({ ...card, standardUrl: url })} />
+                <PaneTitle title="Pliki lokalu" text="Jeden plik każdego rodzaju na cały lokal — przyciski pod kartą na stronie." />
+                <DocSlot label="Karta lokalu" url={str(row.link)} empty="Brak pliku — przycisku „Karta lokalu” nie ma na stronie" session={session} onChange={(url) => onRowChange("link", url)} />
+                <DocSlot
+                  label="Prospekt informacyjny"
+                  url={str(card.prospectusUrl)}
+                  empty={globalProspectus ? `Teraz na stronie: wspólny plik inwestycji (${fileName(globalProspectus)})` : "Teraz na stronie: przycisk prowadzi do formularza kontaktowego"}
+                  session={session}
+                  onChange={(url) => onChange({ ...card, prospectusUrl: url })}
+                />
+                <DocSlot
+                  label="Standard wykończenia"
+                  url={str(card.standardUrl)}
+                  empty={globalStandard ? `Teraz na stronie: wspólny plik inwestycji (${fileName(globalStandard)})` : "Teraz na stronie: przycisk prowadzi do formularza kontaktowego"}
+                  session={session}
+                  onChange={(url) => onChange({ ...card, standardUrl: url })}
+                />
               </div>
             ) : (
               <div className="max-w-2xl">
-                <PaneTitle title={summaryLabel} text="Pierwszy przycisk karty — wypełnia się sam danymi z wiersza tabeli (strefa, piętro, pokoje, PUM, ogród, cena) i zdjęciem lokalu. Kolejne przyciski dodajesz po lewej; każdy ma zdjęcie, opis i tabelę pomieszczeń." />
-                <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {(
-                    [
-                      ["Piętro", str(row.floor)],
-                      ["Pokoje", str(row.rooms)],
-                      ["PUM", area ? formatArea(area) : ""],
-                      ["Ogród", str(row.garden)],
-                      ["Status", str(row.status)],
-                      ["Cena", str(row.price) || "PUM × cena za m²"],
-                    ] as const
-                  ).map(([label, value]) => (
-                    <div key={label} className="rounded-lg border border-zinc-200 px-3 py-2">
-                      <dt className="text-[11px] text-zinc-500">{label}</dt>
-                      <dd className="truncate text-sm font-medium text-zinc-800">{value || "—"}</dd>
+                <PaneTitle title={summaryLabel} text="Pierwszy przycisk karty na stronie. To te same dane co w tabeli lokali — zmiana tutaj od razu zmienia wiersz w tabeli." />
+                <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+                  <ImageSlot url={str(row.image)} session={session} onChange={(image) => onRowChange("image", image)} />
+                  <div className="min-w-0 space-y-4">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {SUMMARY_FIELDS.map((field) => (
+                        <label key={field.key} className={field.key === "price" ? "col-span-2 sm:col-span-3" : ""}>
+                          <span className="mb-1 block text-[12px] font-medium text-zinc-600">{field.label}</span>
+                          <input
+                            value={str(row[field.key])}
+                            onChange={(event) => onRowChange(field.key, event.target.value)}
+                            inputMode={field.numeric ? "decimal" : undefined}
+                            list={suggestions[field.key]?.length ? `unit-${field.key}` : undefined}
+                            placeholder={field.key === "price" ? computedPrice || "puste = PUM × cena za m²" : field.placeholder}
+                            className={`${inputClass} py-1.5 ${field.numeric ? "tabular-nums" : ""}`}
+                          />
+                          {suggestions[field.key]?.length ? (
+                            <datalist id={`unit-${field.key}`}>
+                              {suggestions[field.key].map((value) => (
+                                <option key={value} value={value} />
+                              ))}
+                            </datalist>
+                          ) : null}
+                        </label>
+                      ))}
                     </div>
-                  ))}
-                </dl>
+                    <label className="block">
+                      <span className="mb-1 block text-[12px] font-medium text-zinc-600">Układ (krótki opis)</span>
+                      <textarea value={str(row.layout)} onChange={(event) => onRowChange("layout", event.target.value)} rows={3} className={`${inputClass} resize-y leading-relaxed`} />
+                    </label>
+                  </div>
+                </div>
                 {tabs.length === 0 && (
                   <button type="button" onClick={() => addTab("Parter")} className={`${ui.btnPrimarySm} mt-6`}>
                     <PlusIcon className="h-3.5 w-3.5" /> Dodaj pierwszy przycisk („Parter”)
@@ -591,7 +642,7 @@ function ImageSlot({ url, session, onChange }: { url: string; session: Session |
   );
 }
 
-function DocSlot({ label, url, fallback, session, onChange }: { label: string; url: string; fallback: string; session: Session | null; onChange: (url: string) => void }) {
+function DocSlot({ label, url, empty, session, onChange }: { label: string; url: string; empty: string; session: Session | null; onChange: (url: string) => void }) {
   const { uploading, error, dragOver, dropProps, inputProps } = useUpload(session, onChange);
 
   return (
@@ -622,7 +673,7 @@ function DocSlot({ label, url, fallback, session, onChange }: { label: string; u
           {uploading ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700" /> : <PlusIcon className="h-4 w-4 text-zinc-400" />}
           <span className="min-w-0 flex-1 text-[13px] leading-snug text-zinc-600">
             {uploading ? "Przesyłanie…" : "Upuść PDF albo kliknij, aby wybrać"}
-            <span className="block text-[11px] text-zinc-400">{fallback ? `Teraz na stronie: wspólny plik inwestycji (${fileName(fallback)})` : "Teraz na stronie: przycisk prowadzi do formularza kontaktowego"}</span>
+            <span className="block text-[11px] text-zinc-400">{empty}</span>
           </span>
           <input {...inputProps} accept="application/pdf" />
         </label>
