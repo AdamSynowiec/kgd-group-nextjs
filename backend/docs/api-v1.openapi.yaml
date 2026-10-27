@@ -5,8 +5,9 @@ info:
   description: |
     Odczyt opublikowanych stron serwisu i ich pól publicznych.
 
-    **Pola publiczne** — w API widoczne są wyłącznie pola, którym w panelu nadano klucz API
-    (edytor strony → „+ API” przy polu). Klucz to stały kontrakt: nie zależy od układu strony.
+    **Pola publiczne** — w API widoczne są wyłącznie pola, którym w panelu nadano identyfikator
+    (edytor strony → menu ⋯ przy polu → „Identyfikator pola”). Identyfikator to stały kontrakt:
+    nie zależy od etykiety ani układu strony.
 
     **Autoryzacja** — `Authorization: Bearer <token>` (RFC 6750). Token tworzy administrator
     w panelu (Ustawienia → Tokeny API) z wybranym zakresem; tylko przez HTTPS.
@@ -36,7 +37,7 @@ paths:
           schema: { type: string, example: /inwestycja/foxhills }
         - name: fields
           in: query
-          description: Klucze pól po przecinku. Bez parametru — wszystkie pola publiczne. Klucz, którego strona nie ma, wraca jako `null`.
+          description: Identyfikatory pól po przecinku. Bez parametru — wszystkie pola publiczne. Klucz, którego strona nie ma, wraca jako `null`.
           schema: { type: string, example: heroTitle,priceFrom }
         - name: limit
           in: query
@@ -100,7 +101,7 @@ components:
         updatedAt: { type: string, format: date-time }
         fields:
           type: object
-          description: Pola publiczne — klucz API => wartość (tekst, liczba, wartość logiczna, lista wierszy tabeli, pełny adres pliku).
+          description: Pola publiczne — identyfikator pola => wartość (tekst, liczba, wartość logiczna, lista wierszy tabeli, pełny adres pliku).
           additionalProperties: true
     PageList:
       type: object

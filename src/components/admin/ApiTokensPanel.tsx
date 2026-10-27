@@ -162,7 +162,7 @@ export default function ApiTokensPanel({ session }: { session: Session | null })
       <div className={ui.card}>
         <div className={ui.cardHeader}>
           <div className="text-sm font-semibold text-zinc-900">Tokeny</div>
-          <span className="text-xs text-zinc-500">Pola są dostępne w API tylko wtedy, gdy mają nadany klucz API (w edytorze strony).</span>
+          <span className="text-xs text-zinc-500">W API widać tylko pola z nadanym identyfikatorem (edytor strony → menu ⋯ przy polu).</span>
         </div>
         {tokens === null ? (
           <div className="h-24 animate-pulse bg-zinc-50" />

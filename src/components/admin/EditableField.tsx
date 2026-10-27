@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { hasValidType, isEditableValue, type EditableValue } from "@/lib/editable";
 import { classifyFieldType } from "@/lib/fieldType";
 import { canRead, canWrite, type Acl } from "@/lib/acl";
@@ -171,6 +171,7 @@ export default function EditableField({
   // patrz komentarz przy collectFields().
   const pageAcl = isPlainObject(node) ? (node.acl as Acl | undefined) : undefined;
   const sections = fieldSections(node, session?.role);
+  const usedIds = collectFieldIds(node);
 
   if (sections.length === 0) {
     return <p className="rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-10 text-center text-sm text-zinc-500">Ta strona nie ma pól do edycji.</p>;
@@ -201,7 +202,7 @@ export default function EditableField({
               <div className="divide-y divide-zinc-100 border-t border-zinc-100">
                 {section.fields.map((field) => (
                   <div key={field.path.join(".")} className="px-5 py-5">
-                    <EditableControl field={field} session={session} pageAcl={pageAcl} onChange={onChange} />
+                    <EditableControl field={field} session={session} pageAcl={pageAcl} onChange={onChange} usedIds={usedIds} />
                   </div>
                 ))}
               </div>
@@ -217,6 +218,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Identyfikatory ("apiKey") wszystkich pól strony, z powtórzeniami. */
+function collectFieldIds(node: unknown): string[] {
+  if (isEditableValue(node)) return typeof node.apiKey === "string" && node.apiKey !== "" ? [node.apiKey] : [];
+  if (Array.isArray(node)) return node.flatMap(collectFieldIds);
+  if (isPlainObject(node)) return Object.values(node).flatMap(collectFieldIds);
+  return [];
+}
+
 /**
  * Jedyne miejsce, gdzie field.type spotyka się z komponentem edytora
  * (src/components/admin/fields/registry.ts) — żadnego sprawdzania nazwy pola,
@@ -229,11 +238,14 @@ function EditableControl({
   session,
   pageAcl,
   onChange,
+  usedIds,
 }: {
   field: FlatField;
   session: Session | null;
   pageAcl: Acl | undefined;
   onChange: OnChange;
+  /** Identyfikatory pól całej strony — do ostrzeżenia o duplikacie. */
+  usedIds: string[];
 }) {
   const { ownLabel, name, node, path, columnLabels, siblings } = field;
   const valuePath = [...path, "value"];
@@ -274,8 +286,12 @@ function EditableControl({
           title="Etykieta pola (można zmienić)"
           className="-mx-1 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium text-zinc-800 outline-none transition hover:border-zinc-200 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
         />
-        <ApiKeyChip value={typeof node.apiKey === "string" ? node.apiKey : ""} onChange={(apiKey) => onChange([...path, "apiKey"], apiKey)} />
         <code className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">{name}</code>
+        <FieldMenu
+          fieldId={typeof node.apiKey === "string" ? node.apiKey : ""}
+          usedIds={usedIds}
+          onChange={(fieldId) => onChange([...path, "apiKey"], fieldId)}
+        />
       </div>
 
       {!declaredType && (
@@ -298,63 +314,142 @@ function EditableControl({
   );
 }
 
-const API_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
+const FIELD_ID_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
 
 /**
- * Klucz pola w REST API v1 (backend/src/Api/PublicFields.php): pole bez klucza nie jest dostępne przez API.
- * Klucz to stały kontrakt z integracją — zmiana albo usunięcie zepsuje integracje, które go używają.
+ * Menu "⋯" pola: identyfikator pola ("apiKey" w definicji pola). Pozwala odwołać się do pola z zewnątrz
+ * (REST API v1: ?fields=<identyfikator>, backend/src/Api/PublicFields.php) — pole bez identyfikatora
+ * nie jest dostępne przez API. Identyfikator jest stały: nie zależy od etykiety ani położenia pola,
+ * dlatego jego zmiana albo usunięcie psuje odwołania, które go używają. Zapis — razem ze stroną.
  */
-function ApiKeyChip({ value, onChange }: { value: string; onChange: (apiKey: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const invalid = draft !== "" && !API_KEY_PATTERN.test(draft);
+function FieldMenu({ fieldId, usedIds, onChange }: { fieldId: string; usedIds: string[]; onChange: (fieldId: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(fieldId);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-  if (editing) {
-    return (
-      <span className="flex shrink-0 items-center gap-1">
-        <input
-          autoFocus
-          value={draft}
-          onChange={(event) => setDraft(event.target.value.trim())}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !invalid) {
-              onChange(draft);
-              setEditing(false);
-            }
-            if (event.key === "Escape") setEditing(false);
-          }}
-          placeholder="np. heroTitle"
-          aria-label="Klucz API pola"
-          className={`w-36 rounded border px-1.5 py-0.5 font-mono text-[11px] outline-none ${invalid ? "border-red-300 bg-red-50" : "border-indigo-300 bg-white"}`}
-        />
-        <button
-          type="button"
-          disabled={invalid}
-          onClick={() => {
-            onChange(draft);
-            setEditing(false);
-          }}
-          className="rounded bg-indigo-600 px-1.5 py-0.5 text-[10px] font-medium text-white disabled:opacity-40"
-        >
-          OK
-        </button>
-      </span>
-    );
+  const invalid = draft !== "" && !FIELD_ID_PATTERN.test(draft);
+  // Ten sam identyfikator w innym polu tej strony (własna, zapisana wartość się nie liczy).
+  const duplicate = draft !== "" && usedIds.filter((id) => id === draft).length - (draft === fieldId ? 1 : 0) > 0;
+  const changed = draft !== fieldId;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: MouseEvent) => !ref.current?.contains(event.target as Node) && setOpen(false);
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function toggle() {
+    setDraft(fieldId);
+    setCopied(false);
+    setOpen((value) => !value);
+  }
+
+  function save(next: string) {
+    onChange(next);
+    setOpen(false);
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        setDraft(value);
-        setEditing(true);
-      }}
-      title={value ? "Klucz pola w REST API — kliknij, aby zmienić (pusty = pole niedostępne w API)" : "Udostępnij pole w REST API, nadając mu klucz"}
-      className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] transition ${
-        value ? "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/15 hover:bg-indigo-100" : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
-      }`}
-    >
-      {value ? `API: ${value}` : "+ API"}
-    </button>
+    <div ref={ref} className="relative flex shrink-0 items-center gap-1">
+      {fieldId && (
+        <button
+          type="button"
+          onClick={toggle}
+          title="Identyfikator pola — kliknij, aby zmienić"
+          className="rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-[10px] text-indigo-700 ring-1 ring-inset ring-indigo-600/15 hover:bg-indigo-100"
+        >
+          #{fieldId}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label="Opcje pola"
+        aria-expanded={open}
+        title="Opcje pola"
+        className={`grid h-6 w-6 place-items-center rounded-md text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 ${open ? "bg-zinc-100 text-zinc-700" : ""}`}
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden>
+          <circle cx="5" cy="12" r="1.8" />
+          <circle cx="12" cy="12" r="1.8" />
+          <circle cx="19" cy="12" r="1.8" />
+        </svg>
+      </button>
+
+      {open && (
+        <div role="dialog" aria-label="Identyfikator pola" className="absolute right-0 top-full z-30 mt-1.5 w-80 rounded-xl border border-zinc-200 bg-white p-4 text-left shadow-xl">
+          <div className="text-[13px] font-semibold text-zinc-900">Identyfikator pola</div>
+          <p className="mt-1 text-[12px] leading-relaxed text-zinc-500">
+            Stała nazwa, po której można odwołać się do tego pola z zewnątrz (API: <code className="font-mono text-zinc-700">fields=…</code>). Nie zależy od etykiety ani
+            położenia pola na stronie.
+          </p>
+
+          <form
+            className="mt-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!invalid && !duplicate && changed) save(draft);
+            }}
+          >
+            <div className="flex gap-1.5">
+              <span className="pointer-events-none grid place-items-center px-1 font-mono text-[13px] text-zinc-400">#</span>
+              <input
+                autoFocus
+                value={draft}
+                onChange={(event) => setDraft(event.target.value.trim())}
+                placeholder="np. heroTitle"
+                aria-label="Identyfikator pola"
+                className={`min-w-0 flex-1 rounded-lg border px-2.5 py-1.5 font-mono text-[13px] outline-none transition focus:ring-4 ${
+                  invalid || duplicate ? "border-red-300 bg-red-50 focus:ring-red-500/10" : "border-zinc-200 focus:border-indigo-400 focus:ring-indigo-500/10"
+                }`}
+              />
+              <button type="submit" disabled={invalid || duplicate || !changed} className="rounded-lg bg-zinc-900 px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-zinc-800 disabled:opacity-40">
+                {fieldId ? "Zmień" : "Nadaj"}
+              </button>
+            </div>
+            <p className={`mt-1.5 text-[11px] ${invalid || duplicate ? "text-red-600" : "text-zinc-400"}`}>
+              {invalid
+                ? "Litery, cyfry i „_”, zaczyna się od litery (maks. 64 znaki)."
+                : duplicate
+                  ? "Ten identyfikator ma już inne pole na tej stronie."
+                  : "Litery, cyfry i „_”, np. heroTitle, price_from."}
+            </p>
+          </form>
+
+          {fieldId && (
+            <>
+              {changed && <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">Zmiana identyfikatora zepsuje odwołania, które używają „{fieldId}”.</p>}
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-zinc-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(fieldId);
+                    setCopied(true);
+                  }}
+                  className="text-[12px] font-medium text-zinc-600 hover:text-zinc-900"
+                >
+                  {copied ? "Skopiowano" : "Kopiuj identyfikator"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.confirm(`Usunąć identyfikator „${fieldId}”? Pole przestanie być dostępne przez API.`) && save("")}
+                  className="text-[12px] font-medium text-zinc-500 hover:text-red-600"
+                >
+                  Usuń identyfikator
+                </button>
+              </div>
+            </>
+          )}
+          <p className="mt-3 text-[11px] text-zinc-400">Zmiana zostanie zapisana razem ze stroną („Zapisz zmiany”).</p>
+        </div>
+      )}
+    </div>
   );
 }

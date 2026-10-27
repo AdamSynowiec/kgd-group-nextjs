@@ -12,7 +12,7 @@ if (!defined('APP_ENTRY')) {
 }
 
 /**
- * Pola strony widoczne w REST API: TYLKO te, którym w panelu nadano klucz API ("apiKey" w definicji
+ * Pola strony widoczne w REST API: TYLKO te, którym w panelu nadano identyfikator ("apiKey" w definicji
  * pola). Klucz to stały kontrakt z integracją — niezależny od układu strony, sekcji czy etykiet.
  * Pole bez klucza nie istnieje dla API.
  *
