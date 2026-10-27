@@ -12,3 +12,8 @@ RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 # /api/ingest.php?route=/blog/articles (ta druga forma nadal działa, gdy
 # hosting ignoruje .htaccess). Kolejne endpointy ingestu dopisuj do listy w nawiasie.
 RewriteRule ^(blog/articles|build)/?$ ingest.php?route=/$1 [L,QSA]
+
+# REST API v1 (v1.php): /api/v1/pages -> /api/v1.php?route=/pages. Na nginx (ct8) ta reguła jest
+# ignorowana — tam działa forma z ?route= albo odpowiednik w konfiguracji serwera:
+#   location ~ ^/api/v1/(.*)$ { rewrite ^/api/v1/(.*)$ /api/v1.php?route=/$1 last; }
+RewriteRule ^v1/(.*)$ v1.php?route=/$1 [L,QSA]

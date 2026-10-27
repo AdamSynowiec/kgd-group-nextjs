@@ -45,6 +45,8 @@ const ACTION_LABELS: Record<string, string> = {
   "blog.article.create": "dodał(a) wpis bloga (API)",
   "blog.article.update": "zaktualizował(a) wpis bloga (API)",
   "price-reports.generate": "wygenerował(a) raporty cen",
+  "api.tokens.create": "utworzył(a) token API",
+  "api.tokens.revoke": "cofnął/cofnęła token API",
   "assets.upload": "wgrał(a) plik",
   "assets.delete": "usunął/usunęła plik",
   "assets.move": "przeniósł/przeniosła pliki",

@@ -12,6 +12,7 @@ use App\Repository\ActivityLogRepositoryInterface;
 use App\Repository\MysqlPageLockRepository;
 use App\Repository\PageRepositoryInterface;
 use App\Support\Acl;
+use App\Support\Editable;
 use App\Support\EditableMerge;
 use App\Support\Slug;
 use JsonException;
@@ -159,6 +160,12 @@ final class AdminController
             $merged['updatedAt'] = $incoming['updatedAt'];
         }
 
+        // Klucz API pola (REST API v1) musi być unikalny w obrębie strony — to on adresuje pole.
+        $duplicates = array_keys(array_filter(array_count_values(self::apiKeys($merged)), static fn (int $count): bool => $count > 1));
+        if ($duplicates !== []) {
+            throw new ApiException('Klucz API użyty w tej stronie więcej niż raz: ' . implode(', ', $duplicates) . '.', 422);
+        }
+
         $this->pages->save($slug, $merged);
 
         $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.update', $slug);
@@ -259,6 +266,19 @@ final class AdminController
         $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.delete', $slug);
 
         JsonResponse::ok(['deleted' => true, 'slug' => $slug]);
+    }
+
+    /** @return list<string> klucze API wszystkich pól strony (z powtórzeniami — do wykrycia duplikatów) */
+    private static function apiKeys(mixed $node): array
+    {
+        if (!is_array($node)) {
+            return [];
+        }
+        if (Editable::isEditableNode($node)) {
+            return is_string($node['apiKey'] ?? null) && $node['apiKey'] !== '' ? [$node['apiKey']] : [];
+        }
+
+        return array_merge(...array_map([self::class, 'apiKeys'], array_values($node)));
     }
 
     private function slugFromQuery(Request $request): string

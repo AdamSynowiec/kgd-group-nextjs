@@ -52,6 +52,7 @@ final class PermissionRegistry
         'activity.list',
         'reports.list',
         'reports.generate',
+        'api.tokens.manage',
     ];
 
     /**

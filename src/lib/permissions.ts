@@ -36,6 +36,7 @@ export const PERMISSIONS = [
   "activity.list",
   "reports.list",
   "reports.generate",
+  "api.tokens.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

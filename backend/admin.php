@@ -5,6 +5,7 @@ declare(strict_types=1);
 define('APP_ENTRY', true);
 
 use App\Controller\ActivityController;
+use App\Controller\ApiTokenController;
 use App\Controller\AssetController;
 use App\Controller\AdminController;
 use App\Controller\AuthController;
@@ -24,6 +25,7 @@ use App\Http\SessionAuth;
 use App\Http\SessionToken;
 use App\PriceReport\PriceReportGenerator;
 use App\Repository\MysqlActivityLogRepository;
+use App\Repository\MysqlApiTokenRepository;
 use App\Repository\MysqlAssetRepository;
 use App\Repository\MysqlPageLockRepository;
 use App\Repository\MysqlPageRepository;
@@ -270,6 +272,21 @@ $router->delete('/assets/folders', static function (Request $req) use ($assetCon
 $router->delete('/assets', static function (Request $req) use ($assetController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'assets.delete');
     $assetController()->delete($req, $currentSession);
+});
+
+// Tokeny REST API v1 (ApiTokenController.php, db/037) — Ustawienia → Tokeny API.
+$apiTokenController = static fn (): ApiTokenController => new ApiTokenController(new MysqlApiTokenRepository(Connection::get($config)), $activityLogRepository());
+$router->get('/api-tokens', static function (Request $req) use ($apiTokenController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'api.tokens.manage');
+    $apiTokenController()->list();
+});
+$router->post('/api-tokens', static function (Request $req) use ($apiTokenController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'api.tokens.manage');
+    $apiTokenController()->create($req, $currentSession);
+});
+$router->post('/api-tokens/revoke', static function (Request $req) use ($apiTokenController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'api.tokens.manage');
+    $apiTokenController()->revoke($req, $currentSession);
 });
 
 // Raportowanie cen (dane.gov.pl) — katalogi raportów inwestycji, podgląd plików,

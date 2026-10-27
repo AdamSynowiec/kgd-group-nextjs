@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { hasValidType, isEditableValue, type EditableValue } from "@/lib/editable";
 import { classifyFieldType } from "@/lib/fieldType";
 import { canRead, canWrite, type Acl } from "@/lib/acl";
@@ -273,6 +274,7 @@ function EditableControl({
           title="Etykieta pola (można zmienić)"
           className="-mx-1 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium text-zinc-800 outline-none transition hover:border-zinc-200 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
         />
+        <ApiKeyChip value={typeof node.apiKey === "string" ? node.apiKey : ""} onChange={(apiKey) => onChange([...path, "apiKey"], apiKey)} />
         <code className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">{name}</code>
       </div>
 
@@ -293,5 +295,66 @@ function EditableControl({
         meta={{ columnLabels, siblings, rowDetails: node.details }}
       />
     </div>
+  );
+}
+
+const API_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
+
+/**
+ * Klucz pola w REST API v1 (backend/src/Api/PublicFields.php): pole bez klucza nie jest dostępne przez API.
+ * Klucz to stały kontrakt z integracją — zmiana albo usunięcie zepsuje integracje, które go używają.
+ */
+function ApiKeyChip({ value, onChange }: { value: string; onChange: (apiKey: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const invalid = draft !== "" && !API_KEY_PATTERN.test(draft);
+
+  if (editing) {
+    return (
+      <span className="flex shrink-0 items-center gap-1">
+        <input
+          autoFocus
+          value={draft}
+          onChange={(event) => setDraft(event.target.value.trim())}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !invalid) {
+              onChange(draft);
+              setEditing(false);
+            }
+            if (event.key === "Escape") setEditing(false);
+          }}
+          placeholder="np. heroTitle"
+          aria-label="Klucz API pola"
+          className={`w-36 rounded border px-1.5 py-0.5 font-mono text-[11px] outline-none ${invalid ? "border-red-300 bg-red-50" : "border-indigo-300 bg-white"}`}
+        />
+        <button
+          type="button"
+          disabled={invalid}
+          onClick={() => {
+            onChange(draft);
+            setEditing(false);
+          }}
+          className="rounded bg-indigo-600 px-1.5 py-0.5 text-[10px] font-medium text-white disabled:opacity-40"
+        >
+          OK
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setDraft(value);
+        setEditing(true);
+      }}
+      title={value ? "Klucz pola w REST API — kliknij, aby zmienić (pusty = pole niedostępne w API)" : "Udostępnij pole w REST API, nadając mu klucz"}
+      className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] transition ${
+        value ? "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/15 hover:bg-indigo-100" : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+      }`}
+    >
+      {value ? `API: ${value}` : "+ API"}
+    </button>
   );
 }

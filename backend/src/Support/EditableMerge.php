@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Exception\ApiException;
+
 if (!defined('APP_ENTRY')) {
     http_response_code(403);
     exit;
@@ -70,6 +72,23 @@ final class EditableMerge
 
             if (is_string($incomingLabel) && trim($incomingLabel) !== '') {
                 $overrides['label'] = $incomingLabel;
+            }
+
+            // "apiKey" — klucz pola w REST API v1 (App\Api\PublicFields): edytowalny z panelu jak "label";
+            // pusty usuwa pole z API. Brak klucza w żądaniu = bez zmian. Unikalność w obrębie strony
+            // sprawdza AdminController::savePage().
+            if (is_array($incoming) && array_key_exists('apiKey', $incoming)) {
+                $apiKey = $incoming['apiKey'];
+                if ($apiKey === null || $apiKey === '') {
+                    $result = array_merge($stored, $overrides);
+                    unset($result['apiKey']);
+
+                    return $result;
+                }
+                if (!is_string($apiKey) || preg_match('/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/', $apiKey) !== 1) {
+                    throw new ApiException('Klucz API pola: litery, cyfry i "_", zaczyna się od litery, maks. 64 znaki (np. heroTitle).', 422);
+                }
+                $overrides['apiKey'] = $apiKey;
             }
 
             // array_merge (nie tylko nadpisane klucze) zachowuje dodatkowe

@@ -1,0 +1,139 @@
+openapi: 3.1.0
+info:
+  title: KGD Group — REST API
+  version: "1.0.0"
+  description: |
+    Odczyt opublikowanych stron serwisu i ich pól publicznych.
+
+    **Pola publiczne** — w API widoczne są wyłącznie pola, którym w panelu nadano klucz API
+    (edytor strony → „+ API” przy polu). Klucz to stały kontrakt: nie zależy od układu strony.
+
+    **Autoryzacja** — `Authorization: Bearer <token>` (RFC 6750). Token tworzy administrator
+    w panelu (Ustawienia → Tokeny API) z wybranym zakresem; tylko przez HTTPS.
+
+    **Błędy** — `application/problem+json` (RFC 9457).
+
+    **Cache** — każda odpowiedź ma `ETag`; wyślij `If-None-Match`, a przy braku zmian dostaniesz `304`.
+
+    **Limit** — 120 zapytań na minutę na token (`RateLimit-*`, po przekroczeniu `429` + `Retry-After`).
+servers:
+  - url: https://kgd-group.pl/api/v1
+    description: Adres docelowy (wymaga reguły przepisywania adresów na serwerze)
+  - url: https://kgd-group.pl/api/v1.php?route=
+    description: Adres zawsze działający (bez reguły przepisywania)
+security:
+  - bearerAuth: []
+paths:
+  /pages:
+    get:
+      operationId: listPages
+      summary: Opublikowane strony z polami publicznymi
+      description: Wymaga zakresu `pages:read`. Szkice nie są zwracane. Nieznany parametr zapytania kończy się błędem 400.
+      parameters:
+        - name: slug
+          in: query
+          description: Tylko strona o tym adresie (z ukośnikiem na początku albo bez).
+          schema: { type: string, example: /inwestycja/foxhills }
+        - name: fields
+          in: query
+          description: Klucze pól po przecinku. Bez parametru — wszystkie pola publiczne. Klucz, którego strona nie ma, wraca jako `null`.
+          schema: { type: string, example: heroTitle,priceFrom }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Strony
+          headers:
+            ETag: { schema: { type: string } }
+            X-Request-Id: { schema: { type: string } }
+            RateLimit-Limit: { schema: { type: integer } }
+            RateLimit-Remaining: { schema: { type: integer } }
+            RateLimit-Reset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PageList" }
+              example:
+                data:
+                  - id: "42"
+                    slug: /inwestycja/foxhills
+                    updatedAt: "2026-10-27T09:14:02Z"
+                    fields: { heroTitle: Fox Hills Residences, priceFrom: 11200 }
+                meta: { total: 1, count: 1, limit: 20, offset: 0 }
+                links: { self: "/api/v1/pages?offset=0&limit=20&slug=%2Finwestycja%2Ffoxhills", next: null, prev: null }
+        "304": { description: Bez zmian względem `If-None-Match` }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Token z panelu (Ustawienia → Tokeny API), np. `kgd_…`.
+  responses:
+    Problem:
+      description: Błąd (RFC 9457)
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://kgd-group.pl/api/v1/docs#invalid-parameter
+            title: Invalid request parameter
+            status: 400
+            detail: One or more query parameters are invalid.
+            instance: /api/v1/pages
+            invalidParams:
+              - { name: limit, reason: Expected an integer between 1 and 100. }
+  schemas:
+    Page:
+      type: object
+      required: [id, slug, updatedAt, fields]
+      properties:
+        id: { type: string, description: Stały identyfikator strony }
+        slug: { type: string }
+        updatedAt: { type: string, format: date-time }
+        fields:
+          type: object
+          description: Pola publiczne — klucz API => wartość (tekst, liczba, wartość logiczna, lista wierszy tabeli, pełny adres pliku).
+          additionalProperties: true
+    PageList:
+      type: object
+      required: [data, meta, links]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Page" } }
+        meta:
+          type: object
+          properties:
+            total: { type: integer }
+            count: { type: integer }
+            limit: { type: integer }
+            offset: { type: integer }
+        links:
+          type: object
+          properties:
+            self: { type: string }
+            next: { type: [string, "null"] }
+            prev: { type: [string, "null"] }
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        invalidParams:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              reason: { type: string }
+        requiredScope: { type: string }

@@ -13,6 +13,7 @@ import InvestmentOutlook from "./InvestmentOutlook";
 import Gallery from "./Gallery";
 import Localization from "./Localization";
 import Map from "./Map";
+import PriceHistory from "./PriceHistory";
 
 import Deweloper from "@/components/shared/Deweloper";
 import Contact from "@/components/shared/Contact";
@@ -50,6 +51,7 @@ const template: Record<string, ComponentType<SectionProps>> = {
   Gallery: Gallery as ComponentType<SectionProps>,
   Localization: Localization as ComponentType<SectionProps>,
   Map: Map as ComponentType<SectionProps>,
+  PriceHistory: PriceHistory as ComponentType<SectionProps>,
   Deweloper: DeweloperSection,
   Contact: Contact as ComponentType<SectionProps>,
   Footer: Footer as ComponentType<SectionProps>,

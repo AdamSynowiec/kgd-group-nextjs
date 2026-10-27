@@ -46,7 +46,7 @@ export type { FieldType };
  * (np. "unitCard") albo opis pól okna — patrz src/components/admin/fields/rowDetails.ts.
  * Część definicji pola, jak "type" — panel go nie zmienia.
  */
-export type EditableValue<T = unknown> = { value: T; editable: boolean; label?: string; type: FieldType; acl?: Acl; details?: unknown };
+export type EditableValue<T = unknown> = { value: T; editable: boolean; label?: string; type: FieldType; acl?: Acl; details?: unknown; apiKey?: string };
 
 export function isEditableValue(node: unknown): node is EditableValue {
   return (

@@ -501,3 +501,34 @@ export function fetchAssetUsage(id: number, session: Session | null): Promise<{ 
 export function deleteAsset(id: number, force: boolean, session: Session | null): Promise<{ deleted: boolean }> {
   return request("/assets", { method: "DELETE", params: { id: String(id), ...(force ? { force: "1" } : {}) }, session });
 }
+
+// --- Tokeny REST API v1 — backend/src/Controller/ApiTokenController.php ---
+
+export type ApiTokenRecord = {
+  id: number;
+  name: string;
+  /** Pierwsze znaki tokenu — do rozpoznania na liście (pełny token jest znany tylko przy utworzeniu). */
+  prefix: string;
+  scopes: string[];
+  createdBy: string | null;
+  createdAt: string | null;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+};
+
+export function fetchApiTokens(session: Session | null): Promise<{ tokens: ApiTokenRecord[]; scopes: Record<string, string> }> {
+  return request("/api-tokens", { session });
+}
+
+/** Zwraca pełny token — jedyny raz, kiedy jest dostępny. */
+export function createApiToken(
+  input: { name: string; scopes: string[]; expiresInDays: number | null },
+  session: Session | null
+): Promise<{ token: string; record: ApiTokenRecord }> {
+  return request("/api-tokens", { method: "POST", body: input, session });
+}
+
+export function revokeApiToken(id: number, session: Session | null): Promise<ApiTokenRecord> {
+  return request("/api-tokens/revoke", { method: "POST", body: { id }, session });
+}
