@@ -9,6 +9,7 @@ use App\Api\Problem;
 use App\Api\RateLimiter;
 use App\Api\Response;
 use App\Api\V1\Catalog;
+use App\Api\V1\Docs;
 use App\Api\V1\Links;
 use App\Api\V1\PagesController;
 use App\Api\V1\TypesController;
@@ -37,7 +38,7 @@ $siteUrl = rtrim($config->get('SITE_URL', 'https://kgd-group.pl'), '/');
 
 Response::header('X-Request-Id', $requestId);
 
-/** @var list<array{pattern: string, scope: string, handler: callable(PDO, array<string, string>): never}> $routes */
+/** @var list<array{pattern: string, scope: ?string, handler: callable(?PDO, array<string, string>): never}> $routes */
 $routes = [
     [
         // Punkt wejścia: co jest dostępne (HATEOAS-lite) — integracja nie musi znać adresów z góry.
@@ -46,7 +47,8 @@ $routes = [
         'handler' => static fn (PDO $pdo, array $params) => Response::json(['links' => [
             'pages' => Links::to('/pages'),
             'types' => Links::to('/types'),
-            'docs' => $siteUrl . '/api/v1/docs',
+            'docs' => Links::to('/docs'),
+            'openapi' => Links::to('/openapi.yaml'),
         ]]),
     ],
     [
@@ -65,6 +67,17 @@ $routes = [
         'scope' => 'pages:read',
         'handler' => static fn (PDO $pdo, array $params) => (new TypesController(new Catalog($pdo, $siteUrl)))->index($_GET),
     ],
+    // Dokumentacja — publiczna (scope null: bez tokenu i bez bazy).
+    [
+        'pattern' => '/docs',
+        'scope' => null,
+        'handler' => static fn (?PDO $pdo, array $params) => (new Docs(__DIR__ . '/docs'))->page(),
+    ],
+    [
+        'pattern' => '/openapi\.yaml',
+        'scope' => null,
+        'handler' => static fn (?PDO $pdo, array $params) => (new Docs(__DIR__ . '/docs'))->openapi(),
+    ],
 ];
 
 try {
@@ -82,6 +95,10 @@ try {
     }
     if (!in_array($method, ['GET', 'HEAD'], true)) {
         throw Problem::methodNotAllowed(['GET', 'HEAD']);
+    }
+
+    if ($matched['scope'] === null) {
+        $matched['handler'](null, $params);
     }
 
     $pdo = Connection::get($config);

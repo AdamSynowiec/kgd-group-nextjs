@@ -2,7 +2,7 @@
 
 API do odczytu treści opublikowanych stron serwisu, przeznaczone dla zewnętrznych systemów (serwer–serwer). Zwraca wyłącznie **pola publiczne** — te, które administrator świadomie udostępnił (patrz [Pola publiczne](#pola-publiczne)).
 
-Specyfikacja maszynowa (OpenAPI 3.1, do wygenerowania klienta albo podglądu w Swagger UI / Postman): [`api-v1.openapi.yaml`](api-v1.openapi.yaml).
+Ta dokumentacja jest dostępna pod `https://kgd-group.pl/api/v1/docs`. Specyfikacja maszynowa (OpenAPI 3.1, do wygenerowania klienta albo importu do Swagger UI / Postmana): [`openapi.yaml`](api-v1.openapi.yaml) — `https://kgd-group.pl/api/v1/openapi.yaml`. Oba adresy są publiczne (bez tokenu).
 
 ## Spis treści
 
@@ -123,7 +123,8 @@ Punkt wejścia — adresy dostępnych zasobów. Integracja może zaczynać od ni
   "links": {
     "pages": "/api/v1/pages",
     "types": "/api/v1/types",
-    "docs": "https://kgd-group.pl/api/v1/docs"
+    "docs": "/api/v1/docs",
+    "openapi": "/api/v1/openapi.yaml"
   }
 }
 ```
@@ -306,14 +307,14 @@ Opieraj obsługę błędów na `status` i `type` (część po `#`), nie na treś
 
 | Status | `type` | Kiedy | Co zrobić |
 |---|---|---|---|
-| 400 | `invalid-parameter` | Niepoprawny lub nieznany parametr; lista w `invalidParams` | Popraw zapytanie |
-| 401 | `unauthorized` | Brak tokenu, token zły, wygasły albo cofnięty (`WWW-Authenticate: Bearer … error="invalid_token"`) | Sprawdź token / poproś o nowy |
-| 403 | `insufficient-scope` | Token bez wymaganego zakresu (`requiredScope`) | Poproś o token z zakresem |
-| 403 | `insecure-transport` | Żądanie przez `http://` | Użyj `https://` |
-| 404 | `not-found` | Nie ma takiego endpointu albo opublikowanej strony o tym identyfikatorze / id | Sprawdź adres |
-| 405 | `method-not-allowed` | Metoda inna niż `GET`/`HEAD` (nagłówek `Allow`) | Użyj `GET` |
-| 429 | `rate-limited` | Przekroczony limit (`Retry-After`) | Odczekaj i ponów |
-| 500 | `internal-error` | Nieoczekiwany błąd serwera | Ponów później; zgłoś z `X-Request-Id` |
+| 400 | <a id="invalid-parameter"></a>`invalid-parameter` | Niepoprawny lub nieznany parametr; lista w `invalidParams` | Popraw zapytanie |
+| 401 | <a id="unauthorized"></a>`unauthorized` | Brak tokenu, token zły, wygasły albo cofnięty (`WWW-Authenticate: Bearer … error="invalid_token"`) | Sprawdź token / poproś o nowy |
+| 403 | <a id="insufficient-scope"></a>`insufficient-scope` | Token bez wymaganego zakresu (`requiredScope`) | Poproś o token z zakresem |
+| 403 | <a id="insecure-transport"></a>`insecure-transport` | Żądanie przez `http://` | Użyj `https://` |
+| 404 | <a id="not-found"></a>`not-found` | Nie ma takiego endpointu albo opublikowanej strony o tym identyfikatorze / id | Sprawdź adres |
+| 405 | <a id="method-not-allowed"></a>`method-not-allowed` | Metoda inna niż `GET`/`HEAD` (nagłówek `Allow`) | Użyj `GET` |
+| 429 | <a id="rate-limited"></a>`rate-limited` | Przekroczony limit (`Retry-After`) | Odczekaj i ponów |
+| 500 | <a id="internal-error"></a>`internal-error` | Nieoczekiwany błąd serwera | Ponów później; zgłoś z `X-Request-Id` |
 
 **Ponawianie:** tylko `429` (po `Retry-After`) i `5xx` (rosnący odstęp: 1 s, 2 s, 4 s, maks. 3–5 prób). Innych `4xx` nie ponawiaj bez zmiany zapytania lub tokenu.
 

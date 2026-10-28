@@ -32,7 +32,7 @@ paths:
           description: Linki
           content:
             application/json:
-              example: { links: { pages: /api/v1/pages, types: /api/v1/types, docs: "https://kgd-group.pl/api/v1/docs" } }
+              example: { links: { pages: /api/v1/pages, types: /api/v1/types, docs: /api/v1/docs, openapi: /api/v1/openapi.yaml } }
         "401": { $ref: "#/components/responses/Problem" }
         "429": { $ref: "#/components/responses/Problem" }
   /pages:
