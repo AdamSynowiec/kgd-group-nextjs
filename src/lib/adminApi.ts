@@ -545,3 +545,17 @@ export function fetchPageIdentityChanges(session: Session | null): Promise<{ cha
 export function assignPageIdentity(session: Session | null): Promise<{ changes: PageIdentityChange[] }> {
   return request("/page-identity", { method: "POST", body: {}, session });
 }
+
+// --- Pliki serwisu (robots.txt, …) — backend/src/Controller/SiteFileController.php ---
+
+/** content: null = plik domyślny (src/lib/siteFiles.ts), bez własnej treści w bazie. */
+export type SiteFileRecord = { name: string; content: string | null; updatedBy: string | null; updatedAt: string | null };
+
+export function fetchSiteFiles(session: Session | null): Promise<{ files: SiteFileRecord[] }> {
+  return request("/site-files", { session });
+}
+
+/** Pusta treść przywraca plik domyślny. */
+export function saveSiteFile(name: string, content: string, session: Session | null): Promise<SiteFileRecord> {
+  return request("/site-files", { method: "POST", body: { name, content }, session });
+}

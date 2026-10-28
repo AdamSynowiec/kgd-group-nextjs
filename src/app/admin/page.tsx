@@ -48,6 +48,7 @@ const ACTION_LABELS: Record<string, string> = {
   "price-reports.generate": "wygenerował(a) raporty cen",
   "api.tokens.create": "utworzył(a) token API",
   "api.tokens.revoke": "cofnął/cofnęła token API",
+  "site.files.update": "zmienił(a) plik serwisu",
   "assets.upload": "wgrał(a) plik",
   "assets.delete": "usunął/usunęła plik",
   "assets.move": "przeniósł/przeniosła pliki",

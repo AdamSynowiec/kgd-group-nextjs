@@ -10,6 +10,7 @@ import PermissionsPanel from "@/components/admin/PermissionsPanel";
 import ActivityLogPanel from "@/components/admin/ActivityLogPanel";
 import PriceReportsPanel from "@/components/admin/PriceReportsPanel";
 import ApiTokensPanel from "@/components/admin/ApiTokensPanel";
+import SiteFilesPanel from "@/components/admin/SiteFilesPanel";
 import { can } from "@/lib/permissions";
 import {
   AdminApiError,
@@ -38,7 +39,7 @@ import {
  * (patrz Authorization::require() po stronie backendu).
  */
 
-type TabKey = "account" | "users" | "roles" | "permissions" | "activity" | "reports" | "api";
+type TabKey = "account" | "users" | "roles" | "permissions" | "activity" | "reports" | "api" | "files";
 
 type ViewState =
   | { status: "checking" }
@@ -106,6 +107,7 @@ export default function AdminSettingsPage() {
     if (can(session?.permissions, "roles.permissions.manage")) list.push({ key: "permissions", label: "Uprawnienia" });
     if (can(session?.permissions, "reports.list")) list.push({ key: "reports", label: "Raportowanie cen" });
     if (can(session?.permissions, "api.tokens.manage")) list.push({ key: "api", label: "Tokeny API" });
+    if (can(session?.permissions, "site.files.manage")) list.push({ key: "files", label: "Pliki serwisu" });
     if (can(session?.permissions, "activity.list")) list.push({ key: "activity", label: "Aktywność" });
     return list;
   }, [session]);
@@ -172,6 +174,7 @@ export default function AdminSettingsPage() {
           {activeTab === "permissions" && <PermissionsPanel users={view.users} roles={view.roles} session={session} />}
           {activeTab === "reports" && <PriceReportsPanel session={session} />}
           {activeTab === "api" && <ApiTokensPanel session={session} />}
+          {activeTab === "files" && <SiteFilesPanel session={session} />}
           {activeTab === "activity" && <ActivityLogPanel session={session} />}
         </div>
       )}

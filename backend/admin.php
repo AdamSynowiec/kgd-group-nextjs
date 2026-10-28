@@ -14,6 +14,7 @@ use App\Controller\PageLockController;
 use App\Controller\PermissionsController;
 use App\Controller\PriceReportController;
 use App\Controller\RolesController;
+use App\Controller\SiteFileController;
 use App\Controller\UploadController;
 use App\Controller\UsersController;
 use App\Database\Connection;
@@ -31,6 +32,7 @@ use App\Repository\MysqlPageLockRepository;
 use App\Repository\MysqlPageRepository;
 use App\Repository\MysqlPermissionRepository;
 use App\Repository\MysqlRoleRepository;
+use App\Repository\MysqlSiteFileRepository;
 use App\Repository\MysqlUserRepository;
 use App\Support\Authorization;
 
@@ -287,6 +289,17 @@ $router->post('/api-tokens', static function (Request $req) use ($apiTokenContro
 $router->post('/api-tokens/revoke', static function (Request $req) use ($apiTokenController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'api.tokens.manage');
     $apiTokenController()->revoke($req, $currentSession);
+});
+
+// Pliki serwisu (robots.txt, …; SiteFileController.php, db/038) — Ustawienia → Pliki serwisu.
+$siteFileController = static fn (): SiteFileController => new SiteFileController(new MysqlSiteFileRepository(Connection::get($config)), $activityLogRepository());
+$router->get('/site-files', static function (Request $req) use ($siteFileController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'site.files.manage');
+    $siteFileController()->list();
+});
+$router->post('/site-files', static function (Request $req) use ($siteFileController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'site.files.manage');
+    $siteFileController()->save($req, $currentSession);
 });
 
 // Identyfikatory i typy stron w REST API v1 (PageIdentity) — uzupełnianie brakujących (Ustawienia → Tokeny API).

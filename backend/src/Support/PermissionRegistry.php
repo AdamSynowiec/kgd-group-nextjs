@@ -53,6 +53,7 @@ final class PermissionRegistry
         'reports.list',
         'reports.generate',
         'api.tokens.manage',
+        'site.files.manage',
     ];
 
     /**

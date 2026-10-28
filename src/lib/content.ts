@@ -3,6 +3,7 @@ import path from "node:path";
 import { cache } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import type { Acl } from "@/lib/acl";
+import type { SiteFileName } from "@/lib/siteFiles";
 
 /**
  * Warstwa dostępu do treści.
@@ -191,6 +192,12 @@ async function apiFetch<T>(
 
 export async function apiGet<T>(route: string, params?: Record<string, string>): Promise<T | null> {
   return (await apiFetch<T>(route, params)).data;
+}
+
+/** route=/site-file/<nazwa> — treść pliku serwisu z panelu (src/lib/siteFiles.ts); null = plik domyślny. */
+export async function getSiteFile(name: SiteFileName): Promise<string | null> {
+  const file = await apiGet<{ name: string; content: string | null }>(`/site-file/${name}`);
+  return file?.content ?? null;
 }
 
 /** route=/pages — lista opublikowanych stron pod generateStaticParams(). */

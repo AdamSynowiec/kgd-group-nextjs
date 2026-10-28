@@ -6,11 +6,13 @@ define('APP_ENTRY', true);
 
 use App\Controller\ContactController;
 use App\Controller\PageController;
+use App\Controller\SiteFileController;
 use App\Database\Connection;
 use App\Http\Cors;
 use App\Http\Request;
 use App\Http\Router;
 use App\Repository\MysqlPageRepository;
+use App\Repository\MysqlSiteFileRepository;
 use App\Support\ContactRateLimiter;
 use App\Support\CrmWebhook;
 use App\Support\SmtpMailer;
@@ -35,6 +37,10 @@ $controller = new PageController(new MysqlPageRepository($pdo));
 $router = new Router();
 $router->get('/pages', [$controller, 'index']);
 $router->get('/page', [$controller, 'show']);
+
+// Pliki serwisu edytowane w panelu (robots.txt, …) — czyta je build Next.js (src/lib/content.ts getSiteFile()).
+$siteFiles = new SiteFileController(new MysqlSiteFileRepository($pdo));
+$router->get('/site-file', [$siteFiles, 'show']);
 
 // Formularze strony — wysyłka maila przez SMTP (konfiguracja SMTP_* / CONTACT_* w .env).
 $contact = new ContactController(
