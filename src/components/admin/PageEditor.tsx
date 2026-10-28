@@ -10,6 +10,9 @@ const HEARTBEAT_MS = 15000;
 
 type Status = "draft" | "published";
 
+/** Identyfikator i typ strony w REST API v1 — jak PageIdentity::PATTERN w backend/src/Support/PageIdentity.php. */
+const PAGE_IDENTITY_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+
 /**
  * Cienki wrapper ContentEditor dla stron w `pages` (w tym wpisów bloga —
  * zwykłe strony z parent:"/blog", patrz src/lib/pageTemplates.ts).
@@ -76,7 +79,13 @@ export default function PageEditor({
   const initialDate = typeof initialContent.updatedAt === "string" ? initialContent.updatedAt : "";
   const [status, setStatus] = useState<Status>(initialStatus);
   const [date, setDate] = useState<string>(initialDate);
-  const [saved, setSaved] = useState({ status: initialStatus, date: initialDate });
+  const initialApiKey = typeof initialContent.apiKey === "string" ? initialContent.apiKey : "";
+  const [apiKey, setApiKey] = useState(initialApiKey);
+  const initialApiType = typeof initialContent.apiType === "string" ? initialContent.apiType : "";
+  const [apiType, setApiType] = useState(initialApiType);
+  const [saved, setSaved] = useState({ status: initialStatus, date: initialDate, apiKey: initialApiKey, apiType: initialApiType });
+  const apiKeyInvalid = apiKey !== "" && !PAGE_IDENTITY_PATTERN.test(apiKey);
+  const apiTypeInvalid = apiType !== "" && !PAGE_IDENTITY_PATTERN.test(apiType);
 
   async function handleSave(content: Record<string, unknown>) {
     // Pierwszy zapis bez ręcznie podanej daty -> dziś. Kolejne zapisy nie
@@ -84,12 +93,14 @@ export default function PageEditor({
     // CollectionItemEditor.tsx).
     const effectiveDate = date || todayIsoDate();
 
-    await savePage(slug, { ...content, status, updatedAt: effectiveDate }, session, lockId ?? undefined);
+    if (apiKeyInvalid || apiTypeInvalid) throw new Error("Identyfikator i typ API: małe litery, cyfry i „-”, zaczynają się od litery.");
+
+    await savePage(slug, { ...content, status, updatedAt: effectiveDate, apiKey, apiType }, session, lockId ?? undefined);
 
     if (effectiveDate !== date) {
       setDate(effectiveDate);
     }
-    setSaved({ status, date: effectiveDate });
+    setSaved({ status, date: effectiveDate, apiKey, apiType });
   }
 
   return (
@@ -100,7 +111,7 @@ export default function PageEditor({
       session={session}
       onBack={onBack}
       onSave={handleSave}
-      extraDirty={status !== saved.status || date !== saved.date}
+      extraDirty={status !== saved.status || date !== saved.date || apiKey !== saved.apiKey || apiType !== saved.apiType}
       saveBlocked={lostTo !== null}
       lockNotice={
         lostTo ? (
@@ -156,6 +167,49 @@ export default function PageEditor({
           </label>
           <input id="page-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className={ui.input} />
           <p className={ui.hint}>{date === "" ? "Puste — ustawi się na dziś przy zapisie." : "Widoczna np. jako data wpisu bloga i w sitemapie."}</p>
+
+          <label htmlFor="page-api-key" className={`${ui.label} mt-4`}>
+            Identyfikator API
+          </label>
+          <input
+            id="page-api-key"
+            value={apiKey}
+            onChange={(event) => setApiKey(event.target.value.trim().toLowerCase())}
+            placeholder="np. foxhills"
+            className={`${ui.input} font-mono ${apiKeyInvalid ? "border-red-300 bg-red-50" : ""}`}
+          />
+          <p className={`${ui.hint} ${apiKeyInvalid ? "!text-red-600" : ""}`}>
+            {apiKeyInvalid ? (
+              "Małe litery, cyfry i „-”, zaczyna się od litery."
+            ) : apiKey === "" ? (
+              "Puste — strona dostępna w API tylko po numerze id."
+            ) : (
+              <>
+                <code className="font-mono">/api/v1/pages/{apiKey}</code>
+                {saved.apiKey !== "" && apiKey !== saved.apiKey && " — zmiana zepsuje odwołania do „" + saved.apiKey + "”."}
+              </>
+            )}
+          </p>
+
+          <label htmlFor="page-api-type" className={`${ui.label} mt-4`}>
+            Typ API
+          </label>
+          <input
+            id="page-api-type"
+            value={apiType}
+            onChange={(event) => setApiType(event.target.value.trim().toLowerCase())}
+            placeholder="np. inwestycja"
+            className={`${ui.input} font-mono ${apiTypeInvalid ? "border-red-300 bg-red-50" : ""}`}
+          />
+          <p className={`${ui.hint} ${apiTypeInvalid ? "!text-red-600" : ""}`}>
+            {apiTypeInvalid ? (
+              "Małe litery, cyfry i „-”, zaczyna się od litery."
+            ) : apiType === "" ? (
+              "Rodzaj strony — wspólny dla stron tego samego rodzaju."
+            ) : (
+              <code className="font-mono">/api/v1/pages?type={apiType}</code>
+            )}
+          </p>
         </div>
       }
     />

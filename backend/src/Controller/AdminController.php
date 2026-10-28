@@ -14,6 +14,7 @@ use App\Repository\PageRepositoryInterface;
 use App\Support\Acl;
 use App\Support\Editable;
 use App\Support\EditableMerge;
+use App\Support\PageIdentity;
 use App\Support\Slug;
 use JsonException;
 use PDOException;
@@ -160,10 +161,31 @@ final class AdminController
             $merged['updatedAt'] = $incoming['updatedAt'];
         }
 
-        // Klucz API pola (REST API v1) musi być unikalny w obrębie strony — to on adresuje pole.
+        // Identyfikator i typ strony w REST API v1 (PageIdentity) — strukturalne jak "status",
+        // EditableMerge ich nie dotyka. Pusty = usunięty; identyfikator unikalny w całym serwisie.
+        foreach (['apiKey' => 'Identyfikator strony', 'apiType' => 'Typ strony'] as $name => $label) {
+            if (!array_key_exists($name, $incoming)) {
+                continue;
+            }
+            $value = is_string($incoming[$name]) ? trim($incoming[$name]) : '';
+            if ($value === '') {
+                unset($merged[$name]);
+                continue;
+            }
+            if (!PageIdentity::isValid($value)) {
+                throw new ApiException("{$label}: małe litery, cyfry i \"-\", zaczyna się od litery (maks. 64 znaki).", 422);
+            }
+            $owner = $name === 'apiKey' ? $this->pages->slugByApiKey($value) : null;
+            if ($owner !== null && $owner !== $slug) {
+                throw new ApiException("Identyfikator strony \"{$value}\" ma już strona {$owner}.", 422);
+            }
+            $merged[$name] = $value;
+        }
+
+        // Identyfikator pola (REST API v1) musi być unikalny w obrębie strony — to on adresuje pole.
         $duplicates = array_keys(array_filter(array_count_values(self::apiKeys($merged)), static fn (int $count): bool => $count > 1));
         if ($duplicates !== []) {
-            throw new ApiException('Klucz API użyty w tej stronie więcej niż raz: ' . implode(', ', $duplicates) . '.', 422);
+            throw new ApiException('Identyfikator pola użyty w tej stronie więcej niż raz: ' . implode(', ', $duplicates) . '.', 422);
         }
 
         $this->pages->save($slug, $merged);
@@ -223,6 +245,13 @@ final class AdminController
         if ($role !== null) {
             $content['acl'] = ['role' => $role, 'permission' => 'read/write'];
         }
+        // Tożsamość w REST API v1: identyfikator zawsze nowy (unikalny — nie przechodzi z kopiowanej
+        // strony), typ z treści (kopia strony = ten sam rodzaj) albo zaproponowany z adresu.
+        $taken = array_fill_keys(array_filter(array_column($this->pages->listIdentities(), 'apiKey')), true);
+        $content['apiKey'] = PageIdentity::uniqueKey(PageIdentity::suggestKey($slug), $taken);
+        if (!PageIdentity::isValid($content['apiType'] ?? null)) {
+            $content['apiType'] = PageIdentity::suggestType($slug);
+        }
 
         try {
             $created = $this->pages->create($slug, $content);
@@ -266,6 +295,61 @@ final class AdminController
         $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.delete', $slug);
 
         JsonResponse::ok(['deleted' => true, 'slug' => $slug]);
+    }
+
+    /**
+     * GET /page-identity — podgląd: strony bez identyfikatora lub typu w REST API v1 i to, co
+     * dostałyby z reguły PageIdentity. Nic nie zapisuje.
+     */
+    public function pageIdentityPreview(): void
+    {
+        JsonResponse::ok(['changes' => $this->pageIdentityChanges()]);
+    }
+
+    /**
+     * POST /page-identity — nadaje brakujące identyfikatory i typy (tylko brakujące — nadanych
+     * ręcznie nie zmienia), bez zmiany daty ostatniej edycji stron.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function assignPageIdentity(?array $currentSession): void
+    {
+        $changes = $this->pageIdentityChanges();
+        foreach ($changes as $change) {
+            $this->pages->setIdentity($change['slug'], $change['apiKey'], $change['apiType']);
+        }
+        if ($changes !== []) {
+            $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.identity', count($changes) . ' stron');
+        }
+
+        JsonResponse::ok(['changes' => $changes]);
+    }
+
+    /** @return list<array{slug: string, apiKey: ?string, apiType: ?string}> tylko brakujące wartości (null = bez zmian) */
+    private function pageIdentityChanges(): array
+    {
+        $pages = $this->pages->listIdentities();
+        $taken = [];
+        foreach ($pages as $page) {
+            if (PageIdentity::isValid($page['apiKey'])) {
+                $taken[$page['apiKey']] = true;
+            }
+        }
+
+        $changes = [];
+        foreach ($pages as $page) {
+            $key = null;
+            if (!PageIdentity::isValid($page['apiKey'])) {
+                $key = PageIdentity::uniqueKey(PageIdentity::suggestKey($page['slug']), $taken);
+                $taken[$key] = true;
+            }
+            $type = PageIdentity::isValid($page['apiType']) ? null : PageIdentity::suggestType($page['slug']);
+            if ($key !== null || $type !== null) {
+                $changes[] = ['slug' => $page['slug'], 'apiKey' => $key, 'apiType' => $type];
+            }
+        }
+
+        return $changes;
     }
 
     /** @return list<string> klucze API wszystkich pól strony (z powtórzeniami — do wykrycia duplikatów) */

@@ -7,8 +7,8 @@ namespace App\Api\V1;
 use App\Api\Problem;
 use App\Api\PublicFields;
 use App\Api\Response;
+use App\Support\PageIdentity;
 use App\Support\Slug;
-use PDO;
 
 if (!defined('APP_ENTRY')) {
     http_response_code(403);
@@ -16,147 +16,216 @@ if (!defined('APP_ENTRY')) {
 }
 
 /**
- * GET /v1/pages — kolekcja opublikowanych stron z ich polami publicznymi (PublicFields).
+ * Opublikowane strony (szkice nigdy) z ich polami publicznymi — patrz Catalog i PublicFields.
  *
- * Parametry (nieznany parametr = 400, żeby literówka nie dawała po cichu innego wyniku):
- *   slug    — tylko strona o tym adresie, np. "/inwestycja/foxhills" (z "/" na początku albo bez),
- *   fields  — lista kluczy API po przecinku (sparse fieldset); bez niej — wszystkie pola publiczne.
- *             Klucz, którego strona nie ma, zwracany jest jako null — kształt odpowiedzi jest stały,
- *   limit   — 1..100 (domyślnie 20), offset — od 0 (domyślnie 0).
+ *   GET /v1/pages           kolekcja: filtry type, parent, slug, updatedSince; sort; fields; include; limit/offset
+ *   GET /v1/pages/{strona}  jedna strona po identyfikatorze ("rudava-park") albo numerycznym id; fields, include
  *
- * Szkice nigdy nie są zwracane.
+ * Nieznany albo niepoprawny parametr = 400 z listą błędów — literówka nie daje po cichu innego wyniku.
+ * Opis dla integratorów: backend/docs/rest-api-v1.md, specyfikacja: backend/docs/api-v1.openapi.yaml.
  */
 final class PagesController
 {
-    private const ALLOWED_PARAMS = ['route', 'slug', 'fields', 'limit', 'offset'];
     private const DEFAULT_LIMIT = 20;
     private const MAX_LIMIT = 100;
+    private const MAX_LIST = 100;
+    private const SORTABLE = ['id', 'key', 'type', 'slug', 'createdAt', 'updatedAt'];
+    private const INCLUDES = ['children'];
 
-    public function __construct(
-        private readonly PDO $pdo,
-        private readonly string $siteUrl
-    ) {
+    public function __construct(private readonly Catalog $catalog)
+    {
+    }
+
+    /** @param array<string, mixed> $query */
+    public function show(string $reference, array $query): never
+    {
+        $params = new QueryParams($query, ['fields', 'include']);
+        $fields = $this->fields($params);
+        $include = $params->list('include', self::INCLUDES, 'children');
+        $params->assertValid();
+
+        $row = $this->catalog->find($reference);
+        if ($row === null) {
+            throw Problem::notFound("There is no published page \"{$reference}\".");
+        }
+
+        $content = $this->catalog->contents([$row['id']])[$row['id']] ?? [];
+        Response::json(['data' => $this->resource($row, $content, $fields, $include)]);
     }
 
     /** @param array<string, mixed> $query */
     public function index(array $query): never
     {
-        [$slug, $fields, $limit, $offset] = $this->parse($query);
+        $params = new QueryParams($query, ['type', 'parent', 'slug', 'updatedSince', 'sort', 'fields', 'include', 'limit', 'offset']);
+        $rows = $this->catalog->rows();
 
-        $where = "JSON_UNQUOTE(JSON_EXTRACT(content, '$.status')) = 'published'";
-        $params = [];
-        if ($slug !== null) {
-            $where .= ' AND slug = :slug';
-            $params['slug'] = $slug;
-        }
+        $knownTypes = array_values(array_unique(array_filter(array_column($rows, 'type'))));
+        sort($knownTypes);
+        $types = $params->list('type', $knownTypes, 'investment,page');
+        $parent = $this->parent($params);
+        $slug = $this->slug($params);
+        $updatedSince = $params->timestamp('updatedSince');
+        $sort = $this->sort($params);
+        $fields = $this->fields($params);
+        $include = $params->list('include', self::INCLUDES, 'children');
+        $limit = $params->integer('limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT);
+        $offset = $params->integer('offset', 0, 0, PHP_INT_MAX);
+        $params->assertValid();
 
-        $count = $this->pdo->prepare("SELECT COUNT(*) FROM pages WHERE {$where}");
-        $count->execute($params);
-        $total = (int) $count->fetchColumn();
+        $matching = array_values(array_filter($rows, static fn (array $row): bool =>
+            ($types === null || in_array($row['type'], $types, true))
+            && ($parent === null || $row['parentId'] === $parent['id'])
+            && ($slug === null || $row['slug'] === $slug)
+            && ($updatedSince === null || $row['updatedAt'] >= $updatedSince)));
 
-        $statement = $this->pdo->prepare(
-            "SELECT id, slug, content, UNIX_TIMESTAMP(updated_at) AS updated_ts FROM pages WHERE {$where} ORDER BY slug LIMIT :limit OFFSET :offset"
-        );
-        foreach ($params as $name => $value) {
-            $statement->bindValue($name, $value);
-        }
-        $statement->bindValue('limit', $limit, PDO::PARAM_INT);
-        $statement->bindValue('offset', $offset, PDO::PARAM_INT);
-        $statement->execute();
-
-        $data = [];
-        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $content = json_decode((string) $row['content'], true);
-            $public = PublicFields::of(is_array($content) ? $content : [], $this->siteUrl);
-            if ($fields !== null) {
-                $public = array_combine($fields, array_map(static fn (string $key): mixed => $public[$key] ?? null, $fields));
+        usort($matching, static function (array $a, array $b) use ($sort): int {
+            foreach ($sort as [$field, $direction]) {
+                if (($a[$field] === null) !== ($b[$field] === null)) {
+                    return $a[$field] === null ? 1 : -1; // puste zawsze na końcu, w obu kierunkach
+                }
+                $result = self::compare($a[$field], $b[$field]) * $direction;
+                if ($result !== 0) {
+                    return $result;
+                }
             }
-            $data[] = [
-                'id' => (string) $row['id'],
-                'slug' => (string) $row['slug'],
-                'updatedAt' => gmdate('Y-m-d\TH:i:s\Z', (int) $row['updated_ts']),
-                'fields' => (object) $public,
-            ];
-        }
+
+            return (int) $a['id'] <=> (int) $b['id'];
+        });
+
+        $total = count($matching);
+        $window = array_slice($matching, $offset, $limit);
+        $contents = $this->catalog->contents(array_column($window, 'id'));
+        $data = array_map(fn (array $row): array => $this->resource($row, $contents[$row['id']] ?? [], $fields, $include), $window);
+
+        $linkQuery = $params->present();
+        $link = static fn (int $at): string => Links::to('/pages', ['offset' => $at, 'limit' => $limit] + $linkQuery);
 
         Response::json([
             'data' => $data,
             'meta' => ['total' => $total, 'count' => count($data), 'limit' => $limit, 'offset' => $offset],
-            'links' => $this->links($query, $total, $limit, $offset),
+            'links' => [
+                'self' => $link($offset),
+                'next' => $offset + $limit < $total ? $link($offset + $limit) : null,
+                'prev' => $offset > 0 ? $link(max(0, $offset - $limit)) : null,
+            ],
         ]);
     }
 
     /**
-     * @param array<string, mixed> $query
-     * @return array{0: ?string, 1: ?list<string>, 2: int, 3: int}
+     * @param array<string, mixed> $row wiersz Catalog
+     * @param array<string, mixed> $content
+     * @param ?list<string> $fields
+     * @param ?list<string> $include
+     * @return array<string, mixed>
      */
-    private function parse(array $query): array
+    private function resource(array $row, array $content, ?array $fields, ?array $include): array
     {
-        $invalid = [];
-        foreach (array_keys($query) as $name) {
-            if (!in_array($name, self::ALLOWED_PARAMS, true)) {
-                $invalid[] = ['name' => (string) $name, 'reason' => 'Unknown parameter. Allowed: slug, fields, limit, offset.'];
-            }
-        }
+        $parent = $row['parentId'] !== null ? ($this->catalog->rows()[$row['parentId']] ?? null) : null;
+        $address = Catalog::address($row);
 
-        $slug = null;
-        if (array_key_exists('slug', $query)) {
-            $raw = is_string($query['slug']) ? trim($query['slug']) : '';
-            $slug = Slug::fromSegments(explode('/', trim($raw, '/')));
-            if ($raw === '' || !Slug::isValid($slug)) {
-                $invalid[] = ['name' => 'slug', 'reason' => 'Expected a page path such as "/inwestycja/foxhills".'];
-            }
-        }
-
-        $fields = null;
-        if (array_key_exists('fields', $query)) {
-            $list = is_string($query['fields']) ? array_values(array_unique(array_filter(array_map('trim', explode(',', $query['fields'])), 'strlen'))) : [];
-            $bad = array_values(array_filter($list, static fn (string $key): bool => preg_match(PublicFields::KEY_PATTERN, $key) !== 1));
-            if ($list === [] || $bad !== []) {
-                $invalid[] = ['name' => 'fields', 'reason' => $list === [] ? 'Expected a comma-separated list of field keys.' : 'Invalid field key(s): ' . implode(', ', $bad) . '.'];
-            } else {
-                $fields = $list;
-            }
-        }
-
-        $limit = $this->integer($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT, $invalid);
-        $offset = $this->integer($query, 'offset', 0, 0, PHP_INT_MAX, $invalid);
-
-        if ($invalid !== []) {
-            throw Problem::invalidParameters($invalid);
-        }
-
-        return [$slug, $fields, $limit, $offset];
-    }
-
-    /** @param list<array{name: string, reason: string}> $invalid */
-    private function integer(array $query, string $name, int $default, int $min, int $max, array &$invalid): int
-    {
-        if (!array_key_exists($name, $query)) {
-            return $default;
-        }
-        $value = filter_var($query[$name], FILTER_VALIDATE_INT, ['options' => ['min_range' => $min, 'max_range' => $max]]);
-        if ($value === false) {
-            $invalid[] = ['name' => $name, 'reason' => "Expected an integer between {$min} and " . ($max === PHP_INT_MAX ? '∞' : $max) . '.'];
-
-            return $default;
-        }
-
-        return $value;
-    }
-
-    /** @return array{self: string, next: ?string, prev: ?string} */
-    private function links(array $query, int $total, int $limit, int $offset): array
-    {
-        unset($query['route']);
-        // Ta sama forma adresu, którą przyszło zapytanie: ładna (/api/v1/pages) albo przez front controller.
-        $base = str_contains((string) ($_SERVER['REQUEST_URI'] ?? ''), 'v1.php') ? '/api/v1.php?route=/pages&' : '/api/v1/pages?';
-        $url = static fn (int $at): string => $base . http_build_query(['offset' => $at, 'limit' => $limit] + $query, '', '&', PHP_QUERY_RFC3986);
-
-        return [
-            'self' => $url($offset),
-            'next' => $offset + $limit < $total ? $url($offset + $limit) : null,
-            'prev' => $offset > 0 ? $url(max(0, $offset - $limit)) : null,
+        $resource = [
+            'id' => $row['id'],
+            'key' => $row['key'],
+            'type' => $row['type'],
+            'slug' => $row['slug'],
+            'url' => $this->catalog->pageUrl($row['slug']),
+            'parent' => $parent !== null ? $this->catalog->reference($parent) : null,
+            'createdAt' => Catalog::timestamp($row['createdAt']),
+            'updatedAt' => Catalog::timestamp($row['updatedAt']),
+            'fields' => $this->catalog->fields($content, $fields),
         ];
+        if ($include !== null && in_array('children', $include, true)) {
+            $resource['children'] = array_map([$this->catalog, 'reference'], $this->catalog->children($row['id']));
+        }
+        $resource['links'] = [
+            'self' => Links::to('/pages/' . $address),
+            'children' => Links::to('/pages', ['parent' => $address]),
+        ];
+
+        return $resource;
+    }
+
+    /** @return ?list<string> */
+    private function fields(QueryParams $params): ?array
+    {
+        $fields = $params->raw('fields');
+        if ($fields === null) {
+            return null;
+        }
+        $list = QueryParams::split($fields);
+        $bad = array_values(array_filter($list, static fn (string $key): bool => preg_match(PublicFields::KEY_PATTERN, $key) !== 1));
+        if ($list === [] || count($list) > self::MAX_LIST || $bad !== []) {
+            $params->invalid('fields', match (true) {
+                $list === [] => 'Expected a comma-separated list of field identifiers, e.g. "heroTitle,priceFrom".',
+                $bad !== [] => 'Invalid field identifier(s): ' . implode(', ', $bad) . '.',
+                default => 'At most ' . self::MAX_LIST . ' fields per request.',
+            });
+
+            return null;
+        }
+
+        return $list;
+    }
+
+    /** @return array<string, mixed>|null wiersz Catalog strony-rodzica */
+    private function parent(QueryParams $params): ?array
+    {
+        $reference = $params->raw('parent');
+        if ($reference === null) {
+            return null;
+        }
+        $row = PageIdentity::isValid($reference) || ctype_digit($reference) ? $this->catalog->find($reference) : null;
+        if ($row === null) {
+            $params->invalid('parent', "No published page \"{$reference}\". Expected a page identifier or numeric id.");
+        }
+
+        return $row;
+    }
+
+    private function slug(QueryParams $params): ?string
+    {
+        $raw = $params->raw('slug');
+        if ($raw === null) {
+            return null;
+        }
+        $slug = Slug::fromSegments(explode('/', trim($raw, '/')));
+        if (trim($raw) === '' || !Slug::isValid($slug)) {
+            $params->invalid('slug', 'Expected a page path such as "inwestycja/foxhills".');
+
+            return null;
+        }
+
+        return $slug;
+    }
+
+    /** @return list<array{0: string, 1: int}> [pole, 1 rosnąco | -1 malejąco] */
+    private function sort(QueryParams $params): array
+    {
+        $raw = $params->raw('sort');
+        if ($raw === null) {
+            return [['slug', 1]];
+        }
+        $sort = [];
+        foreach (QueryParams::split($raw) as $item) {
+            $field = ltrim($item, '-');
+            if (!in_array($field, self::SORTABLE, true)) {
+                $params->invalid('sort', "Cannot sort by \"{$field}\". Allowed: " . implode(', ', self::SORTABLE) . ' (prefix "-" for descending).');
+
+                return [['slug', 1]];
+            }
+            $sort[] = [$field, str_starts_with($item, '-') ? -1 : 1];
+        }
+
+        return $sort === [] ? [['slug', 1]] : $sort;
+    }
+
+    /** Liczby (także numeryczne id w tekście) jako liczby. */
+    private static function compare(mixed $a, mixed $b): int
+    {
+        if (is_string($a) && ctype_digit($a) && is_string($b) && ctype_digit($b)) {
+            return (int) $a <=> (int) $b;
+        }
+
+        return $a <=> $b;
     }
 }

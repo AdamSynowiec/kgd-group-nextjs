@@ -1,4 +1,4 @@
-# REST API v1 (odczyt stron)
+# REST API v1 (odczyt treści serwisu)
 
 API do odczytu treści opublikowanych stron serwisu, przeznaczone dla zewnętrznych systemów (serwer–serwer). Zwraca wyłącznie **pola publiczne** — te, które administrator świadomie udostępnił (patrz [Pola publiczne](#pola-publiczne)).
 
@@ -9,38 +9,43 @@ Specyfikacja maszynowa (OpenAPI 3.1, do wygenerowania klienta albo podglądu w S
 - [Szybki start](#szybki-start)
 - [Adres API](#adres-api)
 - [Autoryzacja](#autoryzacja)
+- [Model danych: strona, typ, rodzic](#model-danych-strona-typ-rodzic)
 - [Pola publiczne](#pola-publiczne)
+- [GET /](#get-)
 - [GET /pages](#get-pages)
-- [Paginacja](#paginacja)
+- [GET /pages/{strona}](#get-pagesstrona)
+- [GET /types](#get-types)
+- [Synchronizacja zmian](#synchronizacja-zmian)
 - [Cache i ETag](#cache-i-etag)
 - [Limit zapytań](#limit-zapytań)
 - [Błędy](#błędy)
-- [Przykłady](#przykłady)
+- [Przykłady w językach](#przykłady-w-językach)
 - [Dobre praktyki](#dobre-praktyki)
 
 ## Szybki start
 
-1. Administrator tworzy token w panelu: **Ustawienia → Tokeny API** (zakres `pages:read`) i przekazuje go bezpiecznym kanałem.
-2. Administrator nadaje **identyfikatory** polom, które mają być dostępne (np. `heroTitle`) — w edytorze strony menu **⋯** przy polu → „Identyfikator pola”.
-3. Wywołanie:
+1. Administrator tworzy token: **Ustawienia → Tokeny API** (zakres `pages:read`) i przekazuje go bezpiecznym kanałem.
+2. Administrator klika tam **„Nadaj brakujące”** w sekcji „Identyfikatory i typy stron” — każda strona dostaje identyfikator (np. `rudava-park`) i typ (np. `inwestycja`). Można je potem zmienić w edytorze strony (panel „Publikacja”).
+3. Administrator nadaje **identyfikatory polom**, które mają być dostępne (np. `heroTitle`) — w edytorze strony menu **⋯** przy polu → „Identyfikator pola”.
+4. Wywołanie:
 
 ```bash
-curl -H "Authorization: Bearer kgd_TWOJ_TOKEN" \
-  "https://kgd-group.pl/api/v1.php?route=/pages&slug=%2Finwestycja%2Ffoxhills&fields=heroTitle"
+curl -H "Authorization: Bearer kgd_TWOJ_TOKEN" "https://kgd-group.pl/api/v1/pages?type=inwestycja&fields=heroTitle"
 ```
 
 ## Adres API
 
-| Forma | Adres bazowy | Uwagi |
+| Forma | Adres bazowy | Przykład |
 |---|---|---|
-| Zawsze działająca | `https://kgd-group.pl/api/v1.php?route=` | Ścieżkę endpointu podajesz w parametrze `route`, np. `?route=/pages&slug=…` |
-| Docelowa (ładna) | `https://kgd-group.pl/api/v1` | Np. `/api/v1/pages?slug=…` — działa dopiero po włączeniu reguły przepisywania adresów na serwerze |
+| Podstawowa | `https://kgd-group.pl/api/v1` | `/api/v1/pages/rudava-park` |
+| Zapasowa | `https://kgd-group.pl/api/v1.php?route=` | `/api/v1.php?route=/pages/rudava-park&fields=heroTitle` |
 
-Obie formy działają identycznie. Jeśli ładny adres zwraca 404 z serwera (nie z API), użyj formy z `?route=`.
+Obie formy działają identycznie; linki w odpowiedziach mają tę formę, którą przyszło zapytanie. Forma zapasowa jest na wypadek, gdyby serwer przestał przepisywać ładne adresy (404 ze strony serwera, nie w formacie API).
 
 - Wymagane jest **HTTPS** — żądanie przez `http://` jest odrzucane (403).
-- Wersja API jest częścią adresu (`v1`). Zmiany niezgodne wstecz pojawią się wyłącznie w nowej wersji (`v2`).
-- API nie obsługuje CORS — nie wywołuj go z przeglądarki, tylko z serwera (token nie może trafić do kodu po stronie klienta).
+- Wersja API jest częścią adresu (`v1`). Zmiany niezgodne wstecz pojawią się wyłącznie w nowej wersji (`v2`). W `v1` mogą dochodzić **nowe pola w odpowiedziach** i nowe parametry — klient musi ignorować pola, których nie zna.
+- Tylko odczyt: metody `GET` i `HEAD` (same nagłówki). Inne metody → 405.
+- API nie obsługuje CORS — wywołuj je z serwera, nigdy z przeglądarki (token nie może trafić do kodu po stronie klienta).
 
 ## Autoryzacja
 
@@ -54,64 +59,103 @@ Każde żądanie musi mieć nagłówek:
 
 **Token:**
 
-- Ma postać `kgd_` + 48 znaków, np. `kgd_3f9a…`.
-- Jest widoczny **tylko raz**, w chwili utworzenia w panelu. Serwer przechowuje wyłącznie jego skrót — zagubionego tokenu nie da się odzyskać, trzeba utworzyć nowy.
+- Ma postać `kgd_` + 48 znaków. Jest widoczny **tylko raz**, w chwili utworzenia — serwer przechowuje wyłącznie jego skrót; zagubionego tokenu nie da się odzyskać.
 - Ma **zakres** (uprawnienia). Każdy endpoint wymaga konkretnego zakresu:
 
 | Zakres | Pozwala na |
 |---|---|
-| `pages:read` | Odczyt opublikowanych stron i ich pól publicznych (`GET /pages`) |
+| `pages:read` | Odczyt opublikowanych stron, ich pól publicznych i typów (`GET /`, `/pages`, `/pages/{strona}`, `/types`) |
 
-- Może mieć **datę wygaśnięcia** (30 dni / 90 dni / rok / bez wygaśnięcia) i może zostać **cofnięty** w panelu — działa to natychmiast.
+- Może mieć **datę wygaśnięcia** i może zostać **cofnięty** w panelu — działa to natychmiast.
 - Przekazuj go wyłącznie w nagłówku, nigdy w adresie URL. Nie zapisuj go w logach ani w repozytorium kodu.
+
+## Model danych: strona, typ, rodzic
+
+Każda treść serwisu to **strona** (`page`). Strona w API ma:
+
+| Pole | Przykład | Znaczenie |
+|---|---|---|
+| `id` | `"7"` | Numeryczne id. Nadawane automatycznie, nigdy się nie zmienia |
+| `key` | `"rudava-park"` | **Identyfikator** nadany w panelu. Unikalny w serwisie, niezależny od adresu strony. `null`, jeśli nie nadano |
+| `type` | `"inwestycja"` | **Typ treści** — wspólny dla stron tego samego rodzaju (`inwestycja`, `historia-cen`, `blog`, `page`…). `null`, jeśli nie nadano |
+| `slug` | `"/inwestycja/rudava-park"` | Adres strony w serwisie (może się zmienić — nie używaj go jako klucza) |
+| `url` | `"https://kgd-group.pl/inwestycja/rudava-park/"` | Pełny adres strony w serwisie |
+| `parent` | `{ "id": "7", "key": "rudava-park", … }` | Strona nadrzędna albo `null` (patrz niżej) |
+| `createdAt`, `updatedAt` | `"2026-10-13T17:00:00Z"` | Utworzenie i ostatnia zmiana, ISO 8601 w UTC |
+| `fields` | `{ "heroTitle": "…" }` | Pola publiczne (patrz [Pola publiczne](#pola-publiczne)) |
+| `children` | `[ … ]` | Podstrony — tylko z `include=children` |
+| `links` | `{ "self": "…", "children": "…" }` | Adresy tej strony i jej podstron w API |
+
+**Typy i identyfikatory nie są zapisane w kodzie API** — to dane stron. Listę typów, które faktycznie istnieją, i ich pola zwraca [`GET /types`](#get-types).
+
+**Rodzic** to najbliższa opublikowana strona nadrzędna w strukturze adresów: dla `/inwestycja/rudava-park/historia-cen` jest nim `/inwestycja/rudava-park`. Dzięki temu podstronę znajdziesz bez znajomości jej identyfikatora: `GET /pages?parent=rudava-park&type=historia-cen`.
+
+`parent` i `children` zawierają skróconą postać strony — `id`, `key`, `type`, `slug` i `links.self`; pełną stronę pobierasz z `links.self`.
 
 ## Pola publiczne
 
-Strona w serwisie ma wiele pól (nagłówki, opisy, tabele, zdjęcia…). Przez API dostępne są **tylko pola, którym administrator nadał identyfikator** — w edytorze strony: menu **⋯** przy polu → „Identyfikator pola” (nadany identyfikator widać przy nazwie pola jako `#heroTitle`). Pole bez identyfikatora dla API nie istnieje. W parametrze `fields` i w odpowiedzi pola występują właśnie pod tymi identyfikatorami.
+Przez API dostępne są **tylko pola, którym administrator nadał identyfikator** — w edytorze strony: menu **⋯** przy polu → „Identyfikator pola” (nadany identyfikator widać przy nazwie pola jako `#heroTitle`). Pole bez identyfikatora dla API nie istnieje.
 
-- Identyfikator to stały kontrakt z integracją: nie zmienia się przy przebudowie strony, zmianie kolejności sekcji ani etykiet w panelu.
-- Format identyfikatora: litery, cyfry i `_`, zaczyna się od litery, maks. 64 znaki (np. `heroTitle`, `price_from`). Wielkość liter ma znaczenie.
-- Identyfikator jest unikalny w obrębie strony. Na różnych stronach ten sam identyfikator może oznaczać analogiczne pole (np. `heroTitle` na każdej stronie inwestycji).
+- Identyfikator to stały kontrakt: nie zmienia się przy przebudowie strony, zmianie kolejności sekcji ani etykiet.
+- Format: litery, cyfry i `_`, zaczyna się od litery, maks. 64 znaki (np. `heroTitle`, `price_from`). Wielkość liter ma znaczenie.
+- Unikalny w obrębie strony. Strony jednego typu powinny używać tych samych identyfikatorów dla analogicznych pól (np. `heroTitle` na każdej inwestycji) — [`GET /types`](#get-types) pokazuje, na ilu stronach typu pole występuje.
 
-**Typy wartości w odpowiedzi:**
+**Typy wartości:**
 
 | Pole w panelu | Wartość w API | Przykład |
 |---|---|---|
-| Tekst | `string` | `"Fox Hills Residences"` |
-| Tekst sformatowany | `string` z HTML | `"<p>Rezydencje <strong>przy polu golfowym</strong></p>"` |
-| Liczba | `number` | `11200` |
+| Tekst | `string` | `"Rudava Park"` |
+| Tekst sformatowany | `string` z HTML | `"<p>Domy <strong>pod Krakowem</strong></p>"` |
+| Liczba | `number` | `9800` |
 | Przełącznik | `boolean` | `true` |
 | Zdjęcie / plik | `string` — **pełny adres URL** | `"https://kgd-group.pl/api/uploads/3f9a….webp"` |
-| Tabela | `array` obiektów (wiersz = obiekt, kolumna = klucz) | `[{ "unit": "I.W.11", "status": "Dostępny" }]` |
+| Tabela | `array` obiektów (wiersz = obiekt, kolumna = klucz) | `[{ "unit": "A.1.03", "price": 531160 }]` |
 | Lista | `array` | `["Basen", "Siłownia"]` |
 
-Wartości są zwracane tak, jak zostały wpisane w panelu (np. cena w kolumnie tekstowej może mieć postać `"2 512 750 zł"`). Kluczy technicznych tabel (zaczynających się od `_`) API nie zwraca.
+Wartości są zwracane tak, jak wpisano je w panelu (np. cena w kolumnie tekstowej może mieć postać `"2 512 750 zł"`). Kluczy technicznych tabel (zaczynających się od `_`) API nie zwraca.
+
+## GET /
+
+Punkt wejścia — adresy dostępnych zasobów. Integracja może zaczynać od niego zamiast składać adresy samodzielnie.
+
+```json
+{
+  "links": {
+    "pages": "/api/v1/pages",
+    "types": "/api/v1/types",
+    "docs": "https://kgd-group.pl/api/v1/docs"
+  }
+}
+```
 
 ## GET /pages
 
-Lista **opublikowanych** stron z ich polami publicznymi. Szkice nigdy nie są zwracane.
+Kolekcja **opublikowanych** stron (szkice nigdy nie są zwracane) z filtrowaniem, sortowaniem i stronicowaniem.
 
 ```http
-GET /api/v1.php?route=/pages&slug=%2Finwestycja%2Ffoxhills&fields=heroTitle,priceFrom HTTP/1.1
+GET /api/v1/pages?type=inwestycja&fields=heroTitle,priceFrom&sort=-updatedAt&limit=20 HTTP/1.1
 Host: kgd-group.pl
 Authorization: Bearer kgd_TWOJ_TOKEN
 Accept: application/json
 ```
 
-Wymagany zakres: `pages:read`. Metody: `GET`, `HEAD` (same nagłówki, bez treści).
+### Parametry
 
-### Parametry zapytania
+| Parametr | Przykład | Opis |
+|---|---|---|
+| `type` | `inwestycja` lub `inwestycja,blog` | Tylko strony tych typów. Nieistniejący typ → 400 z listą dostępnych |
+| `parent` | `rudava-park` lub `7` | Tylko bezpośrednie podstrony tej strony (identyfikator albo id). Nieistniejąca strona → 400 |
+| `slug` | `inwestycja/rudava-park` | Tylko strona o tym adresie w serwisie (ukośnik na początku opcjonalny, nie trzeba go kodować) |
+| `updatedSince` | `2026-10-26T00:00:00Z` lub `2026-10-26` | Tylko strony zmienione **w tej chwili lub później** (RFC 3339; sama data = północ UTC) |
+| `sort` | `-updatedAt` lub `type,slug` | Sortowanie po `id`, `key`, `type`, `slug`, `createdAt`, `updatedAt`; `-` = malejąco, kilka po przecinku. Domyślnie `slug`. Puste wartości zawsze na końcu |
+| `fields` | `heroTitle,priceFrom` | Tylko te pola publiczne (maks. 100). Pole, którego strona nie ma → `null`. Bez parametru — wszystkie pola publiczne |
+| `include` | `children` | Dołącz skróconą listę podstron (`children`) |
+| `limit` | `50` | Liczba stron w odpowiedzi, `1`–`100`, domyślnie `20` |
+| `offset` | `50` | Ile stron pominąć, domyślnie `0` |
 
-| Parametr | Typ | Domyślnie | Opis |
-|---|---|---|---|
-| `slug` | string | — | Tylko strona o tym adresie, np. `/inwestycja/foxhills` (ukośnik na początku opcjonalny). Zakoduj go w URL: `%2Finwestycja%2Ffoxhills`. Bez parametru — wszystkie opublikowane strony |
-| `fields` | string | wszystkie pola publiczne | Identyfikatory pól oddzielone przecinkami, np. `heroTitle,priceFrom`. Zwracane są dokładnie te identyfikatory — identyfikator, którego strona nie ma, ma wartość `null` |
-| `limit` | integer | `20` | Liczba stron w odpowiedzi, `1`–`100` |
-| `offset` | integer | `0` | Ile stron pominąć (paginacja), od `0` |
-
-- **Nieznany parametr kończy się błędem 400** (np. `field=` zamiast `fields=`) — literówka nie zwróci po cichu innego wyniku.
-- Strony są sortowane po adresie (`slug`) rosnąco.
-- Brak strony o podanym `slug` (albo strona jest szkicem) to **200 z pustą listą `data`**, a nie 404 — filtr kolekcji po prostu nic nie znalazł.
+- Filtry łączą się przez „i” (`type=historia-cen&parent=rudava-park` = historia cen tej inwestycji).
+- **Nieznany lub niepoprawny parametr → 400** z listą błędów (`invalidParams`) — literówka nie zwraca po cichu innego wyniku.
+- Filtr, który nic nie znalazł, to **200 z pustym `data`**.
 
 ### Odpowiedź 200
 
@@ -119,19 +163,25 @@ Wymagany zakres: `pages:read`. Metody: `GET`, `HEAD` (same nagłówki, bez treś
 {
   "data": [
     {
-      "id": "42",
-      "slug": "/inwestycja/foxhills",
-      "updatedAt": "2026-10-27T09:14:02Z",
-      "fields": {
-        "heroTitle": "Fox Hills Residences",
-        "priceFrom": 11200
+      "id": "7",
+      "key": "rudava-park",
+      "type": "inwestycja",
+      "slug": "/inwestycja/rudava-park",
+      "url": "https://kgd-group.pl/inwestycja/rudava-park/",
+      "parent": null,
+      "createdAt": "2026-09-03T14:32:30Z",
+      "updatedAt": "2026-10-13T17:00:00Z",
+      "fields": { "heroTitle": "Rudava Park", "priceFrom": 9800 },
+      "links": {
+        "self": "/api/v1/pages/rudava-park",
+        "children": "/api/v1/pages?parent=rudava-park"
       }
     }
   ],
-  "meta": { "total": 1, "count": 1, "limit": 20, "offset": 0 },
+  "meta": { "total": 9, "count": 1, "limit": 1, "offset": 0 },
   "links": {
-    "self": "/api/v1.php?route=/pages&offset=0&limit=20&slug=%2Finwestycja%2Ffoxhills&fields=heroTitle%2CpriceFrom",
-    "next": null,
+    "self": "/api/v1/pages?offset=0&limit=1&type=inwestycja&fields=heroTitle%2CpriceFrom",
+    "next": "/api/v1/pages?offset=1&limit=1&type=inwestycja&fields=heroTitle%2CpriceFrom",
     "prev": null
   }
 }
@@ -139,53 +189,104 @@ Wymagany zakres: `pages:read`. Metody: `GET`, `HEAD` (same nagłówki, bez treś
 
 | Pole | Opis |
 |---|---|
-| `data[].id` | Stały identyfikator strony (tekst). Nie zmienia się, nawet jeśli zmieni się adres strony |
-| `data[].slug` | Adres strony w serwisie |
-| `data[].updatedAt` | Ostatnia zmiana strony, ISO 8601 w UTC |
-| `data[].fields` | Pola publiczne: identyfikator pola → wartość (patrz [typy wartości](#pola-publiczne)) |
-| `meta.total` | Liczba wszystkich stron spełniających filtr |
+| `data[]` | Strony — patrz [model danych](#model-danych-strona-typ-rodzic) |
+| `meta.total` | Liczba wszystkich stron spełniających filtry |
 | `meta.count` | Liczba stron w tej odpowiedzi |
-| `meta.limit`, `meta.offset` | Użyte wartości paginacji |
-| `links.self` / `next` / `prev` | Adresy tej, następnej i poprzedniej strony wyników (`null`, gdy nie ma) |
+| `links.next` / `prev` | Następna / poprzednia porcja wyników (`null`, gdy nie ma). Przechodź po `links.next`, aż będzie `null` |
 
-### Nagłówki odpowiedzi
+## GET /pages/{strona}
 
-| Nagłówek | Opis |
-|---|---|
-| `Content-Type` | `application/json; charset=utf-8` (błędy: `application/problem+json`) |
-| `ETag` | Wersja treści odpowiedzi — patrz [Cache i ETag](#cache-i-etag) |
-| `Cache-Control` | `private, no-cache` — możesz trzymać odpowiedź u siebie, ale przed użyciem sprawdź ją przez `If-None-Match` |
-| `RateLimit-Limit` / `RateLimit-Remaining` / `RateLimit-Reset` | Limit zapytań — patrz [Limit zapytań](#limit-zapytań) |
-| `X-Request-Id` | Identyfikator żądania — podaj go przy zgłaszaniu problemu |
+Jedna opublikowana strona. `{strona}` to **identyfikator** (`rudava-park`) albo **numeryczne id** (`7`). Zalecany jest identyfikator — czytelny i niezależny od adresu strony.
 
-## Paginacja
+Parametry: `fields`, `include` (jak w `GET /pages`). Inny parametr → 400. Brak strony albo szkic → **404**.
 
-Przy wielu stronach pobieraj je partiami, przechodząc po `links.next`, aż będzie `null`:
-
-```text
-GET …&limit=50&offset=0     → meta.total = 120, links.next = …&offset=50
-GET …&limit=50&offset=50    → links.next = …&offset=100
-GET …&limit=50&offset=100   → links.next = null  (koniec)
+```http
+GET /api/v1/pages/rudava-park?include=children&fields=heroTitle,priceFrom HTTP/1.1
 ```
+
+```json
+{
+  "data": {
+    "id": "7",
+    "key": "rudava-park",
+    "type": "inwestycja",
+    "slug": "/inwestycja/rudava-park",
+    "url": "https://kgd-group.pl/inwestycja/rudava-park/",
+    "parent": null,
+    "createdAt": "2026-09-03T14:32:30Z",
+    "updatedAt": "2026-10-13T17:00:00Z",
+    "fields": { "heroTitle": "Rudava Park", "priceFrom": 9800 },
+    "children": [
+      { "id": "8", "key": "rudava-park-historia-cen", "type": "historia-cen", "slug": "/inwestycja/rudava-park/historia-cen", "links": { "self": "/api/v1/pages/rudava-park-historia-cen" } },
+      { "id": "9", "key": "rudava-park-polityka-prywatnosci", "type": "polityka-prywatnosci", "slug": "/inwestycja/rudava-park/polityka-prywatnosci", "links": { "self": "/api/v1/pages/rudava-park-polityka-prywatnosci" } }
+    ],
+    "links": {
+      "self": "/api/v1/pages/rudava-park",
+      "children": "/api/v1/pages?parent=rudava-park"
+    }
+  }
+}
+```
+
+## GET /types
+
+Typy treści, które istnieją w serwisie, i pola publiczne stron każdego typu — wyliczane z opublikowanych stron, więc zawsze aktualne. Bez parametrów.
+
+```json
+{
+  "data": [
+    {
+      "key": "inwestycja",
+      "count": 9,
+      "fields": [
+        { "key": "heroImage", "label": "Zdjęcie główne", "type": "asset", "pages": 9 },
+        { "key": "heroTitle", "label": "Nagłówek", "type": "text", "pages": 9 },
+        { "key": "units", "label": "Lokale", "type": "table", "columns": ["unit", "area", "status", "price"], "pages": 7 }
+      ],
+      "links": { "pages": "/api/v1/pages?type=inwestycja" }
+    }
+  ]
+}
+```
+
+| Pole | Opis |
+|---|---|
+| `key` | Typ — wartość do filtra `type` |
+| `count` | Liczba opublikowanych stron tego typu |
+| `fields[].key` | Identyfikator pola (do `fields=`) |
+| `fields[].label` | Nazwa pola w panelu |
+| `fields[].type` | Typ pola w panelu (`text`, `richtext`, `number`, `boolean`, `asset`, `table`…) |
+| `fields[].columns` | Kolumny tabeli (klucze obiektów wiersza) |
+| `fields[].pages` | Na ilu stronach typu pole występuje. `pages` = `count` → pole jest na każdej stronie typu |
+
+## Synchronizacja zmian
+
+Do utrzymywania kopii danych po swojej stronie nie pobieraj wszystkiego za każdym razem:
+
+1. Pierwsze pobranie: `GET /pages?sort=updatedAt&limit=100`, przechodząc po `links.next`.
+2. Zapamiętaj największe `updatedAt` z odpowiedzi.
+3. Kolejne pobrania: `GET /pages?updatedSince=<zapamiętane updatedAt>&sort=updatedAt`.
+
+`updatedSince` obejmuje też strony zmienione dokładnie w tej sekundzie — tę samą stronę możesz dostać ponownie; rozpoznawaj ją po `id`. Usunięcia lub cofnięcia publikacji wykrywasz okresowym pełnym pobraniem samych identyfikatorów (np. `fields=` jednego pola i `limit=100`).
 
 ## Cache i ETag
 
-Każda udana odpowiedź ma nagłówek `ETag`. Zapamiętaj go i wyślij przy kolejnym zapytaniu w `If-None-Match`:
+Każda udana odpowiedź ma nagłówek `ETag`. Wyślij go przy kolejnym zapytaniu w `If-None-Match`:
 
 - treść się nie zmieniła → **`304 Not Modified`** bez treści (użyj zapamiętanej wersji),
 - treść się zmieniła → `200` z nową treścią i nowym `ETag`.
 
-Zapytania kończące się `304` też liczą się do limitu, ale są szybsze i nie przesyłają danych.
+`Cache-Control: private, no-cache` — możesz trzymać odpowiedź u siebie, ale przed użyciem sprawdź ją przez `If-None-Match`. Zapytania kończące się `304` też liczą się do limitu.
 
 ## Limit zapytań
 
-- **120 zapytań na minutę na token** (okno liczone od pełnej minuty).
-- Nagłówki w każdej odpowiedzi: `RateLimit-Limit` (limit), `RateLimit-Remaining` (ile zostało w tym oknie), `RateLimit-Reset` (za ile sekund okno się odnowi).
-- Po przekroczeniu: **`429 Too Many Requests`** z nagłówkiem `Retry-After` (sekundy) — odczekaj tyle i ponów.
+- **120 zapytań na minutę na token.**
+- Nagłówki w każdej odpowiedzi: `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` (sekundy do odnowienia).
+- Po przekroczeniu: **`429 Too Many Requests`** z nagłówkiem `Retry-After` (sekundy).
 
 ## Błędy
 
-Błędy mają format **Problem Details (RFC 9457)**, `Content-Type: application/problem+json`:
+Format **Problem Details (RFC 9457)**, `Content-Type: application/problem+json`:
 
 ```json
 {
@@ -195,151 +296,94 @@ Błędy mają format **Problem Details (RFC 9457)**, `Content-Type: application/
   "detail": "One or more query parameters are invalid.",
   "instance": "/api/v1/pages",
   "invalidParams": [
-    { "name": "limit", "reason": "Expected an integer between 1 and 100." }
+    { "name": "type", "reason": "Unknown value(s): inwestycje. Allowed: blog, historia-cen, inwestycja, page, polityka-prywatnosci." },
+    { "name": "sort", "reason": "Cannot sort by \"price\". Allowed: id, key, type, slug, createdAt, updatedAt (prefix \"-\" for descending)." }
   ]
 }
 ```
 
-- `type` — stały identyfikator rodzaju błędu (część po `#`); na nim opieraj obsługę błędów w kodzie, nie na treści `detail`.
-- `title` — stały opis rodzaju błędu, `detail` — opis tego konkretnego wystąpienia (może się zmieniać).
+Opieraj obsługę błędów na `status` i `type` (część po `#`), nie na treści `detail`.
 
-| Status | `type` (po `#`) | Kiedy | Co zrobić |
+| Status | `type` | Kiedy | Co zrobić |
 |---|---|---|---|
-| 400 | `invalid-parameter` | Niepoprawny lub nieznany parametr zapytania. Lista w `invalidParams` | Popraw zapytanie, nie ponawiaj bez zmian |
-| 401 | `unauthorized` | Brak nagłówka `Authorization`, token zły, wygasły albo cofnięty. Nagłówek `WWW-Authenticate: Bearer … error="invalid_token"` | Sprawdź token; jeśli wygasł lub został cofnięty — poproś o nowy |
-| 403 | `insufficient-scope` | Token nie ma wymaganego zakresu (`requiredScope` w odpowiedzi) | Poproś o token z odpowiednim zakresem |
+| 400 | `invalid-parameter` | Niepoprawny lub nieznany parametr; lista w `invalidParams` | Popraw zapytanie |
+| 401 | `unauthorized` | Brak tokenu, token zły, wygasły albo cofnięty (`WWW-Authenticate: Bearer … error="invalid_token"`) | Sprawdź token / poproś o nowy |
+| 403 | `insufficient-scope` | Token bez wymaganego zakresu (`requiredScope`) | Poproś o token z zakresem |
 | 403 | `insecure-transport` | Żądanie przez `http://` | Użyj `https://` |
-| 404 | `not-found` | Nie ma takiego endpointu (np. literówka w `route`) | Sprawdź adres |
-| 405 | `method-not-allowed` | Metoda inna niż `GET`/`HEAD`. Nagłówek `Allow` | Użyj `GET` |
-| 429 | `rate-limited` | Przekroczony limit zapytań. Nagłówek `Retry-After` | Odczekaj `Retry-After` sekund i ponów |
-| 500 | `internal-error` | Nieoczekiwany błąd serwera | Ponów później; przy powtarzaniu się zgłoś z `X-Request-Id` |
+| 404 | `not-found` | Nie ma takiego endpointu albo opublikowanej strony o tym identyfikatorze / id | Sprawdź adres |
+| 405 | `method-not-allowed` | Metoda inna niż `GET`/`HEAD` (nagłówek `Allow`) | Użyj `GET` |
+| 429 | `rate-limited` | Przekroczony limit (`Retry-After`) | Odczekaj i ponów |
+| 500 | `internal-error` | Nieoczekiwany błąd serwera | Ponów później; zgłoś z `X-Request-Id` |
 
-**Ponawianie:** ponawiaj wyłącznie `429` (po `Retry-After`) i `5xx` (z rosnącym odstępem, np. 1 s, 2 s, 4 s, maks. 3–5 prób). Błędów `4xx` innych niż `429` nie ponawiaj bez zmiany zapytania lub tokenu.
+**Ponawianie:** tylko `429` (po `Retry-After`) i `5xx` (rosnący odstęp: 1 s, 2 s, 4 s, maks. 3–5 prób). Innych `4xx` nie ponawiaj bez zmiany zapytania lub tokenu.
 
-## Przykłady
+## Przykłady w językach
 
-### curl — jedna strona, wybrane pola
-
-```bash
-curl -sS \
-  -H "Authorization: Bearer kgd_TWOJ_TOKEN" \
-  -H "Accept: application/json" \
-  "https://kgd-group.pl/api/v1.php?route=/pages&slug=%2Finwestycja%2Ffoxhills&fields=heroTitle,priceFrom"
-```
-
-### curl — wszystkie pola publiczne strony
+### curl
 
 ```bash
+# wszystkie inwestycje, wybrane pola
 curl -sS -H "Authorization: Bearer kgd_TWOJ_TOKEN" \
-  "https://kgd-group.pl/api/v1.php?route=/pages&slug=%2Finwestycja%2Ffoxhills"
-```
+  "https://kgd-group.pl/api/v1/pages?type=inwestycja&fields=heroTitle,priceFrom"
 
-### curl — wszystkie opublikowane strony, partiami po 50
-
-```bash
+# historia cen jednej inwestycji
 curl -sS -H "Authorization: Bearer kgd_TWOJ_TOKEN" \
-  "https://kgd-group.pl/api/v1.php?route=/pages&limit=50&offset=0"
-```
+  "https://kgd-group.pl/api/v1/pages?parent=rudava-park&type=historia-cen"
 
-### curl — warunkowe pobranie (ETag)
-
-```bash
-# pierwsze zapytanie — zapamiętaj nagłówek ETag
-curl -sS -D - -H "Authorization: Bearer kgd_TWOJ_TOKEN" \
-  "https://kgd-group.pl/api/v1.php?route=/pages&slug=%2Finwestycja%2Ffoxhills" -o page.json
-
-# kolejne — 304, jeśli nic się nie zmieniło
+# warunkowe pobranie — 304, jeśli nic się nie zmieniło
 curl -sS -i -H "Authorization: Bearer kgd_TWOJ_TOKEN" \
   -H 'If-None-Match: W/"5d41402abc4b2a76b9719d911017c592"' \
-  "https://kgd-group.pl/api/v1.php?route=/pages&slug=%2Finwestycja%2Ffoxhills"
+  "https://kgd-group.pl/api/v1/pages/rudava-park"
 ```
 
-### PowerShell (Windows)
+### PowerShell
 
 ```powershell
 $headers = @{ Authorization = "Bearer kgd_TWOJ_TOKEN"; Accept = "application/json" }
-$url = "https://kgd-group.pl/api/v1.php?route=/pages&slug=%2Finwestycja%2Ffoxhills&fields=heroTitle,priceFrom"
-$response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
-$response.data[0].fields.heroTitle
+$page = Invoke-RestMethod -Uri "https://kgd-group.pl/api/v1/pages/rudava-park?fields=heroTitle" -Headers $headers
+$page.data.fields.heroTitle
 ```
 
 ### JavaScript / Node.js (po stronie serwera)
 
 ```js
-const params = new URLSearchParams({ route: "/pages", slug: "/inwestycja/foxhills", fields: "heroTitle,priceFrom" });
-const response = await fetch(`https://kgd-group.pl/api/v1.php?${params}`, {
-  headers: { Authorization: `Bearer ${process.env.KGD_API_TOKEN}`, Accept: "application/json" },
-});
+const api = async (path) => {
+  const response = await fetch(`https://kgd-group.pl/api/v1${path}`, {
+    headers: { Authorization: `Bearer ${process.env.KGD_API_TOKEN}`, Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const problem = await response.json(); // application/problem+json
+    throw new Error(`${problem.status} ${problem.title}: ${problem.detail}`);
+  }
+  return response.json();
+};
 
-if (!response.ok) {
-  const problem = await response.json(); // application/problem+json
-  throw new Error(`${problem.status} ${problem.title}: ${problem.detail}`);
+// wszystkie inwestycje — przechodząc po kolejnych porcjach
+let next = "/pages?type=inwestycja&fields=heroTitle,priceFrom&limit=100";
+while (next) {
+  const page = await api(next);
+  for (const item of page.data) console.log(item.key, item.fields.heroTitle);
+  next = page.links.next?.replace(/^\/api\/v1/, "") ?? null;
 }
-
-const { data } = await response.json();
-console.log(data[0]?.fields.heroTitle);
 ```
 
 ### PHP
 
 ```php
-$query = http_build_query(['route' => '/pages', 'slug' => '/inwestycja/foxhills', 'fields' => 'heroTitle,priceFrom']);
 $context = stream_context_create(['http' => [
     'header' => "Authorization: Bearer " . getenv('KGD_API_TOKEN') . "\r\nAccept: application/json\r\n",
     'ignore_errors' => true,
 ]]);
-$body = file_get_contents("https://kgd-group.pl/api/v1.php?{$query}", false, $context);
-$json = json_decode($body, true);
-echo $json['data'][0]['fields']['heroTitle'] ?? '';
-```
-
-### Przykłady błędów
-
-Nieznany parametr (`field` zamiast `fields`):
-
-```json
-{
-  "type": "https://kgd-group.pl/api/v1/docs#invalid-parameter",
-  "title": "Invalid request parameter",
-  "status": 400,
-  "detail": "One or more query parameters are invalid.",
-  "instance": "/api/v1/pages",
-  "invalidParams": [
-    { "name": "field", "reason": "Unknown parameter. Allowed: slug, fields, limit, offset." }
-  ]
-}
-```
-
-Brak lub zły token:
-
-```http
-HTTP/1.1 401 Unauthorized
-WWW-Authenticate: Bearer realm="api", error="invalid_token"
-Content-Type: application/problem+json; charset=utf-8
-```
-
-```json
-{
-  "type": "https://kgd-group.pl/api/v1/docs#unauthorized",
-  "title": "Authentication required",
-  "status": 401,
-  "detail": "The token is invalid, expired or revoked.",
-  "instance": "/api/v1/pages"
-}
-```
-
-Przekroczony limit:
-
-```http
-HTTP/1.1 429 Too Many Requests
-Retry-After: 23
+$json = json_decode(file_get_contents('https://kgd-group.pl/api/v1/pages/rudava-park?fields=heroTitle', false, $context), true);
+echo $json['data']['fields']['heroTitle'] ?? '';
 ```
 
 ## Dobre praktyki
 
-- **Jeden token na integrację** — wtedy można go cofnąć bez wpływu na inne systemy.
-- **Pobieraj tylko potrzebne pola** (`fields=`) — mniejsze odpowiedzi, a dodanie nowych pól publicznych nie zmieni kształtu Twoich danych.
-- **Korzystaj z `ETag`** zamiast pobierać wszystko za każdym razem.
-- **Obsługuj `null`** w `fields` — pole może zostać wyłączone z API albo strona może go nie mieć.
-- **Opieraj logikę błędów na `status` i `type`**, nie na treści `detail`.
-- **Zachowuj `X-Request-Id`** z odpowiedzi przy błędach — ułatwia diagnozę po naszej stronie.
+- **Adresuj strony identyfikatorem (`key`) lub `id`**, nigdy adresem (`slug`) — adres w serwisie może się zmienić.
+- **Szukaj podstron filtrami** (`parent` + `type`) zamiast składać ich identyfikatory.
+- **Pobieraj tylko potrzebne pola** (`fields=`).
+- **Ignoruj nieznane pola** w odpowiedziach — w `v1` mogą dochodzić nowe.
+- **Obsługuj `null`** w `fields`, `key`, `type` i `parent`.
+- **Korzystaj z `ETag` i `updatedSince`** zamiast pobierać wszystko za każdym razem.
+- **Jeden token na integrację**; zachowuj `X-Request-Id` z odpowiedzi przy błędach.

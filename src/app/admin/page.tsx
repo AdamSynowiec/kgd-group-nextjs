@@ -39,6 +39,7 @@ const ACTION_LABELS: Record<string, string> = {
   "auth.login": "zalogował(a) się",
   "pages.create": "utworzył(a) stronę",
   "pages.update": "zapisał(a) stronę",
+  "pages.identity": "nadał(a) identyfikatory API stron",
   "pages.delete": "usunął/usunęła stronę",
   "build.trigger": "uruchomił(a) build",
   "build.trigger.full": "uruchomił(a) pełny build",

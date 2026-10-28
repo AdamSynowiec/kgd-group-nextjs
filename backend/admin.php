@@ -289,6 +289,16 @@ $router->post('/api-tokens/revoke', static function (Request $req) use ($apiToke
     $apiTokenController()->revoke($req, $currentSession);
 });
 
+// Identyfikatory i typy stron w REST API v1 (PageIdentity) — uzupełnianie brakujących (Ustawienia → Tokeny API).
+$router->get('/page-identity', static function (Request $req) use ($adminController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'api.tokens.manage');
+    $adminController()->pageIdentityPreview();
+});
+$router->post('/page-identity', static function (Request $req) use ($adminController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'api.tokens.manage');
+    $adminController()->assignPageIdentity($currentSession);
+});
+
 // Raportowanie cen (dane.gov.pl) — katalogi raportów inwestycji, podgląd plików,
 // ręczne generowanie. Codziennie generuje je cron (cron.php) — patrz PriceReportGenerator.php.
 $priceReportController = static fn (): PriceReportController => new PriceReportController(

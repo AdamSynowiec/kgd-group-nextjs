@@ -1,44 +1,68 @@
 openapi: 3.1.0
 info:
   title: KGD Group — REST API
-  version: "1.0.0"
+  version: "1.1.0"
   description: |
-    Odczyt opublikowanych stron serwisu i ich pól publicznych.
+    Odczyt opublikowanych stron serwisu i ich pól publicznych. Opis dla integratorów: rest-api-v1.md.
 
-    **Pola publiczne** — w API widoczne są wyłącznie pola, którym w panelu nadano identyfikator
-    (edytor strony → menu ⋯ przy polu → „Identyfikator pola”). Identyfikator to stały kontrakt:
-    nie zależy od etykiety ani układu strony.
+    **Strona** ma stały `id`, identyfikator `key` (nadany w panelu, niezależny od adresu), typ treści
+    `type`, rodzica `parent` (najbliższa strona nadrzędna w strukturze adresów) i pola publiczne `fields`.
+    Typy i identyfikatory to dane stron, nie lista w API — aktualne typy zwraca `GET /types`.
 
-    **Autoryzacja** — `Authorization: Bearer <token>` (RFC 6750). Token tworzy administrator
-    w panelu (Ustawienia → Tokeny API) z wybranym zakresem; tylko przez HTTPS.
+    **Pola publiczne** — tylko pola, którym w panelu nadano identyfikator (menu ⋯ przy polu).
 
-    **Błędy** — `application/problem+json` (RFC 9457).
-
-    **Cache** — każda odpowiedź ma `ETag`; wyślij `If-None-Match`, a przy braku zmian dostaniesz `304`.
-
-    **Limit** — 120 zapytań na minutę na token (`RateLimit-*`, po przekroczeniu `429` + `Retry-After`).
+    **Autoryzacja** — `Authorization: Bearer <token>` (RFC 6750), token z panelu (Ustawienia → Tokeny API); tylko HTTPS.
+    **Błędy** — `application/problem+json` (RFC 9457). **Cache** — `ETag` / `If-None-Match` → `304`.
+    **Limit** — 120 zapytań na minutę na token (`RateLimit-*`, `429` + `Retry-After`).
+    **Zgodność** — w v1 mogą dochodzić nowe pola odpowiedzi i parametry; klient ignoruje nieznane pola.
 servers:
   - url: https://kgd-group.pl/api/v1
-    description: Adres docelowy (wymaga reguły przepisywania adresów na serwerze)
+    description: Adres podstawowy
   - url: https://kgd-group.pl/api/v1.php?route=
-    description: Adres zawsze działający (bez reguły przepisywania)
+    description: Adres zapasowy (gdy serwer nie przepisuje ładnych adresów)
 security:
   - bearerAuth: []
 paths:
+  /:
+    get:
+      operationId: getIndex
+      summary: Punkt wejścia — adresy zasobów
+      responses:
+        "200":
+          description: Linki
+          content:
+            application/json:
+              example: { links: { pages: /api/v1/pages, types: /api/v1/types, docs: "https://kgd-group.pl/api/v1/docs" } }
+        "401": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
   /pages:
     get:
       operationId: listPages
-      summary: Opublikowane strony z polami publicznymi
-      description: Wymaga zakresu `pages:read`. Szkice nie są zwracane. Nieznany parametr zapytania kończy się błędem 400.
+      summary: Opublikowane strony — filtrowanie, sortowanie, stronicowanie
+      description: Wymaga zakresu `pages:read`. Filtry łączą się przez „i”. Nieznany lub niepoprawny parametr → 400.
       parameters:
+        - name: type
+          in: query
+          description: Typy treści po przecinku (lista dostępnych — GET /types). Nieistniejący typ → 400.
+          schema: { type: string, example: inwestycja }
+        - name: parent
+          in: query
+          description: Tylko bezpośrednie podstrony tej strony — identyfikator albo id. Nieistniejąca strona → 400.
+          schema: { type: string, example: rudava-park }
         - name: slug
           in: query
-          description: Tylko strona o tym adresie (z ukośnikiem na początku albo bez).
-          schema: { type: string, example: /inwestycja/foxhills }
-        - name: fields
+          description: Tylko strona o tym adresie w serwisie.
+          schema: { type: string, example: inwestycja/rudava-park }
+        - name: updatedSince
           in: query
-          description: Identyfikatory pól po przecinku. Bez parametru — wszystkie pola publiczne. Klucz, którego strona nie ma, wraca jako `null`.
-          schema: { type: string, example: heroTitle,priceFrom }
+          description: Tylko strony zmienione w tej chwili lub później (RFC 3339 albo sama data = północ UTC).
+          schema: { type: string, example: "2026-10-26T00:00:00Z" }
+        - name: sort
+          in: query
+          description: "Pola po przecinku: id, key, type, slug, createdAt, updatedAt; prefiks `-` = malejąco. Domyślnie `slug`."
+          schema: { type: string, example: -updatedAt }
+        - $ref: "#/components/parameters/fields"
+        - $ref: "#/components/parameters/include"
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
@@ -57,14 +81,56 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PageList" }
-              example:
-                data:
-                  - id: "42"
-                    slug: /inwestycja/foxhills
-                    updatedAt: "2026-10-27T09:14:02Z"
-                    fields: { heroTitle: Fox Hills Residences, priceFrom: 11200 }
-                meta: { total: 1, count: 1, limit: 20, offset: 0 }
-                links: { self: "/api/v1/pages?offset=0&limit=20&slug=%2Finwestycja%2Ffoxhills", next: null, prev: null }
+        "304": { description: Bez zmian względem `If-None-Match` }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+  /pages/{page}:
+    get:
+      operationId: getPage
+      summary: Jedna opublikowana strona
+      description: Wymaga zakresu `pages:read`. Szkic albo brak strony → 404.
+      parameters:
+        - name: page
+          in: path
+          required: true
+          description: Identyfikator strony (`key`) albo numeryczne `id`.
+          schema: { type: string, pattern: "^([a-z][a-z0-9-]{0,63}|[1-9][0-9]{0,18})$", example: rudava-park }
+        - $ref: "#/components/parameters/fields"
+        - $ref: "#/components/parameters/include"
+      responses:
+        "200":
+          description: Strona
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Page" }
+        "304": { description: Bez zmian względem `If-None-Match` }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+  /types:
+    get:
+      operationId: listTypes
+      summary: Typy treści i ich pola publiczne (wyliczane z opublikowanych stron)
+      responses:
+        "200":
+          description: Typy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Type" } }
         "304": { description: Bez zmian względem `If-None-Match` }
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Problem" }
@@ -72,6 +138,17 @@ paths:
         "429": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
 components:
+  parameters:
+    fields:
+      name: fields
+      in: query
+      description: Identyfikatory pól po przecinku (maks. 100). Bez parametru — wszystkie pola publiczne. Pole, którego strona nie ma → `null`.
+      schema: { type: string, example: heroTitle,priceFrom }
+    include:
+      name: include
+      in: query
+      description: "Relacje do dołączenia: `children` (skrócona lista podstron)."
+      schema: { type: string, enum: [children] }
   securitySchemes:
     bearerAuth:
       type: http
@@ -83,26 +160,58 @@ components:
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
-          example:
-            type: https://kgd-group.pl/api/v1/docs#invalid-parameter
-            title: Invalid request parameter
-            status: 400
-            detail: One or more query parameters are invalid.
-            instance: /api/v1/pages
-            invalidParams:
-              - { name: limit, reason: Expected an integer between 1 and 100. }
   schemas:
+    PageRef:
+      type: object
+      required: [id, key, type, slug, links]
+      properties:
+        id: { type: string }
+        key: { type: [string, "null"] }
+        type: { type: [string, "null"] }
+        slug: { type: string }
+        links:
+          type: object
+          properties:
+            self: { type: string }
     Page:
       type: object
-      required: [id, slug, updatedAt, fields]
+      required: [id, key, type, slug, url, parent, createdAt, updatedAt, fields, links]
       properties:
-        id: { type: string, description: Stały identyfikator strony }
-        slug: { type: string }
+        id: { type: string, description: Numeryczne id (stałe) }
+        key: { type: [string, "null"], description: Identyfikator nadany w panelu }
+        type: { type: [string, "null"], description: Typ treści }
+        slug: { type: string, description: Adres strony w serwisie }
+        url: { type: string, format: uri }
+        parent:
+          oneOf:
+            - { $ref: "#/components/schemas/PageRef" }
+            - { type: "null" }
+        createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         fields:
           type: object
           description: Pola publiczne — identyfikator pola => wartość (tekst, liczba, wartość logiczna, lista wierszy tabeli, pełny adres pliku).
           additionalProperties: true
+        children:
+          type: array
+          description: Tylko z `include=children`.
+          items: { $ref: "#/components/schemas/PageRef" }
+        links:
+          type: object
+          properties:
+            self: { type: string }
+            children: { type: string }
+      example:
+        id: "7"
+        key: rudava-park
+        type: inwestycja
+        slug: /inwestycja/rudava-park
+        url: "https://kgd-group.pl/inwestycja/rudava-park/"
+        parent: null
+        createdAt: "2026-09-03T14:32:30Z"
+        updatedAt: "2026-10-13T17:00:00Z"
+        fields: { heroTitle: Rudava Park, priceFrom: 9800 }
+        links: { self: /api/v1/pages/rudava-park, children: "/api/v1/pages?parent=rudava-park" }
     PageList:
       type: object
       required: [data, meta, links]
@@ -121,6 +230,27 @@ components:
             self: { type: string }
             next: { type: [string, "null"] }
             prev: { type: [string, "null"] }
+    Type:
+      type: object
+      required: [key, count, fields, links]
+      properties:
+        key: { type: string, example: inwestycja }
+        count: { type: integer, description: Liczba opublikowanych stron typu }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [key, type, pages]
+            properties:
+              key: { type: string, example: heroTitle }
+              label: { type: [string, "null"] }
+              type: { type: string, example: text }
+              columns: { type: array, items: { type: string } }
+              pages: { type: integer, description: Na ilu stronach typu pole występuje }
+        links:
+          type: object
+          properties:
+            pages: { type: string }
     Problem:
       type: object
       required: [type, title, status]

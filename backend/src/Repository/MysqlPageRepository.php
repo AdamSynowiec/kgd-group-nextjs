@@ -41,6 +41,60 @@ final class MysqlPageRepository implements PageRepositoryInterface
         ];
     }
 
+    public function slugByApiKey(string $apiKey): ?string
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT slug FROM pages WHERE JSON_UNQUOTE(JSON_EXTRACT(content, '$.apiKey')) = :apiKey LIMIT 1'
+        );
+        $statement->execute(['apiKey' => $apiKey]);
+        $slug = $statement->fetchColumn();
+
+        return $slug === false ? null : (string) $slug;
+    }
+
+    public function listIdentities(): array
+    {
+        $statement = $this->pdo->query(
+            'SELECT slug, JSON_UNQUOTE(JSON_EXTRACT(content, \'$.apiKey\')) AS api_key, '
+            . 'JSON_UNQUOTE(JSON_EXTRACT(content, \'$.apiType\')) AS api_type FROM pages ORDER BY slug'
+        );
+
+        $pages = [];
+        foreach ($statement as $row) {
+            $pages[] = [
+                'slug' => (string) $row['slug'],
+                'apiKey' => is_string($row['api_key']) && $row['api_key'] !== 'null' ? $row['api_key'] : null,
+                'apiType' => is_string($row['api_type']) && $row['api_type'] !== 'null' ? $row['api_type'] : null,
+            ];
+        }
+
+        return $pages;
+    }
+
+    public function setIdentity(string $slug, ?string $apiKey, ?string $apiType): void
+    {
+        // updated_at = updated_at: nadanie identyfikatora to nie zmiana treści strony
+        // (nie może np. zalać synchronizacji "updatedSince" w API).
+        $paths = [];
+        $params = ['slug' => $slug];
+        if ($apiKey !== null) {
+            $paths[] = '\'$.apiKey\', :api_key';
+            $params['api_key'] = $apiKey;
+        }
+        if ($apiType !== null) {
+            $paths[] = '\'$.apiType\', :api_type';
+            $params['api_type'] = $apiType;
+        }
+        if ($paths === []) {
+            return;
+        }
+
+        $statement = $this->pdo->prepare(
+            'UPDATE pages SET content = JSON_SET(content, ' . implode(', ', $paths) . '), updated_at = updated_at WHERE slug = :slug'
+        );
+        $statement->execute($params);
+    }
+
     public function listPublished(): array
     {
         // Zapytanie w pojedynczych cudzysłowach celowo — PHP nigdy nie interpretuje

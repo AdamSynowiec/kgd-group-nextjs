@@ -532,3 +532,16 @@ export function createApiToken(
 export function revokeApiToken(id: number, session: Session | null): Promise<ApiTokenRecord> {
   return request("/api-tokens/revoke", { method: "POST", body: { id }, session });
 }
+
+/** Brakujący identyfikator / typ strony w REST API v1 (null = już nadany, bez zmian). */
+export type PageIdentityChange = { slug: string; apiKey: string | null; apiType: string | null };
+
+/** Podgląd: co dostałyby strony bez identyfikatora lub typu (nic nie zapisuje). */
+export function fetchPageIdentityChanges(session: Session | null): Promise<{ changes: PageIdentityChange[] }> {
+  return request("/page-identity", { session });
+}
+
+/** Nadaje brakujące identyfikatory i typy stron (już nadanych nie zmienia). */
+export function assignPageIdentity(session: Session | null): Promise<{ changes: PageIdentityChange[] }> {
+  return request("/page-identity", { method: "POST", body: {}, session });
+}

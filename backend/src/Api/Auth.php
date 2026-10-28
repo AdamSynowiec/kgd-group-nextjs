@@ -22,7 +22,7 @@ final class Auth
 {
     /** Zakresy znane API — jedno miejsce prawdy, panel pokazuje je przy tworzeniu tokenu. */
     public const SCOPES = [
-        'pages:read' => 'Odczyt opublikowanych stron i ich pól z nadanym identyfikatorem',
+        'pages:read' => 'Odczyt opublikowanych stron, ich typów i pól z nadanym identyfikatorem',
     ];
 
     public function __construct(

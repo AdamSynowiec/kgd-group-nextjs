@@ -13,8 +13,8 @@ if (!defined('APP_ENTRY')) {
 
 /**
  * Pola strony widoczne w REST API: TYLKO te, którym w panelu nadano identyfikator ("apiKey" w definicji
- * pola). Klucz to stały kontrakt z integracją — niezależny od układu strony, sekcji czy etykiet.
- * Pole bez klucza nie istnieje dla API.
+ * pola). Identyfikator to stały kontrakt z integracją — niezależny od układu strony, sekcji czy etykiet.
+ * Pole bez identyfikatora nie istnieje dla API.
  *
  * Wartości wychodzą bez wewnętrznego opakowania {value, editable, ...}: liczby jako liczby, tabele jako
  * listy obiektów (bez kluczy technicznych zaczynających się od "_"), pliki z biblioteki jako pełne adresy.
@@ -22,6 +22,20 @@ if (!defined('APP_ENTRY')) {
 final class PublicFields
 {
     public const KEY_PATTERN = '/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/';
+
+    /**
+     * Opis pól publicznych (do GET /v1/types): identyfikator => {label, type, columns?}.
+     * "type" to typ pola z panelu (text, number, asset...), "columns" — klucze wierszy tabeli.
+     *
+     * @return array<string, array{label: ?string, type: string, columns?: list<string>}>
+     */
+    public static function describe(array $content): array
+    {
+        $fields = [];
+        self::walkDescribe($content, $fields);
+
+        return $fields;
+    }
 
     /** @return array<string, mixed> apiKey => wartość */
     public static function of(array $content, string $siteUrl): array
@@ -48,6 +62,40 @@ final class PublicFields
         }
         foreach ($node as $child) {
             self::walk($child, $fields, $siteUrl);
+        }
+    }
+
+    private static function walkDescribe(mixed $node, array &$fields): void
+    {
+        if (!is_array($node)) {
+            return;
+        }
+        if (Editable::isEditableNode($node)) {
+            $key = $node['apiKey'] ?? null;
+            if (is_string($key) && preg_match(self::KEY_PATTERN, $key) === 1 && !array_key_exists($key, $fields)) {
+                $value = $node['value'];
+                $field = [
+                    'label' => is_string($node['label'] ?? null) ? $node['label'] : null,
+                    'type' => is_string($node['type'] ?? null) && $node['type'] !== '' ? $node['type'] : get_debug_type($value),
+                ];
+                if (is_array($value) && array_is_list($value) && $value !== [] && is_array($value[0])) {
+                    $columns = [];
+                    foreach ($value as $row) {
+                        foreach (is_array($row) ? array_keys($row) : [] as $column) {
+                            if (is_string($column) && !str_starts_with($column, '_')) {
+                                $columns[$column] = true;
+                            }
+                        }
+                    }
+                    $field['columns'] = array_keys($columns);
+                }
+                $fields[$key] = $field;
+            }
+
+            return;
+        }
+        foreach ($node as $child) {
+            self::walkDescribe($child, $fields);
         }
     }
 

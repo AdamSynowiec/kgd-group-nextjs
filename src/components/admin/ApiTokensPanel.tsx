@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createApiToken, fetchApiTokens, revokeApiToken, type ApiTokenRecord, type Session } from "@/lib/adminApi";
 import { CheckIcon } from "./icons";
+import PageIdentityCard from "./PageIdentityCard";
 import { ui } from "./ui";
 
 const EXPIRY_OPTIONS: { label: string; days: number | null }[] = [
@@ -76,7 +77,7 @@ export default function ApiTokensPanel({ session }: { session: Session | null })
     }
   }
 
-  const exampleUrl = "https://kgd-group.pl/api/v1.php?route=/pages&slug=%2Finwestycja%2Ffoxhills&fields=heroTitle";
+  const exampleUrl = "https://kgd-group.pl/api/v1/pages?type=inwestycja&fields=heroTitle";
 
   return (
     <div className="space-y-6">
@@ -162,7 +163,7 @@ export default function ApiTokensPanel({ session }: { session: Session | null })
       <div className={ui.card}>
         <div className={ui.cardHeader}>
           <div className="text-sm font-semibold text-zinc-900">Tokeny</div>
-          <span className="text-xs text-zinc-500">W API widać tylko pola z nadanym identyfikatorem (edytor strony → menu ⋯ przy polu).</span>
+          <span className="text-xs text-zinc-500">Adres: /api/v1/pages/&lt;identyfikator strony&gt;. Widać tylko pola z nadanym identyfikatorem (menu ⋯ przy polu).</span>
         </div>
         {tokens === null ? (
           <div className="h-24 animate-pulse bg-zinc-50" />
@@ -216,6 +217,8 @@ export default function ApiTokensPanel({ session }: { session: Session | null })
           </div>
         )}
       </div>
+
+      <PageIdentityCard session={session} />
     </div>
   );
 }

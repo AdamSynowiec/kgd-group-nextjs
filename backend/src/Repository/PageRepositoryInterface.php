@@ -19,6 +19,18 @@ interface PageRepositoryInterface
     /** @return array{slug: string, content: array<string, mixed>, updatedAt: string}|null */
     public function findBySlug(string $slug): ?array;
 
+    /** Adres strony o danym identyfikatorze ("apiKey" w korzeniu treści, REST API v1) albo null. */
+    public function slugByApiKey(string $apiKey): ?string;
+
+    /**
+     * Tożsamość wszystkich stron w API (patrz PageIdentity) — bez wczytywania całych treści.
+     * @return list<array{slug: string, apiKey: ?string, apiType: ?string}>
+     */
+    public function listIdentities(): array;
+
+    /** Ustawia "apiKey"/"apiType" strony (null = bez zmian), nie ruszając daty jej ostatniej zmiany. */
+    public function setIdentity(string $slug, ?string $apiKey, ?string $apiType): void;
+
     /** @return list<array{slug: string, title: string, parent: ?string, updatedAt: string, createdAt: string}> */
     public function listPublished(): array;
 
