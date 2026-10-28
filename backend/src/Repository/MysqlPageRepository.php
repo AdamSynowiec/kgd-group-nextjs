@@ -44,7 +44,7 @@ final class MysqlPageRepository implements PageRepositoryInterface
     public function slugByApiKey(string $apiKey): ?string
     {
         $statement = $this->pdo->prepare(
-            'SELECT slug FROM pages WHERE JSON_UNQUOTE(JSON_EXTRACT(content, '$.apiKey')) = :apiKey LIMIT 1'
+            'SELECT slug FROM pages WHERE JSON_UNQUOTE(JSON_EXTRACT(content, \'$.apiKey\')) = :apiKey LIMIT 1'
         );
         $statement->execute(['apiKey' => $apiKey]);
         $slug = $statement->fetchColumn();
