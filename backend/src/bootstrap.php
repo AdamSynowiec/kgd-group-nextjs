@@ -43,7 +43,7 @@ set_exception_handler(static function (Throwable $exception) use ($config): void
         ? $exception->getMessage()
         : 'Wewnętrzny błąd serwera.';
 
-    JsonResponse::error($status, $message);
+    JsonResponse::error($status, $message, $exception instanceof ApiException ? $exception->reason() : null);
 });
 
 return $config;

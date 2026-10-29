@@ -37,6 +37,10 @@ type Alert = { tone: "error" | "warning" | "info"; title: string; detail?: strin
 
 const ACTION_LABELS: Record<string, string> = {
   "auth.login": "zalogował(a) się",
+  "auth.password.forgot": "poprosił(a) o link do zmiany hasła",
+  "auth.password.reset": "ustawił(a) nowe hasło z linku",
+  "account.email.request": "podał(a) nowy adres e-mail",
+  "account.email.verify": "potwierdził(a) adres e-mail",
   "pages.create": "utworzył(a) stronę",
   "pages.update": "zapisał(a) stronę",
   "pages.identity": "nadał(a) identyfikatory API stron",

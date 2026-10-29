@@ -214,7 +214,8 @@ final class PermissionsController
      *
      * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function me(Request $request, ?array $currentSession): void
+    /** @param array<string, mixed> $account dodatkowy stan konta z admin.php (np. emailVerificationRequired) */
+    public function me(Request $request, ?array $currentSession, array $account = []): void
     {
         if ($currentSession === null) {
             // Uwierzytelnianie panelu wyłączone (ADMIN_AUTH_ENABLED=false) — brak
@@ -232,7 +233,7 @@ final class PermissionsController
             'login' => $user['login'],
             'role' => $user['role'],
             'permissions' => $this->permissions->effectivePermissions($user['id'], $user['role']),
-        ]);
+        ] + $account);
     }
 
     private function userIdFromQuery(Request $request): int

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { AdminApiError, updateOwnAccount, type Session } from "@/lib/adminApi";
+import { useEffect, useState } from "react";
+import { AdminApiError, fetchAccountEmail, requestEmailVerification, updateOwnAccount, type AccountEmailStatus, type Session } from "@/lib/adminApi";
 import { ui } from "@/components/admin/ui";
 
 const inputClass = ui.input;
@@ -12,8 +12,12 @@ const inputClass = ui.input;
  * bez względu na rolę/uprawnienia (to nie operacja na cudzych danych, patrz
  * db/012_add_user_email.sql) — w odróżnieniu od Kont/Ról/Uprawnień niżej,
  * ta sekcja nie jest owinięta w <Can>.
+ *
+ * Nowy adres e-mail nie zapisuje się od razu — idzie na niego link potwierdzający
+ * (AccountController::requestEmail()), a obecny adres działa do czasu potwierdzenia.
  */
-export default function MyAccountPanel({ session, onUpdated }: { session: Session | null; onUpdated: (email: string | null) => void }) {
+export default function MyAccountPanel({ session }: { session: Session | null }) {
+  const [account, setAccount] = useState<AccountEmailStatus | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [email, setEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -21,6 +25,16 @@ export default function MyAccountPanel({ session, onUpdated }: { session: Sessio
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAccountEmail(session)
+      .then((result) => !cancelled && setAccount(result))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   const wantsEmailChange = email.trim() !== "";
   const wantsPasswordChange = newPassword !== "" || confirmPassword !== "";
@@ -42,20 +56,22 @@ export default function MyAccountPanel({ session, onUpdated }: { session: Sessio
 
     setSubmitting(true);
     try {
-      const updated = await updateOwnAccount(
-        {
-          currentPassword,
-          ...(wantsEmailChange ? { email: email.trim() } : {}),
-          ...(wantsPasswordChange ? { newPassword } : {}),
-        },
-        session
-      );
-      onUpdated(updated.email);
+      const messages: string[] = [];
+      // Najpierw adres — po zmianie hasła obecne hasło (wymagane przy adresie) przestałoby pasować.
+      if (wantsEmailChange) {
+        const status = await requestEmailVerification({ email: email.trim(), currentPassword }, session);
+        setAccount(status);
+        setEmail("");
+        messages.push(`Wysłaliśmy link potwierdzający na ${status.pendingEmail} — adres zmieni się po jego kliknięciu.`);
+      }
+      if (wantsPasswordChange) {
+        await updateOwnAccount({ currentPassword, newPassword }, session);
+        setNewPassword("");
+        setConfirmPassword("");
+        messages.push("Hasło zostało zmienione.");
+      }
       setCurrentPassword("");
-      setEmail("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setSuccessMessage("Zapisano zmiany.");
+      setSuccessMessage(messages.join(" "));
     } catch (error) {
       setErrorMessage(error instanceof AdminApiError ? error.message : error instanceof Error ? error.message : "Nieznany błąd.");
     } finally {
@@ -71,6 +87,15 @@ export default function MyAccountPanel({ session, onUpdated }: { session: Sessio
           Zalogowano jako <span className="font-medium text-zinc-700">{session?.login ?? "—"}</span>. Zmień swój adres email i/lub
           hasło — każda zmiana wymaga podania obecnego hasła.
         </p>
+        {account && (
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+            Adres: <span className="font-medium text-zinc-900">{account.email ?? "—"}</span>
+            {account.email && account.emailVerified && <span className={`${ui.badge} ${ui.badgeSuccess}`}>potwierdzony</span>}
+            {account.pendingEmail && (
+              <span className={`${ui.badge} ${ui.badgeWarning}`}>czeka na potwierdzenie: {account.pendingEmail}</span>
+            )}
+          </p>
+        )}
       </div>
 
       {errorMessage && <p className={ui.alertError}>{errorMessage}</p>}

@@ -27,8 +27,8 @@ final class JsonResponse
         self::send(['data' => $data, 'meta' => $meta], 200);
     }
 
-    public static function error(int $status, string $message): never
+    public static function error(int $status, string $message, ?string $reason = null): never
     {
-        self::send(['error' => ['status' => $status, 'message' => $message]], $status);
+        self::send(['error' => ['status' => $status, 'message' => $message] + ($reason !== null ? ['reason' => $reason] : [])], $status);
     }
 }

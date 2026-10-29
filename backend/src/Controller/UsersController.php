@@ -139,11 +139,9 @@ final class UsersController
      * cudzych danych, a "zmień swoje własne hasło" nie jest taką operacją.
      *
      * Realnym zabezpieczeniem jest wymóg podania OBECNEGO hasła
-     * (password_verify()) przy KAŻDEJ zmianie (także samego e-maila) —
-     * broni przed np. pozostawioną otwartą sesją w przeglądarce. Zmiana
-     * e-maila nie wysyła żadnego potwierdzenia (brak infrastruktury
-     * mailowej w tym backendzie) — akceptowane świadomie, konto i tak
-     * wymaga ponownego podania hasła.
+     * (password_verify()) przy każdej zmianie hasła — broni przed np.
+     * pozostawioną otwartą sesją w przeglądarce. Adres e-mail zmienia się
+     * tylko przez link potwierdzający (AccountController::requestEmail()).
      *
      * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
@@ -179,24 +177,13 @@ final class UsersController
             throw new ApiException('Nieprawidłowe obecne hasło.', 400);
         }
 
-        if ($email === null && $newPassword === null) {
-            throw new ApiException('Podaj nowy adres email lub nowe hasło.', 400);
-        }
-
+        // Adres e-mail zmienia się wyłącznie przez link potwierdzający (POST /account/email,
+        // AccountController.php) — bezpośredni zapis tutaj omijałby potwierdzenie.
         if ($email !== null) {
-            if (!is_string($email) || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-                throw new ApiException('Nieprawidłowy adres email.', 400);
-            }
-
-            try {
-                $this->users->updateEmail($user['id'], $email);
-            } catch (PDOException $exception) {
-                if ($exception->getCode() === '23000') {
-                    throw new ApiException('Ten adres email jest już używany przez inne konto.', 409);
-                }
-
-                throw $exception;
-            }
+            throw new ApiException('Adres e-mail zmienisz przez potwierdzenie linkiem z maila.', 400);
+        }
+        if ($newPassword === null) {
+            throw new ApiException('Podaj nowe hasło.', 400);
         }
 
         if ($newPassword !== null) {
@@ -210,9 +197,9 @@ final class UsersController
         $updated = $this->users->findById($user['id']);
 
         // "details" niesie TYLKO fakt zmiany (bool), nigdy nowe hasło ani jego hash — patrz db/013_create_activity_log.sql.
-        $this->activity->log($user['id'], $user['login'], 'account.update', $email, [
-            'emailChanged' => $email !== null,
-            'passwordChanged' => $newPassword !== null,
+        $this->activity->log($user['id'], $user['login'], 'account.update', null, [
+            'emailChanged' => false,
+            'passwordChanged' => true,
         ]);
 
         JsonResponse::ok(['login' => $updated['login'], 'email' => $updated['email'], 'role' => $updated['role']]);

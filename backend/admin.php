@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 define('APP_ENTRY', true);
 
+use App\Controller\AccountController;
 use App\Controller\ActivityController;
 use App\Controller\ApiTokenController;
 use App\Controller\AssetController;
@@ -25,6 +26,7 @@ use App\Http\Router;
 use App\Http\SessionAuth;
 use App\Http\SessionToken;
 use App\PriceReport\PriceReportGenerator;
+use App\Repository\MysqlAccountRepository;
 use App\Repository\MysqlActivityLogRepository;
 use App\Repository\MysqlApiTokenRepository;
 use App\Repository\MysqlAssetRepository;
@@ -35,6 +37,8 @@ use App\Repository\MysqlRoleRepository;
 use App\Repository\MysqlSiteFileRepository;
 use App\Repository\MysqlUserRepository;
 use App\Support\Authorization;
+use App\Support\SmtpMailer;
+use PDOException;
 
 /**
  * API panelu (JSON) — osobny front controller od index.php (publiczne,
@@ -50,9 +54,11 @@ Cors::handle($config);
 
 $request = Request::fromGlobals();
 
-// /login jest jedyną trasą publiczną — to na niej dopiero powstaje sesja.
-// Wszystko inne wymaga ważnego tokenu (gdy ADMIN_AUTH_ENABLED=true).
-$currentSession = $request->path === '/login' ? null : SessionAuth::guard($config);
+// Trasy publiczne: logowanie (na nim dopiero powstaje sesja) i linki z maili (dowodem jest token
+// z linku, nie sesja — patrz AccountController.php). Wszystko inne wymaga ważnego tokenu sesji
+// (gdy ADMIN_AUTH_ENABLED=true).
+$publicRoutes = ['/login', '/account/email/verify', '/password/forgot', '/password/reset'];
+$currentSession = in_array($request->path, $publicRoutes, true) ? null : SessionAuth::guard($config);
 
 $activityLogRepository = static fn (): MysqlActivityLogRepository => new MysqlActivityLogRepository(Connection::get($config));
 
@@ -105,6 +111,16 @@ $buildController = new BuildController(
 $uploadController = new UploadController($activityLogRepository(), new MysqlAssetRepository(Connection::get($config)));
 
 $activityController = static fn (): ActivityController => new ActivityController($activityLogRepository());
+
+$accountController = static fn (): AccountController => new AccountController(
+    new MysqlAccountRepository(Connection::get($config)),
+    $userRepository(),
+    SmtpMailer::fromConfig($config),
+    $activityLogRepository(),
+    rtrim($config->get('SITE_URL', 'https://kgd-group.pl'), '/'),
+    $config->get('SMTP_FROM', $config->get('SMTP_USER')),
+    $config->get('ACCOUNT_MAIL_FROM_NAME', 'Panel administracyjny')
+);
 
 $router = new Router();
 $router->post('/login', static fn (Request $req) => $authController()->login($req));
@@ -216,7 +232,17 @@ $router->delete('/users/permissions/deny', static function (Request $req) use ($
 // uprawnienia), bez wymogu żadnego konkretnego uprawnienia — każdy
 // zalogowany odczytuje tylko siebie. Woła panel po zalogowaniu i po każdej
 // zmianie w sekcji Uprawnienia, żeby zobaczyć efekt bez przelogowania.
-$router->get('/me', static fn (Request $req) => $permissionsController()->me($req, $currentSession));
+$router->get('/me', static fn (Request $req) => $permissionsController()->me($req, $currentSession, [
+    'emailVerificationRequired' => $accountController()->verificationRequired($currentSession),
+]));
+
+// Adres e-mail konta (obowiązkowy, potwierdzany linkiem) i reset hasła — AccountController.php, db/039.
+// Bez uprawnień z rejestru: każdy zalogowany zarządza tylko własnym adresem; trasy z linków są publiczne.
+$router->get('/account/email', static fn (Request $req) => $accountController()->status($currentSession));
+$router->post('/account/email', static fn (Request $req) => $accountController()->requestEmail($req, $currentSession));
+$router->post('/account/email/verify', static fn (Request $req) => $accountController()->verifyEmail($req));
+$router->post('/password/forgot', static fn (Request $req) => $accountController()->forgotPassword($req));
+$router->post('/password/reset', static fn (Request $req) => $accountController()->resetPassword($req));
 
 // Historia aktywności ("Aktywność" w Ustawieniach) — patrz ActivityController.php
 // i db/013_create_activity_log.sql. "activity.list" nie jest nadane
@@ -338,5 +364,16 @@ $router->post('/price-reports/generate', static function (Request $req) use ($pr
     $authorization()->require($currentSession, 'reports.generate');
     $priceReportController()->generate($req, $currentSession);
 });
+
+// Konto bez potwierdzonego adresu e-mail nie dostaje nic poza ekranem jego podania — blokada po stronie
+// serwera, więc nie da się jej pominąć z przeglądarki (panel tylko pokazuje formularz, patrz adminApi.ts).
+// Gdy baza nie odpowiada, blokada się nie wykona — reszta tras i tak zwróci błąd, a /build zostaje
+// dostępne dla admina jak dotąd (Authorization::requireResilient()).
+if (!in_array($request->path, [...$publicRoutes, '/me', '/account/email'], true)) {
+    try {
+        $accountController()->requireVerifiedEmail($currentSession);
+    } catch (PDOException) {
+    }
+}
 
 $router->dispatch($request);

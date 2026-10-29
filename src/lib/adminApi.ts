@@ -46,10 +46,24 @@ export function storeSession(session: Session | null): void {
 export class AdminApiError extends Error {
   constructor(
     public readonly status: number,
-    message: string
+    message: string,
+    /** Stały identyfikator przypadku z backendu (ApiException $reason), np. "email_verification_required". */
+    public readonly reason?: string
   ) {
     super(message);
   }
+}
+
+/** Ekran podania i potwierdzenia adresu e-mail — konto bez niego nie dostaje z API nic innego. */
+export const EMAIL_VERIFICATION_PATH = "/admin/potwierdz-email/";
+
+/**
+ * Backend blokuje konto bez potwierdzonego adresu (AccountController::requireVerifiedEmail()); panel
+ * tylko przenosi wtedy na ekran podania adresu — z każdego widoku, bez osobnej obsługi w stronach.
+ */
+function redirectToEmailVerification(): void {
+  if (typeof window === "undefined" || window.location.pathname.startsWith(EMAIL_VERIFICATION_PATH)) return;
+  window.location.replace(EMAIL_VERIFICATION_PATH);
 }
 
 /**
@@ -87,7 +101,9 @@ async function request<T>(
 
   if (!response.ok) {
     const message = (body && body.error && body.error.message) || `Błąd ${response.status}`;
-    throw new AdminApiError(response.status, message);
+    const reason: string | undefined = body?.error?.reason;
+    if (reason === "email_verification_required") redirectToEmailVerification();
+    throw new AdminApiError(response.status, message, reason);
   }
 
   return body.data as T;
@@ -104,7 +120,7 @@ export async function login(loginName: string, password: string): Promise<Sessio
   return { token: data.token, login: data.user.login, role: data.user.role, permissions: data.user.permissions };
 }
 
-export type MeResponse = { login: string | null; role: string | null; permissions: string[] };
+export type MeResponse = { login: string | null; role: string | null; permissions: string[]; emailVerificationRequired?: boolean };
 
 /**
  * GET /me — świeże login/rola/efektywne uprawnienia WŁASNEGO konta, bez
@@ -114,8 +130,10 @@ export type MeResponse = { login: string | null; role: string | null; permission
  * Woła się po zmianach w sekcji "Uprawnienia" (PermissionsPanel.tsx), żeby
  * zobaczyć ich efekt natychmiast, nie dopiero po 7 dniach ważności tokenu.
  */
-export function fetchMe(session: Session | null): Promise<MeResponse> {
-  return request<MeResponse>("/me", { session });
+export async function fetchMe(session: Session | null): Promise<MeResponse> {
+  const me = await request<MeResponse>("/me", { session });
+  if (me.emailVerificationRequired) redirectToEmailVerification();
+  return me;
 }
 
 export function fetchPages(session: Session | null): Promise<PageSummary[]> {
@@ -265,11 +283,11 @@ export function deleteUser(id: number, session: Session | null): Promise<{ delet
  * POST /account — zmienia WYŁĄCZNIE własne konto wołającego (nie ma tu "id" —
  * cel jest zawsze zalogowany user, patrz UsersController::updateOwnAccount()).
  * Dostępne dla każdej roli, bez wymogu żadnego uprawnienia — "currentPassword"
- * jest jedynym realnym zabezpieczeniem tej trasy. Podaj "email" i/lub
- * "newPassword"; pominięcie obu to błąd walidacji po stronie backendu.
+ * jest jedynym realnym zabezpieczeniem tej trasy. Tylko hasło — adres e-mail
+ * zmienia requestEmailVerification() (potwierdzenie linkiem z maila).
  */
 export function updateOwnAccount(
-  input: { currentPassword: string; email?: string; newPassword?: string },
+  input: { currentPassword: string; newPassword: string },
   session: Session | null
 ): Promise<{ login: string; email: string | null; role: string }> {
   return request<{ login: string; email: string | null; role: string }>("/account", {
@@ -558,4 +576,32 @@ export function fetchSiteFiles(session: Session | null): Promise<{ files: SiteFi
 /** Pusta treść przywraca plik domyślny. */
 export function saveSiteFile(name: string, content: string, session: Session | null): Promise<SiteFileRecord> {
   return request("/site-files", { method: "POST", body: { name, content }, session });
+}
+
+// --- Adres e-mail konta i reset hasła — backend/src/Controller/AccountController.php ---
+
+/** required: panel jest zablokowany, dopóki adres nie zostanie potwierdzony linkiem z maila. */
+export type AccountEmailStatus = { login: string; email: string | null; emailVerified: boolean; pendingEmail: string | null; required: boolean };
+
+export function fetchAccountEmail(session: Session | null): Promise<AccountEmailStatus> {
+  return request("/account/email", { session });
+}
+
+/** Wysyła link potwierdzający na podany adres; obecny (jeśli jest) działa do czasu potwierdzenia nowego. */
+export function requestEmailVerification(input: { email: string; currentPassword: string }, session: Session | null): Promise<AccountEmailStatus> {
+  return request("/account/email", { method: "POST", body: input, session });
+}
+
+/** Link z maila (?token=) — działa bez zalogowania. */
+export function verifyEmail(token: string): Promise<{ email: string }> {
+  return request("/account/email/verify", { method: "POST", body: { token }, session: null });
+}
+
+/** Login albo e-mail; odpowiedź zawsze ta sama, niezależnie od tego, czy konto istnieje. */
+export function forgotPassword(login: string): Promise<{ sent: boolean }> {
+  return request("/password/forgot", { method: "POST", body: { login }, session: null });
+}
+
+export function resetPassword(token: string, password: string): Promise<{ reset: boolean }> {
+  return request("/password/reset", { method: "POST", body: { token, password }, session: null });
 }

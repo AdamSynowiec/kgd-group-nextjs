@@ -154,21 +154,7 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          {activeTab === "account" && (
-            <MyAccountPanel
-              session={session}
-              onUpdated={(email) => {
-                // Odświeża widoczny na zakładce "Konta" e-mail własnego konta
-                // (jeśli ta zakładka jest w ogóle dostępna) — reszta danych
-                // (login/hasło) się nie zmienia z perspektywy listy.
-                setView((prev) =>
-                  prev.status === "ready" && session
-                    ? { ...prev, users: prev.users.map((u) => (u.login === session.login ? { ...u, email } : u)) }
-                    : prev
-                );
-              }}
-            />
-          )}
+          {activeTab === "account" && <MyAccountPanel session={session} />}
           {activeTab === "users" && <UsersPanel initialUsers={view.users} roles={view.roles} session={session} />}
           {activeTab === "roles" && <RolesPanel initialRoles={view.roles} session={session} />}
           {activeTab === "permissions" && <PermissionsPanel users={view.users} roles={view.roles} session={session} />}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AuthLayout from "@/components/admin/AuthLayout";
 import LoginForm from "@/components/admin/LoginForm";
 import { AdminApiError, login, storeSession } from "@/lib/adminApi";
 
@@ -33,15 +34,8 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen flex-1 items-center justify-center overflow-hidden bg-zinc-50 px-6 py-12 font-sans antialiased">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 [background-image:radial-gradient(circle_at_1px_1px,rgba(24,24,27,0.07)_1px,transparent_0)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]"
-      />
-      <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[720px] -translate-x-1/2 rounded-full bg-indigo-200/30 blur-3xl" />
-      <div className="relative w-full max-w-[400px]">
-        <LoginForm onSubmit={handleSubmit} errorMessage={errorMessage} />
-      </div>
-    </main>
+    <AuthLayout title="Zaloguj się do panelu" footer="Dostęp tylko dla uprawnionych osób.">
+      <LoginForm onSubmit={handleSubmit} errorMessage={errorMessage} />
+    </AuthLayout>
   );
 }
