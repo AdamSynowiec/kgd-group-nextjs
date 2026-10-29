@@ -79,15 +79,31 @@ final class MysqlActivityLogRepository implements ActivityLogRepositoryInterface
         return (int) $statement->fetchColumn();
     }
 
-    private function clientIp(): ?string
+    public function countRecentFromClient(string $action, int $seconds, ?string $login = null): int
     {
-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? null;
-
-        if (!is_string($ip) || $ip === '') {
-            return null;
+        $ip = $this->clientIp();
+        if ($ip === null) {
+            return 0;
         }
 
-        // Za proxy X-Forwarded-For bywa listą "klient, proxy1, proxy2" — pierwszy wpis to realny klient.
-        return trim(explode(',', $ip)[0]);
+        $statement = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM activity_log WHERE action = :action AND ip_address = :ip '
+            . 'AND created_at > DATE_SUB(CURRENT_TIMESTAMP, INTERVAL :seconds SECOND)'
+            . ($login !== null ? ' AND login = :login' : '')
+        );
+        $statement->execute(['action' => $action, 'ip' => $ip, 'seconds' => $seconds] + ($login !== null ? ['login' => $login] : []));
+
+        return (int) $statement->fetchColumn();
+    }
+
+    /**
+     * Wyłącznie REMOTE_ADDR — X-Forwarded-For ustawia klient, więc dało się nim podać dowolny adres
+     * (serwer stoi bez proxy przed sobą). Za proxy/CDN trzeba by ufać nagłówkowi tylko od jego adresów.
+     */
+    private function clientIp(): ?string
+    {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+
+        return is_string($ip) && $ip !== '' ? $ip : null;
     }
 }

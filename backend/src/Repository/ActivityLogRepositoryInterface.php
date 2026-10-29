@@ -30,4 +30,7 @@ interface ActivityLogRepositoryInterface
     public function list(int $limit, int $offset): array;
 
     public function count(): int;
+
+    /** Ile zdarzeń $action z adresu IP bieżącego żądania (opcjonalnie: dla tego loginu) w ostatnich $seconds sekundach. */
+    public function countRecentFromClient(string $action, int $seconds, ?string $login = null): int;
 }

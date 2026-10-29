@@ -5,6 +5,15 @@
 RewriteEngine On
 RewriteRule ^(\.env|src/) - [F,L]
 
+# Pliki z panelu (api/uploads): SVG otwarty wprost nie może uruchomić skryptu w domenie strony
+# (w <img> i tak nie działa — tam ta polityka nic nie zmienia). nosniff: przeglądarka nie zgaduje typu.
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  <FilesMatch "\.svg$">
+    Header set Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox"
+  </FilesMatch>
+</IfModule>
+
 # Część hostingów (CGI/FastCGI) nie przekazuje nagłówka Authorization do PHP.
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 

@@ -21,6 +21,15 @@ if (!defined('APP_ENTRY')) {
 /** Jedyna publiczna trasa panelu — na niej dopiero powstaje sesja, więc nie jest chroniona przez SessionAuth::guard(). */
 final class AuthController
 {
+    /**
+     * Limit nieudanych logowań w oknie LOCK_SECONDS: dla pary login + IP (zgadywanie hasła jednego
+     * konta) i dla samego IP (przechodzenie po wielu loginach). Celowo nie dla samego loginu — wtedy
+     * każdy mógłby zablokować cudze konto, wpisując złe hasło.
+     */
+    private const MAX_FAILURES_PER_LOGIN = 5;
+    private const MAX_FAILURES_PER_IP = 20;
+    private const LOCK_SECONDS = 900;
+
     public function __construct(
         private readonly UserRepositoryInterface $users,
         private readonly SessionToken $tokens,
@@ -43,6 +52,14 @@ final class AuthController
 
         if (!is_string($login) || !is_string($password) || $login === '' || $password === '') {
             throw new ApiException('Podaj login i hasło.', 400);
+        }
+
+        // Przed sprawdzeniem hasła — w czasie blokady nawet poprawne hasło nie przechodzi, inaczej dalej dałoby się zgadywać.
+        if (
+            $this->activity->countRecentFromClient('auth.login_failed', self::LOCK_SECONDS, $login) >= self::MAX_FAILURES_PER_LOGIN
+            || $this->activity->countRecentFromClient('auth.login_failed', self::LOCK_SECONDS) >= self::MAX_FAILURES_PER_IP
+        ) {
+            throw new ApiException('Zbyt wiele nieudanych prób logowania. Spróbuj ponownie za 15 minut albo ustaw nowe hasło („Nie pamiętasz hasła?”).', 429);
         }
 
         $user = $this->users->findByLogin($login);

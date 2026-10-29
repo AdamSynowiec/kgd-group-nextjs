@@ -42,9 +42,9 @@ final class UploadController
         'webp' => ['image/webp'],
         'gif' => ['image/gif'],
         'pdf' => ['application/pdf'],
-        // SVG celowo bez weryfikacji finfo (to XML, nie da się sprawdzić po MIME
-        // równie prosto) — panel jest dostępny tylko zalogowanym redaktorom,
-        // ten sam poziom zaufania co reszta treści w bazie.
+        // SVG bez weryfikacji finfo (to XML, nie da się sprawdzić po MIME równie prosto) — zamiast
+        // tego odrzucany, gdy zawiera cokolwiek wykonywalnego (containsScript()). Otwarty wprost
+        // z /api/uploads/ działałby w domenie strony; dodatkowo blokuje to CSP w backend/.htaccess.
         'svg' => null,
     ];
 
@@ -86,6 +86,10 @@ final class UploadController
             );
         }
 
+        if ($extension === 'svg' && self::containsScript((string) file_get_contents($file['tmp_name']))) {
+            throw new ApiException('Plik SVG zawiera skrypt albo aktywną treść — zapisz go ponownie jako zwykłą grafikę.', 400);
+        }
+
         $allowedMimes = self::ALLOWED_TYPES[$extension];
         if ($allowedMimes !== null) {
             $finfo = new \finfo(FILEINFO_MIME_TYPE);
@@ -124,5 +128,11 @@ final class UploadController
             : null;
 
         JsonResponse::ok(['url' => '/api/uploads/' . $filename, 'assetId' => $assetId]);
+    }
+
+    /** Skrypty, obsługa zdarzeń (on…=), adresy javascript:, osadzony HTML i zewnętrzne encje XML. */
+    private static function containsScript(string $svg): bool
+    {
+        return preg_match('~<\s*script|<\s*foreignObject|<!ENTITY|\bon[a-z]+\s*=|javascript\s*:~i', $svg) === 1;
     }
 }
