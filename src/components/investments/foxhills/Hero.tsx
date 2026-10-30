@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { KGD_SOCIAL_LINKS, SocialIcon, type SocialLink } from "@/components/shared/socials";
 import { Icon } from "./icons";
 import { Button, Container } from "./ui";
 
@@ -20,6 +21,8 @@ type HeroFields = {
   secondaryLabel?: EditableValue<string> | string;
   secondaryHref?: EditableValue<string> | string;
   facts?: EditableValue<Fact[]> | Fact[];
+  /** Brak = profile KGD; pusta lista = bez ikonek. */
+  socials?: EditableValue<SocialLink[]> | SocialLink[];
 };
 
 const SLIDE_MS = 7500;
@@ -40,6 +43,7 @@ export default function Hero({ fields }: { fields: HeroFields }) {
   const secondaryLabel = unwrap(fields.secondaryLabel);
   const secondaryHref = unwrap(fields.secondaryHref) ?? "#kontakt";
   const facts = unwrap(fields.facts) ?? [];
+  const socials = unwrap(fields.socials) ?? KGD_SOCIAL_LINKS;
 
   const [index, setIndex] = useState(0);
 
@@ -79,56 +83,82 @@ export default function Hero({ fields }: { fields: HeroFields }) {
       </div>
 
       <Container className="relative pb-10 pt-40 sm:pb-14 lg:pt-52">
-        <div className="max-w-5xl">
-          {eyebrow && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.2 }} className="flex items-center gap-4">
-              <span className="h-px w-12 bg-[#BCC0C1]" />
-              <span className="font-manrope text-[11px] font-medium uppercase tracking-[0.45em] text-[#E7E7E7] sm:text-[12px]">{eyebrow}</span>
+        {/* Tekst + CTA po lewej, ikonki social po prawej (na wysokości przycisków) */}
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-5xl">
+            {eyebrow && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.2 }} className="flex items-center gap-4">
+                <span className="h-px w-12 bg-[#BCC0C1]" />
+                <span className="font-manrope text-[11px] font-medium uppercase tracking-[0.45em] text-[#E7E7E7] sm:text-[12px]">{eyebrow}</span>
+              </motion.div>
+            )}
+
+            <h1 className="sr-only">{title}</h1>
+
+            {subtitle && (
+              <motion.p
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1.1, delay: 0.7 }}
+                className="mt-8 font-dmserif text-[36px] font-light italic leading-[1.1] text-[#F7F7F7] sm:text-[52px] lg:text-[72px]"
+              >
+                {subtitle}
+              </motion.p>
+            )}
+
+            {text && (
+              <motion.p
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1.1, delay: 0.9 }}
+                className="mt-7 max-w-xl font-manrope text-[14px] font-light leading-[1.9] text-[#E7E7E7]/75 sm:text-[16px]"
+              >
+                {text}
+              </motion.p>
+            )}
+
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1.1, delay: 1.1 }}
+              className="mt-10 flex flex-col gap-4 sm:flex-row"
+            >
+              {primaryLabel && (
+                <Button href={primaryHref} variant="gold">
+                  {primaryLabel}
+                  <Icon name="arrow" className="h-4 w-4" />
+                </Button>
+              )}
+              {secondaryLabel && (
+                <Button href={secondaryHref} variant="outline">
+                  {secondaryLabel}
+                </Button>
+              )}
             </motion.div>
-          )}
+          </div>
 
-          <h1 className="sr-only">{title}</h1>
-
-          {subtitle && (
-            <motion.p
+          {socials.length > 0 && (
+            <motion.ul
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1.1, delay: 0.7 }}
-              className="mt-8 font-dmserif text-[36px] font-light italic leading-[1.1] text-[#F7F7F7] sm:text-[52px] lg:text-[72px]"
+              transition={{ duration: 1.1, delay: 1.2 }}
+              className="flex flex-none items-center gap-3"
             >
-              {subtitle}
-            </motion.p>
+              {socials.map((social) => (
+                <li key={social.label}>
+                  <a
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={social.label}
+                    className="flex h-12 w-12 items-center justify-center border border-[#BCC0C1]/35 bg-[#171A1C]/40 text-[#E7E7E7]/75 backdrop-blur-md transition-all duration-500 hover:-translate-y-1 hover:border-[#E7E7E7] hover:bg-[#BCC0C1]/10 hover:text-[#F7F7F7]"
+                  >
+                    <SocialIcon icon={social.icon} className={social.icon === "facebook" ? "h-[18px] w-[18px]" : "h-5 w-5"} />
+                  </a>
+                </li>
+              ))}
+            </motion.ul>
           )}
-
-          {text && (
-            <motion.p
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1.1, delay: 0.9 }}
-              className="mt-7 max-w-xl font-manrope text-[14px] font-light leading-[1.9] text-[#E7E7E7]/75 sm:text-[16px]"
-            >
-              {text}
-            </motion.p>
-          )}
-
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1.1, delay: 1.1 }}
-            className="mt-10 flex flex-col gap-4 sm:flex-row"
-          >
-            {primaryLabel && (
-              <Button href={primaryHref} variant="gold">
-                {primaryLabel}
-                <Icon name="arrow" className="h-4 w-4" />
-              </Button>
-            )}
-            {secondaryLabel && (
-              <Button href={secondaryHref} variant="outline">
-                {secondaryLabel}
-              </Button>
-            )}
-          </motion.div>
         </div>
 
         {/* Szklany pas faktów */}
