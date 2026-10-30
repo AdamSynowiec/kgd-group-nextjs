@@ -46,6 +46,9 @@ final class PriceRegisterSync
         'prospectusUrl',
     ];
 
+    /** Wymagane w raporcie (StatutoryColumns::REQUIRED bez rodzaju nieruchomości, który jest per lokal). */
+    private const REQUIRED_SHARED = ['developerName', 'developerLegalForm', 'nip'];
+
     /** Pole oferty -> [kolumna ceny, kolumna daty obowiązywania]. */
     private const PRICES = [
         'price' => ['totalPrice', 'totalPriceDate'],
@@ -69,25 +72,21 @@ final class PriceRegisterSync
     }
 
     /**
-     * Podgląd zmian — nic nie zapisuje.
+     * Podgląd zmian — nic nie zapisuje. Gdy rejestr nie ma jeszcze wiersza lokalu ("needsShared"), nowe lokale
+     * czekają na dane dewelopera z formularza panelu ("shared" — pola, "sharedSuggestions" — gotowe zestawy
+     * z rejestrów innych inwestycji do wypełnienia formularza).
      *
-     * @return array{
-     *   offerSlug: string,
-     *   registerSlug: string,
-     *   changes: list<array{id: string, action: string, unit: string, fields: list<array{key: string, label: string, from: string, to: string}>, note: ?string}>,
-     *   unchanged: int,
-     *   untouched: list<string>,
-     *   warnings: list<string>
-     * }
+     * @return array<string, mixed>
      */
     public function plan(string $registerSlug): array
     {
-        $plan = $this->build($registerSlug);
+        $plan = $this->build($registerSlug, null, null);
         $plan['changes'] = array_map(static function (array $change): array {
             unset($change['index'], $change['row']);
 
             return $change;
         }, $plan['changes']);
+        $plan['sharedSuggestions'] = $plan['needsShared'] ? $this->sharedSuggestions($registerSlug) : [];
         unset($plan['content'], $plan['rows'], $plan['sectionIndex']);
 
         return $plan;
@@ -95,14 +94,23 @@ final class PriceRegisterSync
 
     /**
      * Zapisuje w rejestrze wybrane zmiany (id z plan()). Plan liczony od nowa — zmiana, której już nie ma
-     * (np. ktoś w międzyczasie poprawił ofertę), jest pomijana.
+     * (np. ktoś w międzyczasie poprawił ofertę), jest pomijana. $shared — dane dewelopera z formularza,
+     * potrzebne tylko, gdy rejestr nie ma jeszcze żadnego wiersza lokalu.
      *
      * @param list<string> $ids
+     * @param array<string, mixed>|null $shared
+     * @param array<string, mixed>|null $propertyTypes
      * @return array{applied: int, created: int, updated: int, removed: int, units: list<string>}
      */
-    public function apply(string $registerSlug, array $ids): array
+    public function apply(string $registerSlug, array $ids, ?array $shared = null, ?array $propertyTypes = null): array
     {
-        $plan = $this->build($registerSlug);
+        $plan = $this->build($registerSlug, $shared, $propertyTypes);
+        if ($plan['needsShared'] && array_filter($ids, static fn (string $id): bool => str_starts_with($id, 'create:')) !== []) {
+            $missing = array_values(array_filter(self::REQUIRED_SHARED, static fn (string $key): bool => self::isEmpty(self::text($shared[$key] ?? ''))));
+            if ($shared === null || $missing !== []) {
+                throw new RuntimeException('Uzupełnij dane dewelopera (wymagane: nazwa, forma prawna, NIP) — nowe lokale je kopiują.');
+            }
+        }
         $wanted = array_flip($ids);
         $rows = $plan['rows'];
         $counts = ['create' => 0, 'update' => 0, 'remove' => 0];
@@ -150,8 +158,12 @@ final class PriceRegisterSync
         ];
     }
 
-    /** @return array<string, mixed> */
-    private function build(string $registerSlug): array
+    /**
+     * @param array<string, mixed>|null $shared dane dewelopera z formularza (tylko dla pustego rejestru)
+     * @param array<string, mixed>|null $propertyTypes typ z oferty -> rodzaj nieruchomości z formularza
+     * @return array<string, mixed>
+     */
+    private function build(string $registerSlug, ?array $shared, ?array $propertyTypes): array
     {
         $register = $this->pages->findBySlug($registerSlug);
         if ($register === null) {
@@ -203,7 +215,22 @@ final class PriceRegisterSync
             }
             $registerIndex[$key] = $index;
         }
-        $template = $registerIndex === [] ? null : $rows[reset($registerIndex)];
+        // Wzór danych dewelopera dla nowych lokali: istniejący wiersz lokalu, a w pustym rejestrze — formularz z panelu.
+        $needsShared = $registerIndex === [];
+        $template = $needsShared ? null : $rows[reset($registerIndex)];
+        if ($needsShared) {
+            $template = [];
+            foreach (self::SHARED_KEYS as $key) {
+                $value = self::text($shared[$key] ?? '');
+                $template[$key] = self::isEmpty($value) ? 'X' : $value;
+            }
+        }
+        $sharedFields = [];
+        foreach ((array) self::unwrap($fields['columns'] ?? []) as $column) {
+            if (is_array($column) && in_array($column['key'] ?? null, self::SHARED_KEYS, true)) {
+                $sharedFields[] = ['key' => (string) $column['key'], 'label' => (string) ($column['label'] ?? $column['key']), 'required' => in_array($column['key'], self::REQUIRED_SHARED, true)];
+            }
+        }
 
         // Rodzaj nieruchomości dla nowych lokali: z wiersza rejestru lokalu tego samego typu w ofercie.
         $typeOfOffer = [];
@@ -214,7 +241,17 @@ final class PriceRegisterSync
         foreach ($registerIndex as $key => $index) {
             $type = $typeOfOffer[$key] ?? '';
             $value = self::text($rows[$index]['propertyType'] ?? '');
-            if ($type !== '' && !self::isEmpty($value) && !isset($propertyTypeByOfferType[$type])) {
+            // Typ "" = oferta bez kolumny typu (np. Rudava Park) — wtedy jeden rodzaj dla wszystkich lokali.
+            if ($key !== '' && !self::isEmpty($value) && !isset($propertyTypeByOfferType[$type]) && isset($typeOfOffer[$key])) {
+                $propertyTypeByOfferType[$type] = $value;
+            }
+        }
+        // Typy nowych lokali bez rodzaju w rejestrze — redaktor wpisuje rodzaj w formularzu panelu (jeden na typ).
+        $typesFromRegister = $propertyTypeByOfferType;
+        $typesToFill = [];
+        foreach ($propertyTypes ?? [] as $type => $value) {
+            $value = self::text($value);
+            if (is_string($type) && !isset($propertyTypeByOfferType[$type]) && !self::isEmpty($value)) {
                 $propertyTypeByOfferType[$type] = $value;
             }
         }
@@ -223,7 +260,6 @@ final class PriceRegisterSync
         $changes = [];
         $unchanged = 0;
         $offerKeys = [];
-        $missingTemplateWarned = false;
 
         foreach ($offer as $unit) {
             $name = self::text($unit['unit']);
@@ -261,19 +297,17 @@ final class PriceRegisterSync
                 } else {
                     $changes[] = ['id' => "update:{$key}", 'action' => 'update', 'unit' => $name, 'fields' => $diff, 'note' => null, 'index' => $existing];
                 }
-            } elseif ($template === null) {
-                if (!$missingTemplateWarned) {
-                    $warnings[] = 'Rejestr nie ma jeszcze żadnego wiersza lokalu. Dodaj w nim jeden wiersz z danymi dewelopera (jak w pozostałych inwestycjach) — nowe lokale skopiują z niego dane dewelopera, adresy i prospekt.';
-                    $missingTemplateWarned = true;
-                }
             } else {
                 $row = array_fill_keys($columns, 'X');
-                foreach (self::SHARED_KEYS as $shared) {
-                    if (in_array($shared, $columns, true)) {
-                        $row[$shared] = $template[$shared] ?? 'X';
+                foreach (self::SHARED_KEYS as $sharedKey) {
+                    if (in_array($sharedKey, $columns, true)) {
+                        $row[$sharedKey] = $template[$sharedKey] ?? 'X';
                     }
                 }
                 $type = self::text($unit['type'] ?? '');
+                if (!isset($typesFromRegister[$type]) && !in_array($type, $typesToFill, true)) {
+                    $typesToFill[] = $type;
+                }
                 $row['propertyType'] = $propertyTypeByOfferType[$type] ?? 'X';
                 $row['unit'] = $name;
                 $created = [self::field('propertyType', '', $row['propertyType']), self::field('unit', '', $name)];
@@ -288,9 +322,9 @@ final class PriceRegisterSync
                     $created[] = self::field($dateColumn, '', $today);
                 }
                 $note = $row['propertyType'] === 'X'
-                    ? 'Rodzaj nieruchomości do uzupełnienia w rejestrze — w ofercie nie ma innego lokalu typu „' . ($type !== '' ? $type : '—') . '” z wpisanym rodzajem.'
+                    ? 'Brak rodzaju nieruchomości dla typu „' . ($type !== '' ? $type : '—') . '” — wpisz go w formularzu powyżej.'
                     : null;
-                $changes[] = ['id' => "create:{$key}", 'action' => 'create', 'unit' => $name, 'fields' => $created, 'note' => $note, 'row' => $row];
+                $changes[] = ['id' => "create:{$key}", 'action' => 'create', 'unit' => $name, 'offerType' => $type, 'fields' => $created, 'note' => $note, 'row' => $row];
             }
 
             // Tylko informacja — synchronizacja przenosi cenę z oferty taką, jaka jest.
@@ -316,10 +350,50 @@ final class PriceRegisterSync
             'unchanged' => $unchanged,
             'untouched' => $untouched,
             'warnings' => $warnings,
+            'needsShared' => $needsShared,
+            'shared' => $sharedFields,
+            'typesToFill' => $typesToFill,
             'content' => $content,
             'rows' => $rows,
             'sectionIndex' => $sectionIndex,
         ];
+    }
+
+    /**
+     * Dane dewelopera z pierwszego wiersza lokalu w rejestrach innych inwestycji — do wypełnienia formularza
+     * w panelu (redaktor je sprawdza i poprawia, nic nie trafia do rejestru bez jego zapisu).
+     *
+     * @return list<array{slug: string, name: string, values: array<string, string>}>
+     */
+    private function sharedSuggestions(string $registerSlug): array
+    {
+        $suggestions = [];
+        foreach ($this->pages->listAll() as $summary) {
+            $slug = (string) $summary['slug'];
+            if ($slug === $registerSlug || !str_ends_with($slug, self::HISTORY_SUFFIX)) {
+                continue;
+            }
+            $page = $this->pages->findBySlug($slug);
+            foreach ((array) ($page['content']['sections'] ?? []) as $section) {
+                if (!is_array($section) || ($section['component'] ?? null) !== 'PriceHistory') {
+                    continue;
+                }
+                foreach ((array) self::unwrap($section['fields']['rows'] ?? []) as $row) {
+                    if (!is_array($row) || self::key($row['unit'] ?? '') === '') {
+                        continue;
+                    }
+                    $values = [];
+                    foreach (self::SHARED_KEYS as $key) {
+                        $values[$key] = self::text($row[$key] ?? '');
+                    }
+                    $name = self::text($row['developerName'] ?? '');
+                    $suggestions[] = ['slug' => $slug, 'name' => ($name !== '' ? $name : $slug) . ' (' . substr($slug, strlen('/inwestycja/'), -strlen(self::HISTORY_SUFFIX)) . ')', 'values' => $values];
+                    break 2;
+                }
+            }
+        }
+
+        return $suggestions;
     }
 
     /**

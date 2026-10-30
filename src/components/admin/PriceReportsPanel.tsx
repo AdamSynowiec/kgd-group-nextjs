@@ -415,6 +415,9 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ applied: number; created: number; updated: number; removed: number } | null>(null);
+  // Dane dewelopera (pusty rejestr) i rodzaj nieruchomości dla typów z oferty — wpisywane raz, potem rejestr je ma.
+  const [shared, setShared] = useState<Record<string, string>>({});
+  const [propertyTypes, setPropertyTypes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -448,7 +451,7 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
     setSaving(true);
     setError("");
     try {
-      setResult(await applyPriceSync(session, investment.key, [...selected]));
+      setResult(await applyPriceSync(session, investment.key, [...selected], { shared: plan?.needsShared ? shared : undefined, propertyTypes }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Zapis nie powiódł się.");
     } finally {
@@ -457,6 +460,8 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
   }
 
   const changes = plan?.changes ?? [];
+  const creating = changes.some((change) => change.action === "create" && selected.has(change.id));
+  const missingShared = plan?.needsShared && creating ? plan.shared.filter((field) => field.required && !(shared[field.key] ?? "").trim()) : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Synchronizacja z ofertą">
@@ -511,6 +516,77 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
 
               {changes.length === 0 && <p className="rounded-lg bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">Rejestr zgadza się z ofertą — nie ma nic do zapisania.</p>}
 
+              {plan.needsShared && creating && (
+                <section className={`${ui.card} p-4`}>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-zinc-900">Dane dewelopera i inwestycji</div>
+                      <p className="mt-0.5 text-xs text-zinc-500">Rejestr jest pusty — te dane trafią do każdego nowego lokalu. Wpisujesz je raz; kolejne synchronizacje wezmą je z rejestru.</p>
+                    </div>
+                    {plan.sharedSuggestions.length > 0 && (
+                      <select
+                        defaultValue=""
+                        onChange={(event) => {
+                          const suggestion = plan.sharedSuggestions.find((item) => item.slug === event.target.value);
+                          if (suggestion) setShared({ ...suggestion.values });
+                        }}
+                        className={`${ui.input} sm:w-64`}
+                        aria-label="Wypełnij na podstawie innej inwestycji"
+                      >
+                        <option value="">Wypełnij na podstawie…</option>
+                        {plan.sharedSuggestions.map((item) => (
+                          <option key={item.slug} value={item.slug}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2">
+                    {plan.shared.map((field) => (
+                      <label key={field.key} className="block">
+                        <span className="text-xs font-medium text-zinc-600">
+                          {field.label}
+                          {field.required && <span className="text-red-500"> *</span>}
+                        </span>
+                        <input
+                          value={shared[field.key] ?? ""}
+                          onChange={(event) => setShared((current) => ({ ...current, [field.key]: event.target.value }))}
+                          placeholder="X"
+                          className={`${ui.input} mt-1`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-xs text-zinc-500">Puste pole = „X” (nie dotyczy), jak w pozostałych rejestrach.</p>
+                </section>
+              )}
+
+              {plan.typesToFill.length > 0 && creating && (
+                <section className={`${ui.card} p-4`}>
+                  <div className="text-sm font-semibold text-zinc-900">Rodzaj nieruchomości</div>
+                  <p className="mt-0.5 text-xs text-zinc-500">Dla typów z oferty, których rodzaju rejestr jeszcze nie zna. Raport przyjmuje: lokal mieszkalny, dom jednorodzinny.</p>
+                  <datalist id="price-sync-property-types">
+                    <option value="Lokal mieszkalny" />
+                    <option value="Dom jednorodzinny" />
+                  </datalist>
+                  <div className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-2">
+                    {plan.typesToFill.map((type) => (
+                      <label key={type} className="block">
+                        <span className="text-xs font-medium text-zinc-600">{type || "Lokale bez typu w ofercie"}</span>
+                        <input
+                          list="price-sync-property-types"
+                          value={propertyTypes[type] ?? ""}
+                          onChange={(event) => setPropertyTypes((current) => ({ ...current, [type]: event.target.value }))}
+                          placeholder="np. Lokal mieszkalny"
+                          className={`${ui.input} mt-1`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {SYNC_GROUPS.map((group) => {
                 const items = changes.filter((change) => change.action === group.action);
                 if (items.length === 0) return null;
@@ -535,19 +611,23 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
                                 <dl className="mt-1 grid gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2">
                                   {change.fields
                                     .filter((field) => field.key !== "unit")
-                                    .map((field) => (
-                                      <div key={field.key} className="flex gap-1.5">
-                                        <dt className="shrink-0 text-zinc-500">{field.label}:</dt>
-                                        <dd className="min-w-0 truncate tabular-nums text-zinc-800">
-                                          {field.from && <span className="text-zinc-400 line-through">{field.from}</span>}
-                                          {field.from && " → "}
-                                          {field.to}
-                                        </dd>
-                                      </div>
-                                    ))}
+                                    .map((field) => {
+                                      // Rodzaj wpisany w formularzu powyżej zastępuje "X" z podglądu.
+                                      const typed = field.key === "propertyType" && change.offerType !== undefined ? propertyTypes[change.offerType]?.trim() : "";
+                                      return (
+                                        <div key={field.key} className="flex gap-1.5">
+                                          <dt className="shrink-0 text-zinc-500">{field.label}:</dt>
+                                          <dd className="min-w-0 truncate tabular-nums text-zinc-800">
+                                            {field.from && <span className="text-zinc-400 line-through">{field.from}</span>}
+                                            {field.from && " → "}
+                                            {typed || field.to}
+                                          </dd>
+                                        </div>
+                                      );
+                                    })}
                                 </dl>
                               )}
-                              {change.note && <p className="mt-1 text-xs text-amber-700">{change.note}</p>}
+                              {change.note && !(change.offerType !== undefined && propertyTypes[change.offerType]?.trim()) && <p className="mt-1 text-xs text-amber-700">{change.note}</p>}
                             </div>
                           </label>
                         </li>
@@ -580,7 +660,8 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
               <button onClick={onClose} disabled={saving} className={ui.btnSecondary}>
                 Anuluj
               </button>
-              <button onClick={save} disabled={saving || selected.size === 0} className={ui.btnPrimary}>
+              {missingShared.length > 0 && <span className="mr-auto text-xs text-red-600">Uzupełnij: {missingShared.map((field) => field.label).join(", ")}</span>}
+              <button onClick={save} disabled={saving || selected.size === 0 || missingShared.length > 0} className={ui.btnPrimary}>
                 {saving ? <Spinner /> : <CheckIcon className="h-4 w-4" />}
                 {saving ? "Zapisywanie…" : `Zapisz w rejestrze (${selected.size})`}
               </button>

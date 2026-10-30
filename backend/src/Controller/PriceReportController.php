@@ -50,7 +50,9 @@ final class PriceReportController
     }
 
     /**
-     * POST /price-reports/sync  body: {"key": "foxhills", "ids": ["update:I.W.11", ...]} — zapis wybranych zmian z podglądu.
+     * POST /price-reports/sync  body: {"key": "foxhills", "ids": ["update:I.W.11", ...], "shared": {...}, "propertyTypes": {...}}
+     * — zapis wybranych zmian z podglądu; "shared" (dane dewelopera) i "propertyTypes" (typ z oferty -> rodzaj
+     * nieruchomości) z formularza, gdy rejestr ich jeszcze nie ma.
      *
      * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
@@ -73,7 +75,12 @@ final class PriceReportController
         }
 
         try {
-            $result = $this->registerSync()->apply($slug, $ids);
+            $result = $this->registerSync()->apply(
+                $slug,
+                $ids,
+                is_array($body['shared'] ?? null) ? $body['shared'] : null,
+                is_array($body['propertyTypes'] ?? null) ? $body['propertyTypes'] : null
+            );
         } catch (RuntimeException $exception) {
             throw new ApiException($exception->getMessage(), 409);
         }
