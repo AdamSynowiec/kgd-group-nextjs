@@ -100,15 +100,16 @@ final class PriceRegisterSync
      * @param list<string> $ids
      * @param array<string, mixed>|null $shared
      * @param array<string, mixed>|null $propertyTypes
-     * @return array{applied: int, created: int, updated: int, removed: int, units: list<string>}
+     * @return array{applied: int, created: int, updated: int, removed: int, sharedFields: int, units: list<string>}
      */
     public function apply(string $registerSlug, array $ids, ?array $shared = null, ?array $propertyTypes = null): array
     {
         $plan = $this->build($registerSlug, $shared, $propertyTypes);
-        if ($plan['needsShared'] && array_filter($ids, static fn (string $id): bool => str_starts_with($id, 'create:')) !== []) {
+        $creating = array_filter($ids, static fn (string $id): bool => str_starts_with($id, 'create:')) !== [];
+        if (($plan['needsShared'] && $creating) || $plan['sharedDiff'] !== []) {
             $missing = array_values(array_filter(self::REQUIRED_SHARED, static fn (string $key): bool => self::isEmpty(self::text($shared[$key] ?? ''))));
             if ($shared === null || $missing !== []) {
-                throw new RuntimeException('Uzupełnij dane dewelopera (wymagane: nazwa, forma prawna, NIP) — nowe lokale je kopiują.');
+                throw new RuntimeException('Uzupełnij dane dewelopera (wymagane: nazwa, forma prawna, NIP).');
             }
         }
         $wanted = array_flip($ids);
@@ -116,6 +117,21 @@ final class PriceRegisterSync
         $counts = ['create' => 0, 'update' => 0, 'remove' => 0];
         $units = [];
         $removed = [];
+
+        // Zmienione dane dewelopera: w każdym wierszu, który miał dotychczasową wartość. Wiersze z inną
+        // wartością (np. miejsca parkingowe z osobnym prospektem) zostają bez zmian.
+        $sharedFields = 0;
+        foreach ($plan['sharedDiff'] as $key => $diff) {
+            $touched = false;
+            foreach ($rows as $index => $row) {
+                $value = self::text($row[$key] ?? '');
+                if ((self::isEmpty($value) ? 'X' : $value) === $diff['from']) {
+                    $rows[$index][$key] = $diff['to'];
+                    $touched = true;
+                }
+            }
+            $sharedFields += $touched ? 1 : 0;
+        }
 
         foreach ($plan['changes'] as $change) {
             if (!isset($wanted[$change['id']])) {
@@ -134,8 +150,8 @@ final class PriceRegisterSync
             $units[] = $change['unit'];
         }
 
-        if ($units === []) {
-            return ['applied' => 0, 'created' => 0, 'updated' => 0, 'removed' => 0, 'units' => []];
+        if ($units === [] && $sharedFields === 0) {
+            return ['applied' => 0, 'created' => 0, 'updated' => 0, 'removed' => 0, 'sharedFields' => 0, 'units' => []];
         }
 
         $rows = array_values(array_filter($rows, static fn (int $index): bool => !isset($removed[$index]), ARRAY_FILTER_USE_KEY));
@@ -154,6 +170,7 @@ final class PriceRegisterSync
             'created' => $counts['create'],
             'updated' => $counts['update'],
             'removed' => $counts['remove'],
+            'sharedFields' => $sharedFields,
             'units' => $units,
         ];
     }
@@ -217,12 +234,24 @@ final class PriceRegisterSync
         }
         // Wzór danych dewelopera dla nowych lokali: istniejący wiersz lokalu, a w pustym rejestrze — formularz z panelu.
         $needsShared = $registerIndex === [];
-        $template = $needsShared ? null : $rows[reset($registerIndex)];
-        if ($needsShared) {
-            $template = [];
+        $current = [];
+        foreach (self::SHARED_KEYS as $key) {
+            $value = $needsShared ? '' : self::text($rows[reset($registerIndex)][$key] ?? '');
+            $current[$key] = self::isEmpty($value) ? 'X' : $value;
+        }
+        // Dane z formularza (edycja w panelu) zastępują bieżące — i w nowych lokalach, i w istniejących wierszach.
+        $template = $current;
+        $sharedDiff = [];
+        if ($shared !== null) {
             foreach (self::SHARED_KEYS as $key) {
-                $value = self::text($shared[$key] ?? '');
+                if (!array_key_exists($key, $shared)) {
+                    continue;
+                }
+                $value = self::text($shared[$key]);
                 $template[$key] = self::isEmpty($value) ? 'X' : $value;
+                if (!$needsShared && $template[$key] !== $current[$key]) {
+                    $sharedDiff[$key] = ['from' => $current[$key], 'to' => $template[$key]];
+                }
             }
         }
         $sharedFields = [];
@@ -352,6 +381,8 @@ final class PriceRegisterSync
             'warnings' => $warnings,
             'needsShared' => $needsShared,
             'shared' => $sharedFields,
+            'sharedValues' => $needsShared ? (object) [] : $current,
+            'sharedDiff' => $sharedDiff,
             'typesToFill' => $typesToFill,
             'content' => $content,
             'rows' => $rows,

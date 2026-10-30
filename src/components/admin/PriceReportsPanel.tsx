@@ -17,6 +17,7 @@ import {
   type PriceReportStatus,
   type PriceSyncChange,
   type PriceSyncPlan,
+  type PriceSyncResult,
   type Session,
 } from "@/lib/adminApi";
 
@@ -414,7 +415,7 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<{ applied: number; created: number; updated: number; removed: number } | null>(null);
+  const [result, setResult] = useState<PriceSyncResult | null>(null);
   // Dane dewelopera (pusty rejestr) i rodzaj nieruchomości dla typów z oferty — wpisywane raz, potem rejestr je ma.
   const [shared, setShared] = useState<Record<string, string>>({});
   const [propertyTypes, setPropertyTypes] = useState<Record<string, string>>({});
@@ -426,6 +427,7 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
         if (cancelled) return;
         setPlan(loaded);
         setSelected(new Set(loaded.changes.map((change) => change.id)));
+        setShared(Object.fromEntries(Object.entries(loaded.sharedValues ?? {}).map(([key, value]) => [key, value === "X" ? "" : value])));
       })
       .catch((err) => !cancelled && setError(err instanceof Error ? err.message : "Nie udało się przygotować podglądu."));
     return () => {
@@ -451,7 +453,7 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
     setSaving(true);
     setError("");
     try {
-      setResult(await applyPriceSync(session, investment.key, [...selected], { shared: plan?.needsShared ? shared : undefined, propertyTypes }));
+      setResult(await applyPriceSync(session, investment.key, [...selected], { shared: plan?.needsShared || dirtyShared.length > 0 ? shared : undefined, propertyTypes }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Zapis nie powiódł się.");
     } finally {
@@ -461,7 +463,11 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
 
   const changes = plan?.changes ?? [];
   const creating = changes.some((change) => change.action === "create" && selected.has(change.id));
-  const missingShared = plan?.needsShared && creating ? plan.shared.filter((field) => field.required && !(shared[field.key] ?? "").trim()) : [];
+  // Pola danych dewelopera zmienione względem rejestru (puste = "X", jak w rejestrze).
+  const asCell = (value: string | undefined) => (value ?? "").trim() || "X";
+  const dirtyShared = plan && !plan.needsShared ? plan.shared.filter((field) => asCell(shared[field.key]) !== asCell(plan.sharedValues[field.key])).map((field) => field.key) : [];
+  const missingShared = plan && ((plan.needsShared && creating) || dirtyShared.length > 0) ? plan.shared.filter((field) => field.required && !(shared[field.key] ?? "").trim()) : [];
+  const toSave = selected.size + (dirtyShared.length > 0 ? 1 : 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Synchronizacja z ofertą">
@@ -485,7 +491,8 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
 
           {result && (
             <p className={ui.alertSuccess}>
-              Zapisano w rejestrze: {result.applied} (zmienione ceny: {result.updated}, nowe: {result.created}, usunięte: {result.removed}). Raport dla dane.gov.pl
+              Zapisano w rejestrze: {result.applied} (zmienione ceny: {result.updated}, nowe: {result.created}, usunięte: {result.removed})
+              {result.sharedFields > 0 ? `, dane dewelopera: ${result.sharedFields} ${result.sharedFields === 1 ? "pole" : "pól"}` : ""}. Raport dla dane.gov.pl
               uwzględni je przy najbliższym generowaniu; strona historii cen — po publikacji serwisu.
             </p>
           )}
@@ -516,13 +523,23 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
 
               {changes.length === 0 && <p className="rounded-lg bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">Rejestr zgadza się z ofertą — nie ma nic do zapisania.</p>}
 
-              {plan.needsShared && creating && (
-                <section className={`${ui.card} p-4`}>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              {(!plan.needsShared || creating) && (
+                <details open={plan.needsShared || dirtyShared.length > 0} className={`${ui.card} group/shared p-4`}>
+                  <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <div className="text-sm font-semibold text-zinc-900">Dane dewelopera i inwestycji</div>
-                      <p className="mt-0.5 text-xs text-zinc-500">Rejestr jest pusty — te dane trafią do każdego nowego lokalu. Wpisujesz je raz; kolejne synchronizacje wezmą je z rejestru.</p>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
+                        Dane dewelopera i inwestycji
+                        {dirtyShared.length > 0 && <span className={`${ui.badge} ${ui.badgeWarning}`}>zmienione: {dirtyShared.length}</span>}
+                        {!plan.needsShared && <span className="text-xs font-normal text-zinc-400 group-open/shared:hidden">— rozwiń, aby edytować</span>}
+                      </div>
+                      <p className="mt-0.5 text-xs text-zinc-500">
+                        {plan.needsShared
+                          ? "Rejestr jest pusty — te dane trafią do każdego nowego lokalu. Wpisujesz je raz; kolejne synchronizacje wezmą je z rejestru."
+                          : "Zmiana trafi do wszystkich wierszy rejestru z dotychczasową wartością (wiersze z inną, np. osobnym prospektem miejsc parkingowych, zostają bez zmian) i do nowych lokali."}
+                      </p>
                     </div>
+                  </summary>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
                     {plan.sharedSuggestions.length > 0 && (
                       <select
                         defaultValue=""
@@ -530,7 +547,7 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
                           const suggestion = plan.sharedSuggestions.find((item) => item.slug === event.target.value);
                           if (suggestion) setShared({ ...suggestion.values });
                         }}
-                        className={`${ui.input} sm:w-64`}
+                        className={`${ui.input} sm:w-72`}
                         aria-label="Wypełnij na podstawie innej inwestycji"
                       >
                         <option value="">Wypełnij na podstawie…</option>
@@ -541,25 +558,38 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
                         ))}
                       </select>
                     )}
+                    {dirtyShared.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShared(Object.fromEntries(Object.entries(plan.sharedValues).map(([key, value]) => [key, value === "X" ? "" : value])))}
+                        className={ui.btnSecondarySm}
+                      >
+                        Przywróć dane z rejestru
+                      </button>
+                    )}
                   </div>
                   <div className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2">
-                    {plan.shared.map((field) => (
-                      <label key={field.key} className="block">
-                        <span className="text-xs font-medium text-zinc-600">
-                          {field.label}
-                          {field.required && <span className="text-red-500"> *</span>}
-                        </span>
-                        <input
-                          value={shared[field.key] ?? ""}
-                          onChange={(event) => setShared((current) => ({ ...current, [field.key]: event.target.value }))}
-                          placeholder="X"
-                          className={`${ui.input} mt-1`}
-                        />
-                      </label>
-                    ))}
+                    {plan.shared.map((field) => {
+                      const dirty = dirtyShared.includes(field.key);
+                      return (
+                        <label key={field.key} className="block">
+                          <span className="text-xs font-medium text-zinc-600">
+                            {field.label}
+                            {field.required && <span className="text-red-500"> *</span>}
+                            {dirty && <span className="ml-1.5 font-normal text-amber-600">było: {plan.sharedValues[field.key]}</span>}
+                          </span>
+                          <input
+                            value={shared[field.key] ?? ""}
+                            onChange={(event) => setShared((current) => ({ ...current, [field.key]: event.target.value }))}
+                            placeholder="X"
+                            className={`${ui.input} mt-1 ${dirty ? "border-amber-400 bg-amber-50/40" : ""}`}
+                          />
+                        </label>
+                      );
+                    })}
                   </div>
                   <p className="mt-3 text-xs text-zinc-500">Puste pole = „X” (nie dotyczy), jak w pozostałych rejestrach.</p>
-                </section>
+                </details>
               )}
 
               {plan.typesToFill.length > 0 && creating && (
@@ -640,20 +670,22 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-zinc-100 px-5 py-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-zinc-100 px-5 py-3">
           {result ? (
             <>
+              {/* Przycisk zostaje widoczny — gdy generowanie jest niemożliwe, mówi dlaczego (zamiast znikać). */}
+              {(!investment.published || !investment.enabled) && (
+                <span className="mr-auto text-xs text-zinc-500">
+                  {!investment.published ? "Raport powstanie po opublikowaniu strony historii cen (teraz jest szkicem)." : "Raportowanie tej inwestycji jest wyłączone."}
+                </span>
+              )}
               <button onClick={onClose} className={ui.btnSecondary}>
                 Zamknij
               </button>
-              {investment.enabled && investment.published && (
-                <Can session={session} permission="reports.generate">
-                  <button onClick={onGenerate} className={ui.btnPrimary}>
-                    <RocketIcon className="h-4 w-4" />
-                    Generuj raport teraz
-                  </button>
-                </Can>
-              )}
+              <button onClick={onGenerate} disabled={!investment.enabled || !investment.published} className={ui.btnPrimary}>
+                <RocketIcon className="h-4 w-4" />
+                Generuj raport teraz
+              </button>
             </>
           ) : (
             <>
@@ -661,9 +693,9 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
                 Anuluj
               </button>
               {missingShared.length > 0 && <span className="mr-auto text-xs text-red-600">Uzupełnij: {missingShared.map((field) => field.label).join(", ")}</span>}
-              <button onClick={save} disabled={saving || selected.size === 0 || missingShared.length > 0} className={ui.btnPrimary}>
+              <button onClick={save} disabled={saving || toSave === 0 || missingShared.length > 0} className={ui.btnPrimary}>
                 {saving ? <Spinner /> : <CheckIcon className="h-4 w-4" />}
-                {saving ? "Zapisywanie…" : `Zapisz w rejestrze (${selected.size})`}
+                {saving ? "Zapisywanie…" : `Zapisz w rejestrze (${toSave})`}
               </button>
             </>
           )}

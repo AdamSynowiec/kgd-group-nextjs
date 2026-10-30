@@ -85,13 +85,13 @@ final class PriceReportController
             throw new ApiException($exception->getMessage(), 409);
         }
 
-        if ($result['applied'] > 0) {
+        if ($result['applied'] > 0 || $result['sharedFields'] > 0) {
             $this->activity->log(
                 $currentSession['userId'] ?? null,
                 $currentSession['login'] ?? null,
                 'price-reports.sync',
                 $key,
-                ['created' => $result['created'], 'updated' => $result['updated'], 'removed' => $result['removed'], 'units' => $result['units']]
+                ['created' => $result['created'], 'updated' => $result['updated'], 'removed' => $result['removed'], 'developerFields' => $result['sharedFields'], 'units' => $result['units']]
             );
         }
 

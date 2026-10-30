@@ -483,12 +483,17 @@ export type PriceSyncPlan = {
   /** Rejestr bez wiersza lokalu — dane dewelopera dla nowych lokali podaje formularz ("shared"). */
   needsShared: boolean;
   shared: { key: string; label: string; required: boolean }[];
+  /** Bieżące dane dewelopera w rejestrze (puste, gdy rejestr nie ma wiersza lokalu) — do edycji w panelu. */
+  sharedValues: Record<string, string>;
   sharedSuggestions: { slug: string; name: string; values: Record<string, string> }[];
   /** Typy nowych lokali bez rodzaju nieruchomości w rejestrze ("" = oferta bez kolumny typu). */
   typesToFill: string[];
 };
 
 export type PriceSyncInput = { shared?: Record<string, string>; propertyTypes?: Record<string, string> };
+
+/** sharedFields — ile pól danych dewelopera zmieniono w rejestrze. */
+export type PriceSyncResult = { applied: number; created: number; updated: number; removed: number; sharedFields: number; units: string[] };
 
 /** GET /price-reports/sync — podgląd: co synchronizacja z tabelą lokali zmieni w rejestrze cen (nic nie zapisuje). */
 export function fetchPriceSyncPlan(session: Session | null, key: string): Promise<PriceSyncPlan> {
@@ -501,8 +506,8 @@ export function applyPriceSync(
   key: string,
   ids: string[],
   input: PriceSyncInput = {}
-): Promise<{ applied: number; created: number; updated: number; removed: number; units: string[] }> {
-  return request<{ applied: number; created: number; updated: number; removed: number; units: string[] }>("/price-reports/sync", { method: "POST", body: { key, ids, ...input }, session });
+): Promise<PriceSyncResult> {
+  return request<PriceSyncResult>("/price-reports/sync", { method: "POST", body: { key, ids, ...input }, session });
 }
 
 /** POST /price-reports/generate — jedna inwestycja (key) albo wszystkie (bez key); uprawnienie reports.generate. */
