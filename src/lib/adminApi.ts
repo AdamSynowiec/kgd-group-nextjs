@@ -462,6 +462,38 @@ export function togglePriceReport(session: Session | null, key: string, enabled:
   return request<{ key: string; enabled: boolean }>("/price-reports/toggle", { method: "POST", body: { key, enabled, reason }, session });
 }
 
+/** Zmiana w rejestrze cen proponowana przez synchronizację z ofertą (PriceRegisterSync.php). */
+export type PriceSyncChange = {
+  id: string;
+  action: "create" | "update" | "remove";
+  unit: string;
+  fields: { key: string; label: string; from: string; to: string }[];
+  note: string | null;
+};
+
+export type PriceSyncPlan = {
+  offerSlug: string;
+  registerSlug: string;
+  changes: PriceSyncChange[];
+  unchanged: number;
+  untouched: string[];
+  warnings: string[];
+};
+
+/** GET /price-reports/sync — podgląd: co synchronizacja z tabelą lokali zmieni w rejestrze cen (nic nie zapisuje). */
+export function fetchPriceSyncPlan(session: Session | null, key: string): Promise<PriceSyncPlan> {
+  return request<PriceSyncPlan>("/price-reports/sync", { params: { key }, session });
+}
+
+/** POST /price-reports/sync — zapisuje w rejestrze wybrane zmiany z podglądu (uprawnienie reports.generate). */
+export function applyPriceSync(
+  session: Session | null,
+  key: string,
+  ids: string[]
+): Promise<{ applied: number; created: number; updated: number; removed: number; units: string[] }> {
+  return request<{ applied: number; created: number; updated: number; removed: number; units: string[] }>("/price-reports/sync", { method: "POST", body: { key, ids }, session });
+}
+
 /** POST /price-reports/generate — jedna inwestycja (key) albo wszystkie (bez key); uprawnienie reports.generate. */
 export function generatePriceReports(session: Session | null, key?: string): Promise<PriceReportStatus[]> {
   return request<PriceReportStatus[]>("/price-reports/generate", { method: "POST", body: key ? { key } : {}, session });

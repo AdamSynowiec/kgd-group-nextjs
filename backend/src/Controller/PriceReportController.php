@@ -7,8 +7,11 @@ namespace App\Controller;
 use App\Exception\ApiException;
 use App\Http\JsonResponse;
 use App\Http\Request;
+use App\PriceReport\PriceRegisterSync;
 use App\PriceReport\PriceReportGenerator;
 use App\Repository\ActivityLogRepositoryInterface;
+use App\Repository\MysqlPageLockRepository;
+use PDOException;
 use RuntimeException;
 
 if (!defined('APP_ENTRY')) {
@@ -28,8 +31,81 @@ final class PriceReportController
 
     public function __construct(
         private readonly PriceReportGenerator $generator,
-        private readonly ActivityLogRepositoryInterface $activity
+        private readonly ActivityLogRepositoryInterface $activity,
+        private readonly ?PriceRegisterSync $sync = null,
+        private readonly ?MysqlPageLockRepository $locks = null
     ) {
+    }
+
+    /** GET /price-reports/sync?key=foxhills — podgląd: co synchronizacja z ofertą zmieni w rejestrze cen. */
+    public function syncPreview(Request $request): void
+    {
+        $slug = $this->registerSlug($this->key($request->query['key'] ?? null));
+
+        try {
+            JsonResponse::ok($this->registerSync()->plan($slug));
+        } catch (RuntimeException $exception) {
+            throw new ApiException($exception->getMessage(), 409);
+        }
+    }
+
+    /**
+     * POST /price-reports/sync  body: {"key": "foxhills", "ids": ["update:I.W.11", ...]} — zapis wybranych zmian z podglądu.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function sync(Request $request, ?array $currentSession): void
+    {
+        $body = $request->jsonBody();
+        $key = $this->key($body['key'] ?? null);
+        $ids = array_values(array_filter((array) ($body['ids'] ?? []), 'is_string'));
+        $slug = $this->registerSlug($key);
+
+        // Ktoś ma otwarty rejestr w edytorze — jego zapis nadpisałby synchronizację (i odwrotnie).
+        try {
+            $lock = $this->locks?->current($slug);
+        } catch (PDOException $exception) {
+            error_log('[page-lock] ' . $exception->getMessage());
+            $lock = null;
+        }
+        if ($lock !== null) {
+            throw new ApiException("Historię cen edytuje teraz {$lock['login']} — zamknij edytor tej strony i spróbuj ponownie.", 409);
+        }
+
+        try {
+            $result = $this->registerSync()->apply($slug, $ids);
+        } catch (RuntimeException $exception) {
+            throw new ApiException($exception->getMessage(), 409);
+        }
+
+        if ($result['applied'] > 0) {
+            $this->activity->log(
+                $currentSession['userId'] ?? null,
+                $currentSession['login'] ?? null,
+                'price-reports.sync',
+                $key,
+                ['created' => $result['created'], 'updated' => $result['updated'], 'removed' => $result['removed'], 'units' => $result['units']]
+            );
+        }
+
+        JsonResponse::ok($result);
+    }
+
+    private function registerSync(): PriceRegisterSync
+    {
+        return $this->sync ?? throw new ApiException('Synchronizacja z ofertą jest niedostępna.', 501);
+    }
+
+    /** Klucz inwestycji -> adres strony jej rejestru cen. */
+    private function registerSlug(string $key): string
+    {
+        foreach ($this->generator->discover() as $investment) {
+            if ($investment['key'] === $key) {
+                return $investment['sourceSlug'];
+            }
+        }
+
+        throw new ApiException('Nie znaleziono inwestycji z rejestrem cen.', 404);
     }
 
     /** GET /price-reports — inwestycje z tabelą historii cen + stan ich katalogów. */

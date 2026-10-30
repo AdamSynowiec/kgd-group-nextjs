@@ -25,6 +25,7 @@ use App\Http\Request;
 use App\Http\Router;
 use App\Http\SessionAuth;
 use App\Http\SessionToken;
+use App\PriceReport\PriceRegisterSync;
 use App\PriceReport\PriceReportGenerator;
 use App\Repository\MysqlAccountRepository;
 use App\Repository\MysqlActivityLogRepository;
@@ -342,8 +343,19 @@ $router->post('/page-identity', static function (Request $req) use ($adminContro
 // ręczne generowanie. Codziennie generuje je cron (cron.php) — patrz PriceReportGenerator.php.
 $priceReportController = static fn (): PriceReportController => new PriceReportController(
     new PriceReportGenerator(new MysqlPageRepository(Connection::get($config)), $config->get('SITE_URL', 'https://kgd-group.pl')),
-    $activityLogRepository()
+    $activityLogRepository(),
+    new PriceRegisterSync(new MysqlPageRepository(Connection::get($config))),
+    new MysqlPageLockRepository(Connection::get($config))
 );
+// Synchronizacja rejestru cen z tabelą lokali na stronie inwestycji (PriceRegisterSync.php) — podgląd i zapis.
+$router->get('/price-reports/sync', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.generate');
+    $priceReportController()->syncPreview($req);
+});
+$router->post('/price-reports/sync', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.generate');
+    $priceReportController()->sync($req, $currentSession);
+});
 $router->get('/price-reports', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'reports.list');
     $priceReportController()->list();

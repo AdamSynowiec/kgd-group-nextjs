@@ -2,17 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Can from "@/components/admin/Can";
-import { ArrowLeftIcon, CheckIcon, CloseIcon, ExternalIcon, FileIcon, FolderIcon, RocketIcon } from "@/components/admin/icons";
+import { ArrowLeftIcon, CheckIcon, CloseIcon, ExternalIcon, FileIcon, FolderIcon, LayersIcon, RocketIcon } from "@/components/admin/icons";
 import { ui } from "@/components/admin/ui";
 import {
+  applyPriceSync,
   fetchPriceReportFile,
   fetchPriceReportFiles,
   fetchPriceReports,
+  fetchPriceSyncPlan,
   generatePriceReports,
   togglePriceReport,
   type PriceReportFile,
   type PriceReportInvestment,
   type PriceReportStatus,
+  type PriceSyncChange,
+  type PriceSyncPlan,
   type Session,
 } from "@/lib/adminApi";
 
@@ -243,6 +247,7 @@ function FolderView({
   const [status, setStatus] = useState<PriceReportStatus | null>(investment.status);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<PriceReportFile | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Odświeżane także po wygenerowaniu (investment.status zmienia się po load() w rodzicu).
   useEffect(() => {
@@ -289,6 +294,10 @@ function FolderView({
                 <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${investment.enabled ? "translate-x-[18px]" : "translate-x-0.5"}`} />
               </span>
               {investment.enabled ? "Raportowanie włączone" : "Raportowanie wyłączone"}
+            </button>
+            <button onClick={() => setSyncing(true)} disabled={generating} className={ui.btnSecondary} title="Przenieś ceny z tabeli lokali na stronie inwestycji do rejestru cen">
+              <LayersIcon className="h-4 w-4" />
+              Synchronizuj z ofertą
             </button>
             {investment.enabled && (
               <button onClick={onGenerate} disabled={generating || !investment.published} className={ui.btnPrimary} title={investment.published ? undefined : "Strona historii cen jest szkicem"}>
@@ -375,6 +384,210 @@ function FolderView({
       </div>
 
       {preview && <FilePreview investmentKey={investment.key} file={preview} session={session} onClose={() => setPreview(null)} />}
+      {syncing && (
+        <SyncDialog
+          investment={investment}
+          session={session}
+          onClose={() => setSyncing(false)}
+          onGenerate={() => {
+            setSyncing(false);
+            onGenerate();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const SYNC_GROUPS: { action: PriceSyncChange["action"]; title: string; hint: string; tone: string }[] = [
+  { action: "update", title: "Zmienione ceny", hint: "nowa cena i data jej obowiązywania", tone: "bg-amber-50 text-amber-700 ring-amber-600/20" },
+  { action: "create", title: "Nowe lokale", hint: "są w ofercie, nie ma ich w rejestrze", tone: "bg-emerald-50 text-emerald-700 ring-emerald-600/15" },
+  { action: "remove", title: "Sprzedane", hint: "znikną z rejestru — raport obejmuje lokale w sprzedaży", tone: "bg-red-50 text-red-700 ring-red-600/15" },
+];
+
+/**
+ * "Synchronizuj z ofertą": podgląd zmian, jakie tabela lokali ze strony inwestycji wprowadzi do rejestru cen
+ * (PriceRegisterSync.php), wybór i zapis. Nic nie trafia do rejestru przed kliknięciem "Zapisz w rejestrze".
+ */
+function SyncDialog({ investment, session, onClose, onGenerate }: { investment: PriceReportInvestment; session: Session | null; onClose: () => void; onGenerate: () => void }) {
+  const [plan, setPlan] = useState<PriceSyncPlan | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<{ applied: number; created: number; updated: number; removed: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPriceSyncPlan(session, investment.key)
+      .then((loaded) => {
+        if (cancelled) return;
+        setPlan(loaded);
+        setSelected(new Set(loaded.changes.map((change) => change.id)));
+      })
+      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : "Nie udało się przygotować podglądu."));
+    return () => {
+      cancelled = true;
+    };
+  }, [investment.key, session]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && !saving && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, saving]);
+
+  function toggle(ids: string[], on: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  }
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    try {
+      setResult(await applyPriceSync(session, investment.key, [...selected]));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Zapis nie powiódł się.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const changes = plan?.changes ?? [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Synchronizacja z ofertą">
+      <div className="absolute inset-0" onClick={() => !saving && onClose()} />
+      <div className="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-2xl">
+        <div className="flex items-start gap-3 border-b border-zinc-100 px-5 py-4">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-zinc-900">Synchronizacja z ofertą · {investment.name}</div>
+            <div className="mt-0.5 text-xs text-zinc-500">
+              Ceny z tabeli lokali na stronie inwestycji{plan ? ` (${plan.offerSlug})` : ""} trafiają do rejestru cen w odpowiednie kolumny raportu — bez przeliczania.
+            </div>
+          </div>
+          <button onClick={onClose} disabled={saving} aria-label="Zamknij" className={ui.iconBtn}>
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-auto px-5 py-4">
+          {error && <p className={ui.alertError}>{error}</p>}
+          {!plan && !error && <div className="h-40 animate-pulse rounded-lg bg-zinc-100" />}
+
+          {result && (
+            <p className={ui.alertSuccess}>
+              Zapisano w rejestrze: {result.applied} (zmienione ceny: {result.updated}, nowe: {result.created}, usunięte: {result.removed}). Raport dla dane.gov.pl
+              uwzględni je przy najbliższym generowaniu; strona historii cen — po publikacji serwisu.
+            </p>
+          )}
+
+          {plan && !result && (
+            <>
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-zinc-500">
+                <span>
+                  Bez zmian: <b className="font-semibold tabular-nums text-zinc-800">{plan.unchanged}</b>
+                </span>
+                <span>
+                  Do zapisania: <b className="font-semibold tabular-nums text-zinc-800">{changes.length}</b>
+                </span>
+                {plan.untouched.length > 0 && (
+                  <span title={plan.untouched.join(", ")}>
+                    Tylko w rejestrze (nie ruszane): <b className="font-semibold tabular-nums text-zinc-800">{plan.untouched.length}</b>
+                  </span>
+                )}
+              </div>
+
+              {plan.warnings.length > 0 && (
+                <ul className="list-disc space-y-1 rounded-lg border border-amber-200 bg-amber-50 py-2.5 pl-8 pr-3 text-xs text-amber-800">
+                  {plan.warnings.map((warning, index) => (
+                    <li key={index}>{warning}</li>
+                  ))}
+                </ul>
+              )}
+
+              {changes.length === 0 && <p className="rounded-lg bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">Rejestr zgadza się z ofertą — nie ma nic do zapisania.</p>}
+
+              {SYNC_GROUPS.map((group) => {
+                const items = changes.filter((change) => change.action === group.action);
+                if (items.length === 0) return null;
+                const ids = items.map((item) => item.id);
+                const all = ids.every((id) => selected.has(id));
+                return (
+                  <section key={group.action} className={`${ui.card} overflow-hidden`}>
+                    <label className="flex cursor-pointer items-center gap-3 border-b border-zinc-100 bg-zinc-50/70 px-4 py-2.5">
+                      <input type="checkbox" checked={all} onChange={(event) => toggle(ids, event.target.checked)} className="h-4 w-4 rounded border-zinc-300" />
+                      <span className="text-sm font-semibold text-zinc-900">{group.title}</span>
+                      <span className={`${ui.badge} ${group.tone}`}>{items.length}</span>
+                      <span className="ml-auto hidden text-xs text-zinc-500 sm:inline">{group.hint}</span>
+                    </label>
+                    <ul className="divide-y divide-zinc-100">
+                      {items.map((change) => (
+                        <li key={change.id}>
+                          <label className="flex cursor-pointer gap-3 px-4 py-2.5 hover:bg-zinc-50/60">
+                            <input type="checkbox" checked={selected.has(change.id)} onChange={(event) => toggle([change.id], event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 rounded border-zinc-300" />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium text-zinc-900">{change.unit}</div>
+                              {change.fields.length > 0 && (
+                                <dl className="mt-1 grid gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2">
+                                  {change.fields
+                                    .filter((field) => field.key !== "unit")
+                                    .map((field) => (
+                                      <div key={field.key} className="flex gap-1.5">
+                                        <dt className="shrink-0 text-zinc-500">{field.label}:</dt>
+                                        <dd className="min-w-0 truncate tabular-nums text-zinc-800">
+                                          {field.from && <span className="text-zinc-400 line-through">{field.from}</span>}
+                                          {field.from && " → "}
+                                          {field.to}
+                                        </dd>
+                                      </div>
+                                    ))}
+                                </dl>
+                              )}
+                              {change.note && <p className="mt-1 text-xs text-amber-700">{change.note}</p>}
+                            </div>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-zinc-100 px-5 py-3">
+          {result ? (
+            <>
+              <button onClick={onClose} className={ui.btnSecondary}>
+                Zamknij
+              </button>
+              {investment.enabled && investment.published && (
+                <Can session={session} permission="reports.generate">
+                  <button onClick={onGenerate} className={ui.btnPrimary}>
+                    <RocketIcon className="h-4 w-4" />
+                    Generuj raport teraz
+                  </button>
+                </Can>
+              )}
+            </>
+          ) : (
+            <>
+              <button onClick={onClose} disabled={saving} className={ui.btnSecondary}>
+                Anuluj
+              </button>
+              <button onClick={save} disabled={saving || selected.size === 0} className={ui.btnPrimary}>
+                {saving ? <Spinner /> : <CheckIcon className="h-4 w-4" />}
+                {saving ? "Zapisywanie…" : `Zapisz w rejestrze (${selected.size})`}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
