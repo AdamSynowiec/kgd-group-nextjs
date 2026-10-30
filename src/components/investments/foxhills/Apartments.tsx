@@ -889,26 +889,37 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                 )}
 
                 {activeView ? (
-                  <motion.div key={view} role="tabpanel" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mt-8 border-t border-[#BCC0C1]/25 pt-8">
-                    <h4 className="font-dmserif text-[28px] leading-tight text-[#E7E7E7]">{activeView.label}</h4>
-                    {activeView.text && <p className="mt-4 whitespace-pre-line text-[14px] font-light leading-[1.8] text-[#E7E7E7]/75">{activeView.text}</p>}
+                  <motion.div key={view} role="tabpanel" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mt-6 border-t border-[#BCC0C1]/25 pt-6">
+                    <h4 className="font-dmserif text-[24px] leading-tight text-[#E7E7E7]">{activeView.label}</h4>
+                    {activeView.text && <p className="mt-3 whitespace-pre-line text-[13px] font-light leading-[1.7] text-[#E7E7E7]/75">{activeView.text}</p>}
                     {activeRooms.length > 0 && (
-                      <dl className="mt-6">
-                        {activeRooms.map((room, index) => (
-                          <div key={`${index}-${room.name}`} className="flex items-baseline justify-between gap-6 border-b border-[#BCC0C1]/15 py-3">
-                            <dt className="text-[14px] font-light text-[#E7E7E7]/80">
-                              {room.name}
-                              {room.excluded && <span className="ml-2 text-[10px] uppercase tracking-[0.2em] text-[#E7E7E7]/40">poza sumą</span>}
-                            </dt>
-                            {room.area !== null && <dd className={`${NUM} shrink-0 text-[18px] ${room.excluded ? "text-[#E7E7E7]/50" : "text-[#E7E7E7]"}`}>{formatArea(room.area)}</dd>}
-                          </div>
-                        ))}
+                      // Kolejność: pomieszczenia wliczane, wyróżniony pas "Razem", pod nim pozycje poza sumą (taras, balkon…).
+                      <dl className="mt-4">
+                        {activeRooms
+                          .filter((room) => !room.excluded)
+                          .map((room, index) => (
+                            <div key={`${index}-${room.name}`} className="flex items-baseline justify-between gap-6 border-b border-[#BCC0C1]/12 py-2">
+                              <dt className="text-[13px] font-light text-[#E7E7E7]/75">{room.name}</dt>
+                              {room.area !== null && <dd className={`${NUM} shrink-0 text-[15px] text-[#E7E7E7]`}>{formatArea(room.area)}</dd>}
+                            </div>
+                          ))}
                         {activeRoomsTotal > 0 && (
-                          <div className="flex items-baseline justify-between gap-6 pt-4">
-                            <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Razem</dt>
-                            <dd className={`${NUM} shrink-0 text-[22px] text-[#E7E7E7]`}>{formatArea(activeRoomsTotal)}</dd>
+                          <div className="mt-2 flex items-baseline justify-between gap-6 border-l-2 border-[#BCC0C1] bg-[#BCC0C1]/[0.08] px-4 py-3">
+                            <dt className="text-[11px] font-medium uppercase tracking-[0.25em] text-[#E7E7E7]">Razem</dt>
+                            <dd className={`${NUM} shrink-0 text-[22px] text-[#F7F7F7]`}>{formatArea(activeRoomsTotal)}</dd>
                           </div>
                         )}
+                        {activeRooms
+                          .filter((room) => room.excluded)
+                          .map((room, index) => (
+                            <div key={`excluded-${index}-${room.name}`} className={`flex items-baseline justify-between gap-6 py-2 ${index > 0 ? "border-t border-[#BCC0C1]/12" : "mt-2"}`}>
+                              <dt className="text-[13px] font-light text-[#E7E7E7]/55">
+                                {room.name}
+                                <span className="ml-2 text-[9px] uppercase tracking-[0.2em] text-[#E7E7E7]/35">poza sumą</span>
+                              </dt>
+                              {room.area !== null && <dd className={`${NUM} shrink-0 text-[15px] text-[#E7E7E7]/50`}>{formatArea(room.area)}</dd>}
+                            </div>
+                          ))}
                       </dl>
                     )}
                   </motion.div>
