@@ -1,4 +1,5 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
+import { RICH_TEXT_CONTENT_CLASS } from "@/lib/richTextStyles";
 
 type Block =
   | { type: "heading"; level?: number; text: string }
@@ -8,6 +9,8 @@ type Block =
 type PrivacyPolicyFields = {
   title?: EditableValue<string> | string;
   blocks?: Block[];
+  /** Cała treść edytowalna w panelu (richtext = HTML z RichTextEditor). Niepusta = zastępuje "blocks". */
+  body?: EditableValue<string> | string;
 };
 
 function BlockView({ block }: { block: Block }) {
@@ -41,18 +44,23 @@ function BlockView({ block }: { block: Block }) {
  * Naprawdę globalny szablon (identyczny dla każdej inwestycji) — treść jako
  * strukturalne bloki (heading/paragraph/list), nie surowy HTML, zgodnie z
  * konwencją src/components/sections/RichText.tsx (ochrona przed XSS).
+ * Pole "body" (type "richtext") = cała treść edytowalna w panelu; gdy niepuste, zastępuje "blocks".
  */
 export default function PrivacyPolicy({ fields }: { fields: PrivacyPolicyFields }) {
   const title = unwrap(fields.title) || "Polityka prywatności";
   const blocks = fields.blocks ?? [];
+  const body = unwrap(fields.body)?.trim();
 
   return (
     <section className="bg-white py-16 pt-[150px]">
       <div className="container mx-auto px-6 text-gray-800 leading-relaxed max-w-4xl">
         <h1 className="text-3xl font-bold mb-8">{title}</h1>
-        {blocks.map((block, i) => (
-          <BlockView key={i} block={block} />
-        ))}
+        {body ? (
+          // HTML oczyszczany sanitizeHtml() w panelu przy każdej zmianie — jak treść wpisów bloga (BlogPost.tsx).
+          <div className={RICH_TEXT_CONTENT_CLASS} dangerouslySetInnerHTML={{ __html: body }} />
+        ) : (
+          blocks.map((block, i) => <BlockView key={i} block={block} />)
+        )}
       </div>
     </section>
   );

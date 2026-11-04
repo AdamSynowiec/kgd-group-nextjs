@@ -92,13 +92,56 @@ const formatArea = (value: number | string) => `${fmt(value)} m²`;
 const formatMoney = (value: number | string) => `${Math.round(num(value)).toLocaleString("pl-PL").replace(/ /g, " ")} zł`;
 
 /** Cena łączna: pole "price" z panelu, a gdy puste — PUM × cena za m². */
+/** Cienki, półprzezroczysty pasek przewijania okna karty lokalu (Firefox: scrollbar-*, Chrome/Safari/Edge: ::-webkit-scrollbar). */
+const SUBTLE_SCROLL =
+  "[scrollbar-width:thin] [scrollbar-color:rgba(188,192,193,0.3)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#BCC0C1]/30 hover:[&::-webkit-scrollbar-thumb]:bg-[#BCC0C1]/50";
+
 /** Cenę i kartę lokalu pokazujemy tylko dla lokali dostępnych — sprzedane i zarezerwowane mają sam status. */
 const forSale = (unit: Unit) => statusOf(unit.status) === "available";
 
-/** Dodatki przypisane do lokalu (komórka, miejsca postojowe) z ceną > 0. */
-const extrasOf = (unit: Unit) => (Array.isArray(unit.extras) ? unit.extras : []).filter((item) => item && item.label && num(item.price) > 0);
+/**
+ * Dodatki zbierane z kart lokalu (np. zakładka "Parking i Komórka"): pomieszczenia o tych nazwach
+ * (liczba i metraż) + stawki z opisu zakładki, np. "2 miejsca postojowe: 30 000 zł/szt." /
+ * "Komórka lokatorska: 5 000 zł/m²". Stawka wpisana tylko w jednym lokalu obowiązuje wszystkie.
+ */
+const EXTRA_KINDS = [
+  { label: "Komórka lokatorska", match: /kom[oó]rk/i },
+  { label: "Miejsce postojowe", match: /miejsc\S*\s+postoj|parking/i },
+];
+type ExtraRate = { amount: number; perM2: boolean };
+
+function extraRates(unit: Unit): (ExtraRate | null)[] {
+  const lines = (unit.card?.tabs ?? []).flatMap((tab) => (tab.text ?? "").split(/\r?\n/));
+  return EXTRA_KINDS.map((kind) => {
+    for (const line of lines) {
+      const hit = line.match(/^(.*?):\s*([\d\s .,]+)\s*zł\s*\/\s*(szt|m)/i);
+      if (hit && kind.match.test(hit[1]) && num(hit[2]) > 0) return { amount: num(hit[2]), perM2: hit[3].toLowerCase() === "m" };
+    }
+    return null;
+  });
+}
+
+function extrasFromCard(unit: Unit, allUnits: Unit[]): UnitExtra[] {
+  const rooms = (unit.card?.tabs ?? []).flatMap((tab) => tab.rooms ?? []);
+  const own = extraRates(unit);
+  return EXTRA_KINDS.flatMap((kind, index) => {
+    const found = rooms.filter((room) => kind.match.test(room.name ?? ""));
+    if (found.length === 0) return [];
+    const rate = own[index] ?? allUnits.map((other) => extraRates(other)[index]).find(Boolean) ?? null;
+    if (!rate) return [];
+    if (rate.perM2) {
+      const area = found.reduce((sum, room) => sum + num(room.area), 0);
+      return [{ label: kind.label, qty: 1, price: area * rate.amount }];
+    }
+    return [{ label: kind.label, qty: found.length, price: rate.amount }];
+  });
+}
+
+/** Dodatki przypisane do lokalu (komórka, miejsca postojowe) z ceną > 0: pole "extras", a gdy puste — z karty lokalu. */
+const extrasOf = (unit: Unit, allUnits: Unit[] = []) =>
+  (Array.isArray(unit.extras) && unit.extras.length > 0 ? unit.extras : extrasFromCard(unit, allUnits)).filter((item) => item && item.label && num(item.price) > 0);
 const extraQty = (item: UnitExtra) => Math.max(1, Math.round(num(item.qty, 1)));
-const extrasTotal = (unit: Unit) => extrasOf(unit).reduce((sum, item) => sum + extraQty(item) * num(item.price), 0);
+const extrasTotal = (unit: Unit, allUnits: Unit[] = []) => extrasOf(unit, allUnits).reduce((sum, item) => sum + extraQty(item) * num(item.price), 0);
 /** Cena lokalu jako liczba (pole "price" albo PUM × cena za m²); 0, gdy brak ceny. */
 const unitPriceValue = (unit: Unit) => (unit.price ? num(unit.price) : num(unit.area) * num(unit.pricePerM2));
 
@@ -832,9 +875,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              className={`relative grid max-h-full w-full max-w-5xl overflow-y-auto border border-[#BCC0C1]/40 bg-[#171A1C] shadow-[0_50px_150px_-30px_rgba(0,0,0,1)] md:grid-cols-2 ${
-                openViews.length > 0 ? "md:h-[min(860px,100%)] md:overflow-hidden" : ""
-              }`}
+              className={`relative grid max-h-full w-full max-w-[1500px] overflow-y-auto ${SUBTLE_SCROLL} border border-[#BCC0C1]/40 bg-[#171A1C] shadow-[0_50px_150px_-30px_rgba(0,0,0,1)] md:h-[min(860px,100%)] md:grid-cols-2 md:overflow-hidden`}
               onClick={(event) => event.stopPropagation()}
             >
               <button type="button" onClick={() => setOpen(null)} aria-label="Zamknij" className="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center border border-[#BCC0C1]/50 bg-[#171A1C]/80 text-[#E7E7E7] transition-colors hover:bg-[#BCC0C1] hover:text-[#171A1C]">
@@ -869,159 +910,168 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                 )}
               </div>
 
-              <div className={`p-8 sm:p-10 ${openViews.length > 0 ? "md:overflow-y-auto" : ""}`}>
-                <Eyebrow>Karta lokalu</Eyebrow>
-                <h3 className="mt-5 font-dmserif text-[44px] font-medium leading-none text-[#E7E7E7]">{open.unit}</h3>
-                <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <span className={`inline-flex items-center gap-2 border px-3 py-1 text-[10px] font-medium uppercase tracking-[0.25em] ${STATUS[statusOf(open.status)].badge}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${STATUS[statusOf(open.status)].dot}`} />
-                    {STATUS[statusOf(open.status)].label}
-                  </span>
-                  <span className="text-[11px] uppercase tracking-[0.25em] text-[#E7E7E7]/55">{open.type}</span>
-                </div>
-
-                {openViews.length > 0 && (
-                  <div role="tablist" aria-label="Widoki lokalu" className="-mx-1 mt-7 flex flex-wrap gap-2 px-1">
-                    {[summaryLabel, ...openViews.map((row) => row.label)].map((label, index) => (
-                      <button
-                        key={`${index}-${label}`}
-                        type="button"
-                        role="tab"
-                        aria-selected={view === index}
-                        onClick={() => setView(index)}
-                        className={`border px-4 py-2 text-[10px] font-medium uppercase tracking-[0.25em] transition-colors ${
-                          view === index ? "border-[#BCC0C1] bg-[#BCC0C1] text-[#171A1C]" : "border-[#BCC0C1]/35 text-[#E7E7E7]/80 hover:border-[#E7E7E7]"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {activeView ? (
-                  <motion.div key={view} role="tabpanel" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mt-6 border-t border-[#BCC0C1]/25 pt-6">
-                    <h4 className="font-dmserif text-[24px] leading-tight text-[#E7E7E7]">{activeView.label}</h4>
-                    {activeView.text && <p className="mt-3 whitespace-pre-line text-[13px] font-light leading-[1.7] text-[#E7E7E7]/75">{activeView.text}</p>}
-                    {activeRooms.length > 0 && (
-                      // Kolejność: pomieszczenia wliczane, wyróżniony pas "Razem", pod nim pozycje poza sumą (taras, balkon…).
-                      <dl className="mt-4">
-                        {activeRooms
-                          .filter((room) => !room.excluded)
-                          .map((room, index) => (
-                            <div key={`${index}-${room.name}`} className="flex items-baseline justify-between gap-6 border-b border-[#BCC0C1]/12 py-2">
-                              <dt className="text-[13px] font-light text-[#E7E7E7]/75">{room.name}</dt>
-                              {room.area !== null && <dd className={`${NUM} shrink-0 text-[15px] text-[#E7E7E7]`}>{formatArea(room.area)}</dd>}
-                            </div>
-                          ))}
-                        {activeRoomsTotal > 0 && (
-                          <div className="mt-2 flex items-baseline justify-between gap-6 border-l-2 border-[#BCC0C1] bg-[#BCC0C1]/[0.08] px-4 py-3">
-                            <dt className="text-[11px] font-medium uppercase tracking-[0.25em] text-[#E7E7E7]">Razem</dt>
-                            <dd className={`${NUM} shrink-0 text-[22px] text-[#F7F7F7]`}>{formatArea(activeRoomsTotal)}</dd>
-                          </div>
-                        )}
-                        {activeRooms
-                          .filter((room) => room.excluded)
-                          .map((room, index) => (
-                            <div key={`excluded-${index}-${room.name}`} className={`flex items-baseline justify-between gap-6 py-2 ${index > 0 ? "border-t border-[#BCC0C1]/12" : "mt-2"}`}>
-                              <dt className="text-[13px] font-light text-[#E7E7E7]/55">
-                                {room.name}
-                                <span className="ml-2 text-[9px] uppercase tracking-[0.2em] text-[#E7E7E7]/35">poza sumą</span>
-                              </dt>
-                              {room.area !== null && <dd className={`${NUM} shrink-0 text-[15px] text-[#E7E7E7]/50`}>{formatArea(room.area)}</dd>}
-                            </div>
-                          ))}
-                      </dl>
-                    )}
-                  </motion.div>
-                ) : (
-                <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-6 border-t border-[#BCC0C1]/25 pt-8">
-                  {[
-                    ["layers", "Strefa", zoneName(open.zone)],
-                    ["facade", "Piętro", open.floor],
-                    ["bed", "Pokoje", String(num(open.rooms))],
-                    ["area", "PUM", formatArea(open.area)],
-                  ].map(([icon, label, value]) => (
-                    <div key={label} className="flex items-start gap-3">
-                      <Icon name={icon} className="mt-0.5 h-5 w-5 flex-none text-[#BCC0C1]" strokeWidth={1} />
-                      <div>
-                        <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">{label}</dt>
-                        <dd className={`mt-1 ${NUM} text-[22px] text-[#E7E7E7]`}>{value}</dd>
-                      </div>
+              <div className="flex flex-col md:min-h-0">
+                {/* Nagłówek (stały): numer, status, pliki, zakładki. */}
+                <div className="shrink-0 px-6 pb-1 pt-6 sm:px-8 sm:pt-8 lg:px-10">
+                  <Eyebrow>Karta lokalu</Eyebrow>
+                  <h3 className="mt-3 font-dmserif text-[40px] font-medium leading-none text-[#E7E7E7]">{open.unit}</h3>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <span className={`inline-flex items-center gap-2 border px-3 py-1 text-[10px] font-medium uppercase tracking-[0.25em] ${STATUS[statusOf(open.status)].badge}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${STATUS[statusOf(open.status)].dot}`} />
+                      {STATUS[statusOf(open.status)].label}
+                    </span>
+                    <span className="text-[11px] uppercase tracking-[0.25em] text-[#E7E7E7]/55">{open.type}</span>
+                    <div className="ml-auto flex flex-wrap gap-x-5 gap-y-2">
+                      {[
+                        { label: cardProspectusLabel, url: openCard?.prospectusUrl?.trim() || prospectusUrl },
+                        { label: standardLabel, url: openCard?.standardUrl?.trim() || standardUrl },
+                      ].map(({ label, url }) => (
+                        <a
+                          key={label}
+                          href={url || "#kontakt"}
+                          onClick={url ? undefined : () => setOpen(null)}
+                          {...(url ? { target: "_blank", rel: "noopener noreferrer", download: true } : {})}
+                          className="group inline-flex items-center gap-2.5 border-b border-[#BCC0C1]/35 pb-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-[#E7E7E7]/85 transition-colors hover:border-[#E7E7E7] hover:text-[#F7F7F7]"
+                        >
+                          <Icon name={url ? "download" : "mail"} className="h-4 w-4 text-[#BCC0C1] transition-colors group-hover:text-[#F7F7F7]" />
+                          {label}
+                        </a>
+                      ))}
                     </div>
-                  ))}
-                  <div className="col-span-2">
-                    <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Dodatkowe powierzchnie</dt>
-                    <dd className="mt-1 text-[14px] font-light leading-relaxed text-[#E7E7E7]/75">
-                      {num(open.garden) > 0 ? `Ogród: ${formatArea(open.garden ?? 0)}` : "Bez ogrodu"}
-                      {num(open.plot) > 0 && ` · Działka: ${formatArea(open.plot ?? 0)}`}
-                    </dd>
                   </div>
-                  {open.layout && (
-                    <div className="col-span-2">
-                      <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Układ</dt>
-                      <dd className="mt-1 text-[13px] font-light leading-relaxed text-[#E7E7E7]/70">{open.layout}</dd>
+
+                  {openViews.length > 0 && (
+                    <div role="tablist" aria-label="Widoki lokalu" className="mt-5 flex flex-wrap gap-2">
+                      {[summaryLabel, ...openViews.map((row) => row.label)].map((label, index) => (
+                        <button
+                          key={`${index}-${label}`}
+                          type="button"
+                          role="tab"
+                          aria-selected={view === index}
+                          onClick={() => setView(index)}
+                          className={`border px-4 py-2 text-[10px] font-medium uppercase tracking-[0.25em] transition-colors ${
+                            view === index ? "border-[#BCC0C1] bg-[#BCC0C1] text-[#171A1C]" : "border-[#BCC0C1]/35 text-[#E7E7E7]/80 hover:border-[#E7E7E7]"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
                   )}
-                  <div className="col-span-2">
-                    <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Cena</dt>
-                    <dd className={`mt-1 ${NUM} text-[28px] text-[#E7E7E7]`}>{totalPrice(open)}</dd>
-                    {num(open.pricePerM2) > 0 && <dd className="mt-1 text-[12px] font-light text-[#E7E7E7]/50">{fmt(open.pricePerM2 ?? 0, 0)} zł/m²</dd>}
-                    {extrasOf(open).length > 0 && unitPriceValue(open) > 0 && (
-                      <dd className="mt-4 border-t border-[#BCC0C1]/25 pt-4">
-                        <ul className="space-y-1.5 text-[13px] font-light text-[#E7E7E7]/75">
-                          {extrasOf(open).map((item) => (
-                            <li key={item.label} className="flex items-baseline justify-between gap-4">
-                              <span>
-                                {item.label}
-                                {extraQty(item) > 1 && <span className="text-[#E7E7E7]/50"> × {extraQty(item)}</span>}
-                              </span>
-                              <span className={`${NUM} whitespace-nowrap text-[14px] text-[#E7E7E7]`}>
-                                {extraQty(item) > 1 && <span className="mr-2 text-[11px] text-[#E7E7E7]/50">{extraQty(item)} × {formatMoney(item.price)}</span>}
-                                {formatMoney(extraQty(item) * num(item.price))}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-[#BCC0C1]/25 pt-3">
-                          <span className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Cena łączna</span>
-                          <span className={`${NUM} text-[24px] text-[#E7E7E7]`}>{formatMoney(unitPriceValue(open) + extrasTotal(open))}</span>
+                </div>
+
+                {/* Środek (przewijany): podsumowanie albo zakładka. */}
+                <div className={`px-6 pb-6 sm:px-8 lg:px-10 md:min-h-0 md:flex-1 md:overflow-y-auto ${SUBTLE_SCROLL}`}>
+                  {activeView ? (
+                    <motion.div key={view} role="tabpanel" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mt-5 border-t border-[#BCC0C1]/25 pt-5">
+                      <h4 className="font-dmserif text-[24px] leading-tight text-[#E7E7E7]">{activeView.label}</h4>
+                      {activeView.text && <p className="mt-3 whitespace-pre-line text-[13px] font-light leading-[1.7] text-[#E7E7E7]/75">{activeView.text}</p>}
+                      {activeRooms.length > 0 && (
+                        // Kolejność: pomieszczenia wliczane, wyróżniony pas "Razem", pod nim pozycje poza sumą (taras, balkon…).
+                        <dl className="mt-4">
+                          {activeRooms
+                            .filter((room) => !room.excluded)
+                            .map((room, index) => (
+                              <div key={`${index}-${room.name}`} className="flex items-baseline justify-between gap-6 border-b border-[#BCC0C1]/12 py-2">
+                                <dt className="text-[13px] font-light text-[#E7E7E7]/75">{room.name}</dt>
+                                {room.area !== null && <dd className={`${NUM} shrink-0 text-[15px] text-[#E7E7E7]`}>{formatArea(room.area)}</dd>}
+                              </div>
+                            ))}
+                          {activeRoomsTotal > 0 && (
+                            <div className="mt-2 flex items-baseline justify-between gap-6 border-l-2 border-[#BCC0C1] bg-[#BCC0C1]/[0.08] px-4 py-3">
+                              <dt className="text-[11px] font-medium uppercase tracking-[0.25em] text-[#E7E7E7]">Razem</dt>
+                              <dd className={`${NUM} shrink-0 text-[22px] text-[#F7F7F7]`}>{formatArea(activeRoomsTotal)}</dd>
+                            </div>
+                          )}
+                          {activeRooms
+                            .filter((room) => room.excluded)
+                            .map((room, index) => (
+                              <div key={`excluded-${index}-${room.name}`} className={`flex items-baseline justify-between gap-6 py-2 ${index > 0 ? "border-t border-[#BCC0C1]/12" : "mt-2"}`}>
+                                <dt className="text-[13px] font-light text-[#E7E7E7]/55">
+                                  {room.name}
+                                  <span className="ml-2 text-[9px] uppercase tracking-[0.2em] text-[#E7E7E7]/35">poza sumą</span>
+                                </dt>
+                                {room.area !== null && <dd className={`${NUM} shrink-0 text-[15px] text-[#E7E7E7]/50`}>{formatArea(room.area)}</dd>}
+                              </div>
+                            ))}
+                        </dl>
+                      )}
+                    </motion.div>
+                  ) : (
+                  <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-[#BCC0C1]/25 pt-5">
+                    {[
+                      ["layers", "Strefa", zoneName(open.zone)],
+                      ["facade", "Piętro", open.floor],
+                      ["bed", "Pokoje", String(num(open.rooms))],
+                      ["area", "PUM", formatArea(open.area)],
+                    ].map(([icon, label, value]) => (
+                      <div key={label} className="flex items-start gap-3">
+                        <Icon name={icon} className="mt-0.5 h-5 w-5 flex-none text-[#BCC0C1]" strokeWidth={1} />
+                        <div>
+                          <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">{label}</dt>
+                          <dd className={`mt-1 ${NUM} text-[22px] text-[#E7E7E7]`}>{value}</dd>
                         </div>
+                      </div>
+                    ))}
+                    <div className="col-span-full">
+                      <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Dodatkowe powierzchnie</dt>
+                      <dd className="mt-1 text-[14px] font-light leading-relaxed text-[#E7E7E7]/75">
+                        {num(open.garden) > 0 ? `Ogród: ${formatArea(open.garden ?? 0)}` : "Bez ogrodu"}
+                        {num(open.plot) > 0 && ` · Działka: ${formatArea(open.plot ?? 0)}`}
                       </dd>
+                    </div>
+                    {open.layout && (
+                      <div className="col-span-full">
+                        <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Układ</dt>
+                        <dd className="mt-1 text-[13px] font-light leading-relaxed text-[#E7E7E7]/70">{open.layout}</dd>
+                      </div>
                     )}
-                  </div>
-                </dl>
-                )}
-
-                <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-                  <Button href="#kontakt" variant="gold" onClick={() => setOpen(null)}>
-                    Zapytaj o lokal
-                  </Button>
-                  {open.link && (
-                    <Button href={open.link} variant="outline" external>
-                      <Icon name="download" className="h-4 w-4" />
-                      Karta lokalu
-                    </Button>
+                    <div className="col-span-full">
+                      <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Cena</dt>
+                      <dd className={`mt-1 ${NUM} text-[28px] text-[#E7E7E7]`}>{totalPrice(open)}</dd>
+                      {num(open.pricePerM2) > 0 && <dd className="mt-1 text-[12px] font-light text-[#E7E7E7]/50">{fmt(open.pricePerM2 ?? 0, 0)} zł/m²</dd>}
+                      {extrasOf(open, units).length > 0 && unitPriceValue(open) > 0 && (
+                        <dd className="mt-4 border-t border-[#BCC0C1]/25 pt-4">
+                          <ul className="space-y-1.5 text-[13px] font-light text-[#E7E7E7]/75">
+                            {extrasOf(open, units).map((item) => (
+                              <li key={item.label} className="flex items-baseline justify-between gap-4">
+                                <span>
+                                  {item.label}
+                                  {extraQty(item) > 1 && <span className="text-[#E7E7E7]/50"> × {extraQty(item)}</span>}
+                                </span>
+                                <span className={`${NUM} whitespace-nowrap text-[14px] text-[#E7E7E7]`}>
+                                  {extraQty(item) > 1 && <span className="mr-2 text-[11px] text-[#E7E7E7]/50">{extraQty(item)} × {formatMoney(item.price)}</span>}
+                                  {formatMoney(extraQty(item) * num(item.price))}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-[#BCC0C1]/25 pt-3">
+                            <span className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Cena łączna</span>
+                            <span className={`${NUM} text-[24px] text-[#E7E7E7]`}>{formatMoney(unitPriceValue(open) + extrasTotal(open, units))}</span>
+                          </div>
+                        </dd>
+                      )}
+                    </div>
+                  </dl>
                   )}
                 </div>
 
-                <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3">
-                  {[
-                    { label: cardProspectusLabel, url: openCard?.prospectusUrl?.trim() || prospectusUrl },
-                    { label: standardLabel, url: openCard?.standardUrl?.trim() || standardUrl },
-                  ].map(({ label, url }) => (
-                    <a
-                      key={label}
-                      href={url || "#kontakt"}
-                      onClick={url ? undefined : () => setOpen(null)}
-                      {...(url ? { target: "_blank", rel: "noopener noreferrer", download: true } : {})}
-                      className="group inline-flex items-center gap-2.5 border-b border-[#BCC0C1]/35 pb-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-[#E7E7E7]/85 transition-colors hover:border-[#E7E7E7] hover:text-[#F7F7F7]"
-                    >
-                      <Icon name={url ? "download" : "mail"} className="h-4 w-4 text-[#BCC0C1] transition-colors group-hover:text-[#F7F7F7]" />
-                      {label}
-                    </a>
-                  ))}
+                {/* Stopka (stała): przyciski. */}
+                <div className="shrink-0 border-t border-[#BCC0C1]/25 px-6 py-5 sm:px-8 lg:px-10">
+                  <div className={`grid gap-3 ${open.link ? "sm:grid-cols-2" : ""}`}>
+                    <Button href="#kontakt" variant="gold" className="w-full" onClick={() => setOpen(null)}>
+                      Zapytaj o lokal
+                    </Button>
+                    {open.link && (
+                      <Button href={open.link} variant="outline" className="w-full" external>
+                        <Icon name="download" className="h-4 w-4" />
+                        Karta lokalu
+                      </Button>
+                    )}
+                  </div>
                 </div>
+
               </div>
             </motion.div>
           </motion.div>
