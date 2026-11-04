@@ -21,14 +21,41 @@ type OffertFields = {
 const formatPLN = (value: number) =>
   new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 
+/** "2 500 000", "2 500 000 zł", "15500,50" -> liczba; tekst bez cyfr ("Rezerwacja", "-", "") -> null. */
+function toAmount(raw: string | undefined): number | null {
+  const text = (raw ?? "").trim();
+  if (!/\d/.test(text)) return null;
+  const value = parseFloat(text.replace(/\s/g, "").replace(",", ".").replace(/[^\d.]/g, ""));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/** Brak ceny: puste albo same kreski. */
+const isEmptyPrice = (raw: string | undefined) => /^[\s\-–—]*$/.test(raw ?? "");
+
 export default function Offert({ fields }: { fields: OffertFields }) {
   const image = unwrap(fields.image);
   const localization = unwrap(fields.localization);
   const header = unwrap(fields.header);
   const features = unwrap(fields.features) ?? [];
   const priceLabel = unwrap(fields.priceLabel);
-  const pricem2 = Number(unwrap(fields.pricem2));
-  const area = Number(unwrap(fields.area));
+  const priceRaw = unwrap(fields.price);
+  const pricem2Raw = unwrap(fields.pricem2);
+  const pricem2 = toAmount(pricem2Raw);
+  const area = toAmount(unwrap(fields.area));
+  // Kolejno: "Cena całkowita" (kwota albo napis, np. "Rezerwacja") -> cena za m² × powierzchnia ->
+  // napis wpisany w "Cena za m²" -> nic (oba pola puste albo "-").
+  const priceAmount = toAmount(priceRaw);
+  const priceText = priceAmount
+    ? formatPLN(priceAmount)
+    : !isEmptyPrice(priceRaw)
+      ? priceRaw!.trim()
+      : pricem2 && area
+        ? formatPLN(pricem2 * area)
+        : !isEmptyPrice(pricem2Raw)
+          ? pricem2Raw!.trim()
+          : null;
+  // "Cena:" tylko przy kwocie — przy napisie (np. "Rezerwacja", "Sprzedany") sam napis.
+  const isAmount = Boolean(priceAmount || (isEmptyPrice(priceRaw) && pricem2 && area));
   const pdfUrl = unwrap(fields.pdfUrl);
   const pdfButtonLabel = unwrap(fields.pdfButtonLabel);
 
@@ -52,15 +79,19 @@ export default function Offert({ fields }: { fields: OffertFields }) {
             ))}
           </ul>
 
-          <div className="text-right mt-[50px]">
-            <div className="flex flex-row items-end justify-end gap-[12px]">
-              {priceLabel && <span className="block pb-2">{priceLabel}</span>}
-              <H2 className="!text-[#975F3C]">{formatPLN(pricem2 * area)}</H2>
+          {priceText && (
+            <div className="text-right mt-[50px]">
+              <div className="flex flex-row items-end justify-end gap-[12px]">
+                {priceLabel && isAmount && <span className="block pb-2">{priceLabel}</span>}
+                <H2 className="!text-[#975F3C]">{priceText}</H2>
+              </div>
+              {pricem2 && (
+                <span>
+                  {formatPLN(pricem2)} / m<sup>2</sup>
+                </span>
+              )}
             </div>
-            <span>
-              {formatPLN(pricem2)} / m<sup>2</sup>
-            </span>
-          </div>
+          )}
 
           <div className="mt-[24px] text-right">
             <Link href="historia-cen" className="font-lato text-[15px] font-light text-[#707070] underline hover:no-underline">
