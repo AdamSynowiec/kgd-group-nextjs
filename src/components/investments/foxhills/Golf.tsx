@@ -103,16 +103,14 @@ export default function Golf({ fields, id }: { fields: GolfFields; id?: string }
             </div>
           )}
 
-          {/* Sport który łączy pokolenia + jeden rząd zdjęć. */}
+          {/* Sport który łączy pokolenia (opis pod nagłówkiem, po lewej) + jeden rząd zdjęć. */}
           {(generationsHeader || generationsText) && (
-            <Reveal className="mt-20 grid gap-6 sm:mt-24 lg:mt-28 lg:grid-cols-2 lg:items-end lg:gap-20">
-              <div>
-                {generationsHeader && (
-                  <h3 className="whitespace-pre-line font-dmserif text-[28px] leading-[1.15] tracking-[0.02em] text-[#E7E7E7] sm:text-[36px] xl:text-[42px]">{generationsHeader}</h3>
-                )}
-                <span className="mt-6 block h-px w-16 bg-[#C98A3B]/80" />
-              </div>
-              {generationsText && <p className={`${P} lg:pb-1`}>{generationsText}</p>}
+            <Reveal className="mt-20 max-w-2xl sm:mt-24 lg:mt-28">
+              {generationsHeader && (
+                <h3 className="whitespace-pre-line font-dmserif text-[28px] leading-[1.15] tracking-[0.02em] text-[#E7E7E7] sm:text-[36px] xl:text-[42px]">{generationsHeader}</h3>
+              )}
+              <span className="mt-6 block h-px w-16 bg-[#C98A3B]/80" />
+              {generationsText && <p className={`${P} mt-6`}>{generationsText}</p>}
             </Reveal>
           )}
 

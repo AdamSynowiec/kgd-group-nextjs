@@ -34,6 +34,15 @@ type StandardsFields = {
 
 const ROMAN = ["I", "II", "III", "IV", "V"];
 
+/** Kolumny zakładek wg liczby standardów (pełne nazwy klas — Tailwind musi je zobaczyć w kodzie). 4 = 2×2 na tablecie, 4 w rzędzie od lg. */
+const TAB_GRID: Record<number, string> = {
+  1: "",
+  2: "sm:grid-cols-2",
+  3: "sm:grid-cols-3",
+  4: "sm:grid-cols-2 lg:grid-cols-4",
+  5: "sm:grid-cols-3 lg:grid-cols-5",
+};
+
 const DEFAULT_LABELS: Record<string, string> = {
   floors: "Podłogi i ściany",
   bathrooms: "Łazienki",
@@ -83,7 +92,8 @@ export default function Standards({ fields, id }: { fields: StandardsFields; id?
 
         {/* Zakładki */}
         <Reveal delay={0.1} className="mt-16">
-          <div role="tablist" aria-label="Standardy wykończenia" className="grid border border-[#171A1C]/15 sm:grid-cols-3">
+          {/* Siatka wg liczby standardów; linie między kafelkami = 1px przerwy na tle w kolorze ramki (działa przy każdym zawijaniu). */}
+          <div role="tablist" aria-label="Standardy wykończenia" className={`grid gap-px border border-[#171A1C]/15 bg-[#171A1C]/15 ${TAB_GRID[standards.length] ?? TAB_GRID[4]}`}>
             {standards.map((standard, index) => {
               const isActive = index === active;
               return (
@@ -95,7 +105,7 @@ export default function Standards({ fields, id }: { fields: StandardsFields; id?
                   aria-selected={isActive}
                   aria-controls={`fh-standard-panel-${index}`}
                   onClick={() => setActive(index)}
-                  className={`group relative flex items-center gap-5 px-6 py-6 text-left transition-colors duration-500 sm:px-8 sm:py-7 ${index > 0 ? "border-t border-[#171A1C]/15 sm:border-l sm:border-t-0" : ""} ${isActive ? "bg-[#171A1C]" : "hover:bg-[#171A1C]/[0.04]"}`}
+                  className={`group relative flex items-center gap-5 px-6 py-6 text-left transition-colors duration-500 sm:px-8 sm:py-7 ${isActive ? "bg-[#171A1C]" : "bg-[#F7F7F7] hover:bg-[#EFEFEF]"}`}
                 >
                   <span className={`font-dmserif text-[44px] font-medium leading-none transition-colors duration-500 ${isActive ? "text-[#BCC0C1]" : "text-[#171A1C]/25 group-hover:text-[#555859]"}`}>{ROMAN[index]}</span>
                   <span>
