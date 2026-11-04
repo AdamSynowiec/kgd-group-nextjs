@@ -121,12 +121,12 @@ final class PriceRegisterSync
         // Zmienione dane dewelopera: w każdym wierszu, który miał dotychczasową wartość. Wiersze z inną
         // wartością (np. miejsca parkingowe z osobnym prospektem) zostają bez zmian.
         $sharedFields = 0;
-        foreach ($plan['sharedDiff'] as $key => $diff) {
+        foreach ($plan['sharedDiff'] as $diff) {
             $touched = false;
             foreach ($rows as $index => $row) {
-                $value = self::text($row[$key] ?? '');
+                $value = self::text($row[$diff['column']] ?? '');
                 if ((self::isEmpty($value) ? 'X' : $value) === $diff['from']) {
-                    $rows[$index][$key] = $diff['to'];
+                    $rows[$index][$diff['column']] = $diff['to'];
                     $touched = true;
                 }
             }
@@ -199,10 +199,14 @@ final class PriceRegisterSync
             throw new RuntimeException('Strona rejestru nie ma tabeli historii cen.');
         }
         $fields = (array) ($content['sections'][$sectionIndex]['fields'] ?? []);
+        $columnList = (array) self::unwrap($fields['columns'] ?? []);
         $columns = array_values(array_filter(array_map(
             static fn (mixed $column): string => is_array($column) ? (string) ($column['key'] ?? '') : '',
-            (array) self::unwrap($fields['columns'] ?? [])
+            $columnList
         )));
+        // Nazwa ustawowa -> klucz kolumny w tym rejestrze (aliasy jak w generatorze, np. "krs" = "krsNumber").
+        $col = self::columnMap($columns);
+        $c = static fn (string $name): string => $col[$name] ?? $name;
         $rows = array_values(array_filter((array) self::unwrap($fields['rows'] ?? []), 'is_array'));
 
         $offerSlug = is_string($content['parent'] ?? null) && $content['parent'] !== ''
@@ -219,45 +223,67 @@ final class PriceRegisterSync
 
         $warnings = [];
 
-        // Wiersze lokali w rejestrze (części nieruchomości — np. miejsca parkingowe — mają "unit" = X).
+        // Wiersze lokali w rejestrze (części nieruchomości — np. miejsca parkingowe — mają nr lokalu = X).
         $registerIndex = [];
         foreach ($rows as $index => $row) {
-            $key = self::key($row['unit'] ?? '');
+            $key = self::key($row[$c('unit')] ?? '');
             if ($key === '') {
                 continue;
             }
             if (isset($registerIndex[$key])) {
-                $warnings[] = "Lokal {$row['unit']} występuje w rejestrze więcej niż raz — synchronizowany jest pierwszy wiersz.";
+                $warnings[] = 'Lokal ' . self::text($row[$c('unit')]) . ' występuje w rejestrze więcej niż raz — synchronizowany jest pierwszy wiersz.';
                 continue;
             }
             $registerIndex[$key] = $index;
         }
-        // Wzór danych dewelopera dla nowych lokali: istniejący wiersz lokalu, a w pustym rejestrze — formularz z panelu.
-        $needsShared = $registerIndex === [];
+
+        // Wzór danych dewelopera: najpełniejszy wiersz rejestru (przy remisie — wiersz lokalu, potem pierwszy).
+        // W rejestrze bez danych dewelopera — formularz z panelu ("needsShared").
+        $templateIndex = null;
+        $best = [-1, -1];
+        foreach ($rows as $index => $row) {
+            if (self::isEmpty(self::text($row[$c('developerName')] ?? ''))) {
+                continue;
+            }
+            $filled = count(array_filter(self::SHARED_KEYS, static fn (string $name): bool => !self::isEmpty(self::text($row[$c($name)] ?? ''))));
+            $score = [$filled, self::key($row[$c('unit')] ?? '') !== '' ? 1 : 0];
+            if ($score > $best) {
+                $best = $score;
+                $templateIndex = $index;
+            }
+        }
+        $needsShared = $templateIndex === null;
         $current = [];
-        foreach (self::SHARED_KEYS as $key) {
-            $value = $needsShared ? '' : self::text($rows[reset($registerIndex)][$key] ?? '');
-            $current[$key] = self::isEmpty($value) ? 'X' : $value;
+        foreach (self::SHARED_KEYS as $name) {
+            $value = $needsShared ? '' : self::text($rows[$templateIndex][$c($name)] ?? '');
+            $current[$name] = self::isEmpty($value) ? 'X' : $value;
         }
         // Dane z formularza (edycja w panelu) zastępują bieżące — i w nowych lokalach, i w istniejących wierszach.
         $template = $current;
         $sharedDiff = [];
         if ($shared !== null) {
-            foreach (self::SHARED_KEYS as $key) {
-                if (!array_key_exists($key, $shared)) {
+            foreach (self::SHARED_KEYS as $name) {
+                if (!array_key_exists($name, $shared)) {
                     continue;
                 }
-                $value = self::text($shared[$key]);
-                $template[$key] = self::isEmpty($value) ? 'X' : $value;
-                if (!$needsShared && $template[$key] !== $current[$key]) {
-                    $sharedDiff[$key] = ['from' => $current[$key], 'to' => $template[$key]];
+                $value = self::text($shared[$name]);
+                $template[$name] = self::isEmpty($value) ? 'X' : $value;
+                if (!$needsShared && $template[$name] !== $current[$name]) {
+                    $sharedDiff[$name] = ['column' => $c($name), 'from' => $current[$name], 'to' => $template[$name]];
                 }
             }
         }
+        $labels = [];
+        foreach ($columnList as $column) {
+            if (is_array($column) && isset($column['key'])) {
+                $labels[(string) $column['key']] = (string) ($column['label'] ?? $column['key']);
+            }
+        }
+        $l = static fn (string $name): string => self::LABELS[$name] ?? ($labels[$c($name)] ?? $name);
         $sharedFields = [];
-        foreach ((array) self::unwrap($fields['columns'] ?? []) as $column) {
-            if (is_array($column) && in_array($column['key'] ?? null, self::SHARED_KEYS, true)) {
-                $sharedFields[] = ['key' => (string) $column['key'], 'label' => (string) ($column['label'] ?? $column['key']), 'required' => in_array($column['key'], self::REQUIRED_SHARED, true)];
+        foreach (self::SHARED_KEYS as $name) {
+            if (in_array($c($name), $columns, true)) {
+                $sharedFields[] = ['key' => $name, 'label' => $labels[$c($name)] ?? $name, 'required' => in_array($name, self::REQUIRED_SHARED, true)];
             }
         }
 
@@ -268,14 +294,13 @@ final class PriceRegisterSync
         }
         $propertyTypeByOfferType = [];
         foreach ($registerIndex as $key => $index) {
-            $type = $typeOfOffer[$key] ?? '';
-            $value = self::text($rows[$index]['propertyType'] ?? '');
+            $value = self::text($rows[$index][$c('propertyType')] ?? '');
             // Typ "" = oferta bez kolumny typu (np. Rudava Park) — wtedy jeden rodzaj dla wszystkich lokali.
-            if ($key !== '' && !self::isEmpty($value) && !isset($propertyTypeByOfferType[$type]) && isset($typeOfOffer[$key])) {
-                $propertyTypeByOfferType[$type] = $value;
+            if (isset($typeOfOffer[$key]) && !self::isEmpty($value) && !isset($propertyTypeByOfferType[$typeOfOffer[$key]])) {
+                $propertyTypeByOfferType[$typeOfOffer[$key]] = $value;
             }
         }
-        // Typy nowych lokali bez rodzaju w rejestrze — redaktor wpisuje rodzaj w formularzu panelu (jeden na typ).
+        // Typy bez rodzaju w rejestrze — redaktor wpisuje rodzaj w formularzu panelu (jeden na typ).
         $typesFromRegister = $propertyTypeByOfferType;
         $typesToFill = [];
         foreach ($propertyTypes ?? [] as $type => $value) {
@@ -298,6 +323,7 @@ final class PriceRegisterSync
             }
             $offerKeys[$key] = true;
             $existing = $registerIndex[$key] ?? null;
+            $type = self::text($unit['type'] ?? '');
             $sold = preg_match('/sprzedan|sold/iu', self::text($unit['status'] ?? '')) === 1;
 
             if ($sold) {
@@ -309,48 +335,65 @@ final class PriceRegisterSync
 
             if ($existing !== null) {
                 $diff = [];
-                foreach (self::PRICES as $source => [$column, $dateColumn]) {
+                foreach (self::PRICES as $source => [$price, $date]) {
                     $offered = self::text($unit[$source] ?? '');
-                    if (self::isEmpty($offered) || !in_array($column, $columns, true)) {
+                    if (self::isEmpty($offered) || !in_array($c($price), $columns, true)) {
                         continue;
                     }
-                    $current = self::text($rows[$existing][$column] ?? '');
-                    if (self::sameAmount($current, $offered)) {
+                    $registered = self::text($rows[$existing][$c($price)] ?? '');
+                    if (self::sameAmount($registered, $offered)) {
                         continue;
                     }
-                    $diff[] = self::field($column, $current, $offered);
-                    $diff[] = self::field($dateColumn, self::text($rows[$existing][$dateColumn] ?? ''), $today);
+                    $diff[] = self::field($c($price), $l($price), $registered, $offered);
+                    $diff[] = self::field($c($date), $l($date), self::text($rows[$existing][$c($date)] ?? ''), $today);
                 }
-                if ($diff === []) {
+                // Brakujące dane w istniejącym wierszu ("X" tam, gdzie wzór ma wartość) — uzupełnienie ze wzoru.
+                $fill = self::missingShared($rows[$existing], $template, $c, $l);
+                $registeredType = self::text($rows[$existing][$c('propertyType')] ?? '');
+                if (self::isEmpty($registeredType)) {
+                    // Bez rodzaju dla tego typu — pole i tak w podglądzie, panel podstawia wpis z formularza.
+                    $fill[] = self::field($c('propertyType'), $l('propertyType'), $registeredType, $propertyTypeByOfferType[$type] ?? 'X');
+                    if (!isset($typesFromRegister[$type]) && !in_array($type, $typesToFill, true)) {
+                        $typesToFill[] = $type;
+                    }
+                }
+                if ($diff === [] && $fill === []) {
                     $unchanged++;
                 } else {
-                    $changes[] = ['id' => "update:{$key}", 'action' => 'update', 'unit' => $name, 'fields' => $diff, 'note' => null, 'index' => $existing];
+                    $changes[] = [
+                        'id' => "update:{$key}",
+                        'action' => 'update',
+                        'unit' => $name,
+                        'offerType' => $type,
+                        'fields' => [...$diff, ...$fill],
+                        'note' => $fill !== [] ? 'Uzupełnienie brakujących danych w rejestrze.' : null,
+                        'index' => $existing,
+                    ];
                 }
             } else {
                 $row = array_fill_keys($columns, 'X');
-                foreach (self::SHARED_KEYS as $sharedKey) {
-                    if (in_array($sharedKey, $columns, true)) {
-                        $row[$sharedKey] = $template[$sharedKey] ?? 'X';
+                foreach (self::SHARED_KEYS as $sharedName) {
+                    if (in_array($c($sharedName), $columns, true)) {
+                        $row[$c($sharedName)] = $template[$sharedName];
                     }
                 }
-                $type = self::text($unit['type'] ?? '');
                 if (!isset($typesFromRegister[$type]) && !in_array($type, $typesToFill, true)) {
                     $typesToFill[] = $type;
                 }
-                $row['propertyType'] = $propertyTypeByOfferType[$type] ?? 'X';
-                $row['unit'] = $name;
-                $created = [self::field('propertyType', '', $row['propertyType']), self::field('unit', '', $name)];
-                foreach (self::PRICES as $source => [$column, $dateColumn]) {
+                $row[$c('propertyType')] = $propertyTypeByOfferType[$type] ?? 'X';
+                $row[$c('unit')] = $name;
+                $created = [self::field($c('propertyType'), $l('propertyType'), '', $row[$c('propertyType')]), self::field($c('unit'), $l('unit'), '', $name)];
+                foreach (self::PRICES as $source => [$price, $date]) {
                     $offered = self::text($unit[$source] ?? '');
                     if (self::isEmpty($offered)) {
                         continue;
                     }
-                    $row[$column] = $offered;
-                    $row[$dateColumn] = $today;
-                    $created[] = self::field($column, '', $offered);
-                    $created[] = self::field($dateColumn, '', $today);
+                    $row[$c($price)] = $offered;
+                    $row[$c($date)] = $today;
+                    $created[] = self::field($c($price), $l($price), '', $offered);
+                    $created[] = self::field($c($date), $l($date), '', $today);
                 }
-                $note = $row['propertyType'] === 'X'
+                $note = $row[$c('propertyType')] === 'X'
                     ? 'Brak rodzaju nieruchomości dla typu „' . ($type !== '' ? $type : '—') . '” — wpisz go w formularzu powyżej.'
                     : null;
                 $changes[] = ['id' => "create:{$key}", 'action' => 'create', 'unit' => $name, 'offerType' => $type, 'fields' => $created, 'note' => $note, 'row' => $row];
@@ -361,14 +404,31 @@ final class PriceRegisterSync
             $perM2 = self::amount(self::text($unit['pricePerM2'] ?? ''));
             $total = self::amount(self::text($unit['price'] ?? ''));
             if ($area !== null && $perM2 !== null && $total !== null && abs($area * $perM2 - $total) >= 1) {
-                $warnings[] = "Lokal {$name}: cena w ofercie ({$unit['price']}) różni się od metraż × cena m² (" . number_format($area * $perM2, 2, ',', ' ') . ' zł).';
+                $warnings[] = "Lokal {$name}: cena w ofercie (" . self::text($unit['price']) . ') różni się od metraż × cena m² (' . number_format($area * $perM2, 2, ',', ' ') . ' zł).';
             }
         }
 
+        // Pozostałe wiersze spoza oferty (np. miejsca parkingowe): bez zmian cen, ale z uzupełnieniem brakujących danych dewelopera.
         $untouched = [];
-        foreach ($registerIndex as $key => $index) {
-            if (!isset($offerKeys[$key])) {
-                $untouched[] = self::text($rows[$index]['unit'] ?? '');
+        foreach ($rows as $index => $row) {
+            $key = self::key($row[$c('unit')] ?? '');
+            if ($key !== '' && isset($offerKeys[$key]) && ($registerIndex[$key] ?? null) === $index) {
+                continue;
+            }
+            if ($key !== '' && ($registerIndex[$key] ?? null) === $index) {
+                $untouched[] = self::text($row[$c('unit')]);
+            }
+            $fill = $needsShared ? [] : self::missingShared($row, $template, $c, $l);
+            if ($fill !== []) {
+                $label = $key !== '' ? self::text($row[$c('unit')]) : self::text($row[$c('propertyPartLabel')] ?? '');
+                $changes[] = [
+                    'id' => "fill:{$index}",
+                    'action' => 'update',
+                    'unit' => self::isEmpty($label) ? 'Wiersz ' . ($index + 1) . ' rejestru' : $label,
+                    'fields' => $fill,
+                    'note' => 'Uzupełnienie brakujących danych dewelopera.',
+                    'index' => $index,
+                ];
             }
         }
 
@@ -391,6 +451,48 @@ final class PriceRegisterSync
     }
 
     /**
+     * Kolumny danych dewelopera, które w wierszu są puste / "X", a wzór ma w nich wartość.
+     *
+     * @param array<string, mixed> $row
+     * @param array<string, string> $template
+     * @return list<array{key: string, label: string, from: string, to: string}>
+     */
+    private static function missingShared(array $row, array $template, callable $c, callable $l): array
+    {
+        $fill = [];
+        foreach (self::SHARED_KEYS as $name) {
+            $value = self::text($row[$c($name)] ?? '');
+            if (self::isEmpty($value) && $template[$name] !== 'X' && array_key_exists($c($name), $row)) {
+                $fill[] = self::field($c($name), $l($name), $value, $template[$name]);
+            }
+        }
+
+        return $fill;
+    }
+
+    /**
+     * Nazwa ustawowa -> klucz kolumny w rejestrze: nazwa podstawowa albo pierwszy obecny alias
+     * (StatutoryColumns — te same aliasy, które rozpoznaje PriceReportGenerator).
+     *
+     * @param list<string> $columns
+     * @return array<string, string>
+     */
+    private static function columnMap(array $columns): array
+    {
+        $map = [];
+        foreach (StatutoryColumns::ALL as $definition) {
+            foreach ([$definition['key'], ...$definition['aliases']] as $candidate) {
+                if (in_array($candidate, $columns, true)) {
+                    $map[$definition['key']] = $candidate;
+                    break;
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    /**
      * Dane dewelopera z pierwszego wiersza lokalu w rejestrach innych inwestycji — do wypełnienia formularza
      * w panelu (redaktor je sprawdza i poprawia, nic nie trafia do rejestru bez jego zapisu).
      *
@@ -409,15 +511,21 @@ final class PriceRegisterSync
                 if (!is_array($section) || ($section['component'] ?? null) !== 'PriceHistory') {
                     continue;
                 }
+                // Każdy rejestr może mieć własne nazwy kolumn (aliasy) — wartości oddawane pod nazwami ustawowymi.
+                $col = self::columnMap(array_values(array_filter(array_map(
+                    static fn (mixed $column): string => is_array($column) ? (string) ($column['key'] ?? '') : '',
+                    (array) self::unwrap($section['fields']['columns'] ?? [])
+                ))));
                 foreach ((array) self::unwrap($section['fields']['rows'] ?? []) as $row) {
-                    if (!is_array($row) || self::key($row['unit'] ?? '') === '') {
+                    if (!is_array($row) || self::isEmpty(self::text($row[$col['developerName'] ?? 'developerName'] ?? ''))) {
                         continue;
                     }
                     $values = [];
                     foreach (self::SHARED_KEYS as $key) {
-                        $values[$key] = self::text($row[$key] ?? '');
+                        $value = self::text($row[$col[$key] ?? $key] ?? '');
+                        $values[$key] = self::isEmpty($value) ? '' : $value;
                     }
-                    $name = self::text($row['developerName'] ?? '');
+                    $name = $values['developerName'];
                     $suggestions[] = ['slug' => $slug, 'name' => ($name !== '' ? $name : $slug) . ' (' . substr($slug, strlen('/inwestycja/'), -strlen(self::HISTORY_SUFFIX)) . ')', 'values' => $values];
                     break 2;
                 }
@@ -453,10 +561,10 @@ final class PriceRegisterSync
         return $units;
     }
 
-    /** @return array{key: string, label: string, from: string, to: string} */
-    private static function field(string $key, string $from, string $to): array
+    /** @return array{key: string, label: string, from: string, to: string} — key = kolumna w rejestrze (z aliasem) */
+    private static function field(string $key, string $label, string $from, string $to): array
     {
-        return ['key' => $key, 'label' => self::LABELS[$key] ?? $key, 'from' => $from, 'to' => $to];
+        return ['key' => $key, 'label' => $label, 'from' => $from, 'to' => $to];
     }
 
     /** Numer lokalu do porównania: bez odstępów i wielkości liter ("M3 B" = "m3b"). */

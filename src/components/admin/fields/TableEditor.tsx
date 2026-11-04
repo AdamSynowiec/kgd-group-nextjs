@@ -843,6 +843,21 @@ function ObjectRowsTable({
     clear();
   }
 
+  /**
+   * Nowa kolumna = nowy klucz z pustą wartością w KAŻDYM wierszu. Istniejące wartości zostają nietknięte:
+   * wiersz, który już ma ten klucz (także ukryty w oknie "Więcej"), nie jest zmieniany.
+   */
+  function handleAddColumn(key: string) {
+    if (rows.length === 0) {
+      onChange(path, [{ ...blankRow(), [key]: "" }]);
+      return;
+    }
+    onChange(
+      path,
+      rows.map((row) => (key in row ? row : { ...row, [key]: "" }))
+    );
+  }
+
   function handleBulkSet(key: string, raw: string) {
     const kind = columnKinds[key];
     const value: unknown = kind === "number" ? Number(raw) || 0 : raw;
@@ -1032,6 +1047,7 @@ function ObjectRowsTable({
         <button type="button" onClick={handleAddRow} className={addButtonClass}>
           + Dodaj wiersz
         </button>
+        <AddColumnButton existingKeys={[...collectColumns(rows), ...Object.keys(columnLabels ?? {})]} onAdd={handleAddColumn} />
         {imageColumn && (
           <LibraryButton
             session={session}
@@ -1060,6 +1076,74 @@ function ObjectRowsTable({
           onClose={() => setOpenDetails(null)}
         />
       )}
+    </div>
+  );
+}
+
+/** Klucz kolumny: litera na początku, potem litery, cyfry lub "_" (np. "floor", "pricePerM2"). */
+const COLUMN_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/** "+ Dodaj kolumnę" pod tabelą: wpisz klucz (np. "floor") -> pusta kolumna we wszystkich wierszach. */
+function AddColumnButton({ existingKeys, onAdd }: { existingKeys: string[]; onAdd: (key: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [key, setKey] = useState("");
+  const trimmed = key.trim();
+  const error =
+    trimmed === ""
+      ? ""
+      : !COLUMN_KEY_PATTERN.test(trimmed)
+        ? "Klucz: litery, cyfry i „_”, bez spacji i polskich znaków (np. floor)"
+        : existingKeys.includes(trimmed)
+          ? "Taka kolumna już jest w tej tabeli"
+          : "";
+  const canAdd = trimmed !== "" && error === "";
+
+  function close() {
+    setOpen(false);
+    setKey("");
+  }
+
+  function submit() {
+    if (!canAdd) return;
+    onAdd(trimmed);
+    close();
+  }
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={addButtonClass}>
+        + Dodaj kolumnę
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <input
+        autoFocus
+        value={key}
+        onChange={(event) => setKey(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            submit();
+          } else if (event.key === "Escape") {
+            close();
+          }
+        }}
+        placeholder="Klucz kolumny, np. floor"
+        aria-label="Klucz nowej kolumny"
+        className="w-52 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs"
+      />
+      <button type="button" onClick={submit} disabled={!canAdd} className={`${bulkButtonClass} disabled:cursor-not-allowed disabled:opacity-50`}>
+        Dodaj
+      </button>
+      <button type="button" onClick={close} className="text-xs text-zinc-500 hover:text-zinc-700">
+        Anuluj
+      </button>
+      <span className={`basis-full text-[11px] ${error ? "text-red-600" : "text-zinc-500"}`}>
+        {error || "Dopisze pustą wartość do każdego wiersza. Istniejące dane się nie zmienią. Zmiana trafi do bazy po „Zapisz”."}
+      </span>
     </div>
   );
 }

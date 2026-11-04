@@ -592,7 +592,7 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
                 </details>
               )}
 
-              {plan.typesToFill.length > 0 && creating && (
+              {plan.typesToFill.length > 0 && (
                 <section className={`${ui.card} p-4`}>
                   <div className="text-sm font-semibold text-zinc-900">Rodzaj nieruchomości</div>
                   <p className="mt-0.5 text-xs text-zinc-500">Dla typów z oferty, których rodzaju rejestr jeszcze nie zna. Raport przyjmuje: lokal mieszkalny, dom jednorodzinny.</p>
@@ -657,7 +657,7 @@ function SyncDialog({ investment, session, onClose, onGenerate }: { investment: 
                                     })}
                                 </dl>
                               )}
-                              {change.note && !(change.offerType !== undefined && propertyTypes[change.offerType]?.trim()) && <p className="mt-1 text-xs text-amber-700">{change.note}</p>}
+                              {change.note && !(change.action === "create" && change.offerType !== undefined && propertyTypes[change.offerType]?.trim()) &&<p className="mt-1 text-xs text-amber-700">{change.note}</p>}
                             </div>
                           </label>
                         </li>

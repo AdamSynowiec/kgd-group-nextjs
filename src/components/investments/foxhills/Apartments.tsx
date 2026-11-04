@@ -27,9 +27,13 @@ type Unit = {
   image?: string;
   /** Obrys lokalu na planie (współrzędne zdjęcia "x,y x,y ...", kilka wielokątów rozdziel znakiem |). */
   polygon?: string;
+  /** Pomieszczenia i miejsca przypisane do lokalu (np. komórka lokatorska, miejsca postojowe) — pokazywane pod ceną w karcie lokalu i doliczane do ceny łącznej. */
+  extras?: UnitExtra[];
   /** Karta lokalu: przyciski ("Parter", "Piętro", ...) i PDF-y — panel: "Więcej" w wierszu, patrz src/lib/investments/unitCards.ts. */
   card?: UnitCardData;
 };
+
+type UnitExtra = { label: string; qty?: string | number; price: string | number };
 
 type ApartmentsFields = {
   eyebrow?: EditableValue<string> | string;
@@ -90,6 +94,13 @@ const formatMoney = (value: number | string) => `${Math.round(num(value)).toLoca
 /** Cena łączna: pole "price" z panelu, a gdy puste — PUM × cena za m². */
 /** Cenę i kartę lokalu pokazujemy tylko dla lokali dostępnych — sprzedane i zarezerwowane mają sam status. */
 const forSale = (unit: Unit) => statusOf(unit.status) === "available";
+
+/** Dodatki przypisane do lokalu (komórka, miejsca postojowe) z ceną > 0. */
+const extrasOf = (unit: Unit) => (Array.isArray(unit.extras) ? unit.extras : []).filter((item) => item && item.label && num(item.price) > 0);
+const extraQty = (item: UnitExtra) => Math.max(1, Math.round(num(item.qty, 1)));
+const extrasTotal = (unit: Unit) => extrasOf(unit).reduce((sum, item) => sum + extraQty(item) * num(item.price), 0);
+/** Cena lokalu jako liczba (pole "price" albo PUM × cena za m²); 0, gdy brak ceny. */
+const unitPriceValue = (unit: Unit) => (unit.price ? num(unit.price) : num(unit.area) * num(unit.pricePerM2));
 
 const totalPrice = (unit: Unit) => unit.price || (num(unit.pricePerM2) > 0 ? formatMoney(num(unit.area) * num(unit.pricePerM2)) : "Cena na zapytanie");
 
@@ -955,7 +966,29 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                   <div className="col-span-2">
                     <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Cena</dt>
                     <dd className={`mt-1 ${NUM} text-[28px] text-[#E7E7E7]`}>{totalPrice(open)}</dd>
-                    {num(open.pricePerM2) > 0 && <dd className="mt-1 text-[12px] font-light text-[#E7E7E7]/50">{fmt(open.pricePerM2 ?? 0, 0)} zł/m² · cena = PUM × cena za m²</dd>}
+                    {num(open.pricePerM2) > 0 && <dd className="mt-1 text-[12px] font-light text-[#E7E7E7]/50">{fmt(open.pricePerM2 ?? 0, 0)} zł/m²</dd>}
+                    {extrasOf(open).length > 0 && unitPriceValue(open) > 0 && (
+                      <dd className="mt-4 border-t border-[#BCC0C1]/25 pt-4">
+                        <ul className="space-y-1.5 text-[13px] font-light text-[#E7E7E7]/75">
+                          {extrasOf(open).map((item) => (
+                            <li key={item.label} className="flex items-baseline justify-between gap-4">
+                              <span>
+                                {item.label}
+                                {extraQty(item) > 1 && <span className="text-[#E7E7E7]/50"> × {extraQty(item)}</span>}
+                              </span>
+                              <span className={`${NUM} whitespace-nowrap text-[14px] text-[#E7E7E7]`}>
+                                {extraQty(item) > 1 && <span className="mr-2 text-[11px] text-[#E7E7E7]/50">{extraQty(item)} × {formatMoney(item.price)}</span>}
+                                {formatMoney(extraQty(item) * num(item.price))}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-[#BCC0C1]/25 pt-3">
+                          <span className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Cena łączna</span>
+                          <span className={`${NUM} text-[24px] text-[#E7E7E7]`}>{formatMoney(unitPriceValue(open) + extrasTotal(open))}</span>
+                        </div>
+                      </dd>
+                    )}
                   </div>
                 </dl>
                 )}
