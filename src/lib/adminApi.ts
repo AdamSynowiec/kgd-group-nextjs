@@ -152,6 +152,55 @@ export function savePageAcl(session: Session | null, slugs: string[], acl: AclEn
   return request<{ saved: number; acl: AclEntry[] }>("/page-acl", { method: "POST", body: { slugs, acl }, session });
 }
 
+// ----- Akceptacja zmian edytorów (backend/src/Support/PageReview.php) -----
+
+/** Zmienione pole: wartość zatwierdzona (na stronie) -> obecna (po zmianie edytora). */
+export type ReviewField = { key: string; label: string; old: unknown; new: unknown; revertable: boolean; authors: string[]; changedAt: string | null };
+export type ReviewPage = { slug: string; title: string; isNew: boolean; fields: ReviewField[]; authors: string[] };
+export type ReviewRequest = { id: number; userId: number | null; login: string; message: string; status: string; createdAt: string; resolvedAt: string | null; resolvedBy: string | null };
+export type ReviewHistoryEntry = {
+  id: number;
+  slug: string;
+  key: string;
+  label: string;
+  old: unknown;
+  new: unknown;
+  login: string | null;
+  status: "pending" | "approved" | "reverted";
+  createdAt: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+};
+export type ReviewOverview = { pages: ReviewPage[]; requests: ReviewRequest[]; history: ReviewHistoryEntry[] };
+
+/** GET /changes — strony z niezatwierdzonymi zmianami, prośby, historia (uprawnienie changes.review). */
+export function fetchChanges(session: Session | null): Promise<ReviewOverview> {
+  return request<ReviewOverview>("/changes", { session });
+}
+
+/** POST /changes/approve — pole (slug + key), strona (slug) albo wszystko ({}). */
+export function approveChanges(session: Session | null, target: { slug?: string; key?: string } = {}): Promise<{ approved: number }> {
+  return request<{ approved: number }>("/changes/approve", { method: "POST", body: target, session });
+}
+
+/** POST /changes/revert — pole (slug + key) albo cała strona (slug) wraca do wersji zatwierdzonej. */
+export function revertChanges(session: Session | null, target: { slug: string; key?: string }): Promise<{ reverted: number }> {
+  return request<{ reverted: number }>("/changes/revert", { method: "POST", body: target, session });
+}
+
+/** GET /changes/mine — moje zmiany czekające na akceptację i otwarta prośba. */
+export function fetchMyChanges(session: Session | null): Promise<{ pending: number; request: { id: number; message: string; createdAt: string } | null }> {
+  return request<{ pending: number; request: { id: number; message: string; createdAt: string } | null }>("/changes/mine", { session });
+}
+
+/** POST /changes/request — "Powiadom o zmianach": prośba do admina o weryfikację. */
+export function requestReview(session: Session | null, message: string): Promise<{ id: number; pending: number }> {
+  return request<{ id: number; pending: number }>("/changes/request", { method: "POST", body: { message }, session });
+}
+
+/** Zdarzenie okna po zapisie strony — odświeża licznik "Powiadom o zmianach" w górnym pasku. */
+export const PAGE_SAVED_EVENT = "admin:page-saved";
+
 export function fetchPage(slug: string, session: Session | null): Promise<Record<string, unknown>> {
   return request<Record<string, unknown>>("/page", { params: { slug }, session });
 }
@@ -162,8 +211,8 @@ export function savePage(
   content: Record<string, unknown>,
   session: Session | null,
   lockId?: string
-): Promise<{ saved: boolean }> {
-  return request<{ saved: boolean }>("/page", { method: "POST", params: lockId ? { slug, lockId } : { slug }, body: content, session });
+): Promise<{ saved: boolean; needsReview?: boolean }> {
+  return request<{ saved: boolean; needsReview?: boolean }>("/page", { method: "POST", params: lockId ? { slug, lockId } : { slug }, body: content, session });
 }
 
 // --- Blokada edycji stron (jedna osoba naraz) — backend/src/Controller/PageLockController.php ---

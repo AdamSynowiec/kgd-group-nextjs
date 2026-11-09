@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import ContentEditor from "@/components/admin/ContentEditor";
 import { ui } from "@/components/admin/ui";
-import { acquirePageLock, heartbeatPageLock, releasePageLock, savePage, type PageLockHolder, type Session } from "@/lib/adminApi";
+import { acquirePageLock, heartbeatPageLock, PAGE_SAVED_EVENT, releasePageLock, savePage, type PageLockHolder, type Session } from "@/lib/adminApi";
 
 /** Odnawianie blokady edycji — z zapasem względem jej TTL (60 s, MysqlPageLockRepository). */
 const HEARTBEAT_MS = 15000;
@@ -96,6 +96,8 @@ export default function PageEditor({
     if (apiKeyInvalid || apiTypeInvalid) throw new Error("Identyfikator i typ API: małe litery, cyfry i „-”, zaczynają się od litery.");
 
     await savePage(slug, { ...content, status, updatedAt: effectiveDate, apiKey, apiType }, session, lockId ?? undefined);
+    // Licznik "Powiadom o zmianach" w górnym pasku (ReviewRequestButton.tsx).
+    window.dispatchEvent(new Event(PAGE_SAVED_EVENT));
 
     if (effectiveDate !== date) {
       setDate(effectiveDate);

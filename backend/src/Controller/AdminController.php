@@ -15,6 +15,7 @@ use App\Support\Acl;
 use App\Support\Editable;
 use App\Support\EditableMerge;
 use App\Support\PageIdentity;
+use App\Support\PageReview;
 use App\Support\Slug;
 use JsonException;
 use PDOException;
@@ -34,7 +35,8 @@ final class AdminController
     public function __construct(
         private readonly PageRepositoryInterface $pages,
         private readonly ActivityLogRepositoryInterface $activity,
-        private readonly ?MysqlPageLockRepository $locks = null
+        private readonly ?MysqlPageLockRepository $locks = null,
+        private readonly ?PageReview $review = null
     ) {
     }
 
@@ -113,7 +115,7 @@ final class AdminController
      *
      * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function savePage(Request $request, ?string $role, ?array $currentSession): void
+    public function savePage(Request $request, ?string $role, ?array $currentSession, bool $reviewer = true): void
     {
         $slug = $this->slugFromQuery($request);
 
@@ -190,9 +192,24 @@ final class AdminController
 
         $this->pages->save($slug, $merged);
 
+        // Akceptacja zmian (PageReview.php): zmiany kogoś bez "changes.review" czekają na admina.
+        // Gdy śledzenie zmian zawiedzie (np. migracja db/042 nieuruchomiona), zapis edytora jest
+        // cofany — inaczej jego zmiana trafiłaby na stronę bez akceptacji.
+        if ($this->review !== null) {
+            try {
+                $this->review->afterSave($slug, $current['content'], $merged, $currentSession['userId'] ?? null, $currentSession['login'] ?? null, $reviewer);
+            } catch (PDOException $exception) {
+                error_log('[page-review] ' . $exception->getMessage());
+                if (!$reviewer) {
+                    $this->pages->save($slug, $current['content']);
+                    throw new ApiException('Nie udało się zapisać zmiany do akceptacji (brak tabel db/042_page_review.sql?) — zapis cofnięty.', 503);
+                }
+            }
+        }
+
         $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.update', $slug);
 
-        JsonResponse::ok(['saved' => true, 'slug' => $slug]);
+        JsonResponse::ok(['saved' => true, 'slug' => $slug, 'needsReview' => !$reviewer]);
     }
 
     /**
@@ -217,7 +234,7 @@ final class AdminController
      *
      * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function createPage(Request $request, ?string $role, ?array $currentSession): void
+    public function createPage(Request $request, ?string $role, ?array $currentSession, bool $reviewer = true): void
     {
         try {
             $body = $request->jsonBody();
@@ -263,6 +280,18 @@ final class AdminController
             throw $exception;
         }
 
+        if ($this->review !== null) {
+            try {
+                $this->review->afterCreate($slug, $currentSession['userId'] ?? null, $currentSession['login'] ?? null, $reviewer);
+            } catch (PDOException $exception) {
+                error_log('[page-review] ' . $exception->getMessage());
+                if (!$reviewer) {
+                    $this->pages->delete($slug);
+                    throw new ApiException('Nie udało się zapisać nowej strony do akceptacji (brak tabel db/042_page_review.sql?).', 503);
+                }
+            }
+        }
+
         $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.create', $slug);
 
         JsonResponse::ok($created);
@@ -277,7 +306,7 @@ final class AdminController
      *
      * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
-    public function deletePage(Request $request, ?string $role, ?array $currentSession): void
+    public function deletePage(Request $request, ?string $role, ?array $currentSession, bool $reviewer = true): void
     {
         $slug = $this->slugFromQuery($request);
 
@@ -290,7 +319,15 @@ final class AdminController
             throw new ApiException('Brak uprawnień do usunięcia tej strony.', 403);
         }
 
+        // Edytor usuwa tylko nową, jeszcze niezatwierdzoną stronę (PageReview::assertCanDelete).
+        $this->review?->assertCanDelete($slug, $reviewer);
+
         $this->pages->delete($slug);
+        try {
+            $this->review?->afterDelete($slug, $currentSession['login'] ?? null);
+        } catch (PDOException $exception) {
+            error_log('[page-review] ' . $exception->getMessage());
+        }
 
         $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'pages.delete', $slug);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import BuildButton from "@/components/admin/BuildButton";
+import ReviewRequestButton from "@/components/admin/ReviewRequestButton";
 import { MenuIcon } from "@/components/admin/icons";
 import { can } from "@/lib/permissions";
 import type { Session } from "@/lib/adminApi";
@@ -12,6 +13,8 @@ export default function Topbar({ title, session, onOpenMenu }: { title: string; 
   // ADMIN_AUTH_ENABLED=false), /me i tak zwraca permissions:["*"], więc
   // można tu po prostu ufać can() bez osobnego przypadku na null.
   const canBuild = can(session?.permissions, "build.trigger");
+  // Edytor (bez "changes.review"): jego zmiany czekają na akceptację — przycisk prośby do admina.
+  const needsReview = can(session?.permissions, "pages.update") && !can(session?.permissions, "changes.review");
 
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-zinc-200/80 bg-white/80 px-4 backdrop-blur-xl sm:px-8">
@@ -22,7 +25,10 @@ export default function Topbar({ title, session, onOpenMenu }: { title: string; 
         <h1 className="truncate text-[15px] font-semibold tracking-tight text-zinc-900">{title}</h1>
       </div>
 
-      {canBuild && <BuildButton session={session} />}
+      <div className="flex shrink-0 items-center gap-2">
+        {needsReview && <ReviewRequestButton session={session} />}
+        {canBuild && <BuildButton session={session} />}
+      </div>
     </header>
   );
 }

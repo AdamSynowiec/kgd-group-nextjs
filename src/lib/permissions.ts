@@ -38,6 +38,7 @@ export const PERMISSIONS = [
   "reports.generate",
   "api.tokens.manage",
   "site.files.manage",
+  "changes.review",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

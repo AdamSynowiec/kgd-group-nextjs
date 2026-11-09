@@ -12,7 +12,9 @@ use App\Http\Cors;
 use App\Http\Request;
 use App\Http\Router;
 use App\Repository\MysqlPageRepository;
+use App\Repository\MysqlReviewRepository;
 use App\Repository\MysqlSiteFileRepository;
+use App\Support\PageReview;
 use App\Support\ContactRateLimiter;
 use App\Support\CrmWebhook;
 use App\Support\SmtpMailer;
@@ -32,7 +34,8 @@ $config = require __DIR__ . '/src/bootstrap.php';
 Cors::handle($config);
 
 $pdo = Connection::get($config);
-$controller = new PageController(new MysqlPageRepository($pdo));
+// Z PageReview: strony z niezatwierdzonymi zmianami edytorów są podawane w wersji zatwierdzonej (db/042).
+$controller = new PageController(new MysqlPageRepository($pdo), new PageReview(new MysqlPageRepository($pdo), new MysqlReviewRepository($pdo)));
 
 $router = new Router();
 $router->get('/pages', [$controller, 'index']);

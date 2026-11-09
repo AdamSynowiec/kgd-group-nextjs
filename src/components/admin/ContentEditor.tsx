@@ -167,9 +167,9 @@ export default function ContentEditor({
                 Niezapisane zmiany
               </span>
             ) : saveState === "success" ? (
-              <span className={`${ui.badge} ${ui.badgeSuccess}`}>
+              <span className={`${ui.badge} ${ui.badgeSuccess}`} title={can(session?.permissions, "changes.review") ? undefined : "Zmiana trafi na stronę po akceptacji administratora"}>
                 <CheckIcon className="h-3 w-3" />
-                Zapisano
+                {can(session?.permissions, "changes.review") ? "Zapisano" : "Zapisano — czeka na akceptację"}
               </span>
             ) : null}
           </div>

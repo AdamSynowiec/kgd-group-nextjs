@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageList from "@/components/admin/PageList";
 import PageEditor from "@/components/admin/PageEditor";
@@ -109,6 +109,19 @@ export default function AdminPage() {
     void checkAccessAndLoad(session);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ma się uruchomić tylko raz, przy montowaniu
   }, []);
+
+  // Link /admin/strony?slug=/o-nas (np. z "Zmian do akceptacji") — po wczytaniu listy od razu otwiera edytor tej strony.
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (view.status !== "list" || deepLinkHandled.current) return;
+    deepLinkHandled.current = true;
+    const wanted = new URLSearchParams(window.location.search).get("slug");
+    if (wanted && view.pages.some((page) => page.slug === wanted)) {
+      window.history.replaceState(null, "", window.location.pathname);
+      void handleEdit(wanted);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tylko przy pierwszym wczytaniu listy
+  }, [view]);
 
   /** Treść pobierana DOPIERO po zajęciu strony — po czekaniu/przejęciu edytor startuje od najnowszej zapisanej wersji. */
   async function openEditor(slug: string, lockId: string | null) {

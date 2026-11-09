@@ -54,6 +54,9 @@ final class PermissionRegistry
         'reports.generate',
         'api.tokens.manage',
         'site.files.manage',
+        // Akceptacja zmian edytorów (PageReview.php): podgląd różnic, zatwierdzanie i cofanie pól.
+        // Zapis kogoś z tym uprawnieniem trafia od razu do wersji zatwierdzonej.
+        'changes.review',
     ];
 
     /**

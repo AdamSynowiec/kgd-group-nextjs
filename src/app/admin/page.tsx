@@ -11,6 +11,7 @@ import { can } from "@/lib/permissions";
 import {
   AdminApiError,
   fetchActivity,
+  fetchChanges,
   fetchMe,
   fetchPages,
   fetchPriceReports,
@@ -20,6 +21,7 @@ import {
   type ActivityEntry,
   type PageSummary,
   type PriceReportInvestment,
+  type ReviewOverview,
   type Session,
 } from "@/lib/adminApi";
 
@@ -43,6 +45,9 @@ const ACTION_LABELS: Record<string, string> = {
   "account.email.verify": "potwierdził(a) adres e-mail",
   "pages.create": "utworzył(a) stronę",
   "pages.update": "zapisał(a) stronę",
+  "changes.request": "poprosił(a) o akceptację zmian",
+  "changes.approve": "zatwierdził(a) zmiany",
+  "changes.revert": "cofnął/cofnęła zmiany",
   "pages.acl": "zmienił(a) dostęp ról do strony",
   "pages.identity": "nadał(a) identyfikatory API stron",
   "pages.delete": "usunął/usunęła stronę",
@@ -96,6 +101,7 @@ export default function AdminCockpit() {
   const [pages, setPages] = useState<Loaded<PageSummary[]>>({ status: "loading" });
   const [reports, setReports] = useState<Loaded<PriceReportInvestment[]>>({ status: "loading" });
   const [activity, setActivity] = useState<Loaded<ActivityEntry[]>>({ status: "loading" });
+  const [changes, setChanges] = useState<Loaded<ReviewOverview>>({ status: "loading" });
   const [generating, setGenerating] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
 
@@ -137,6 +143,8 @@ export default function AdminCockpit() {
       else setReports({ status: "hidden" });
       if (can(next.permissions, "activity.list")) void settle(fetchActivity(12, 0, next).then((result) => result.items), setActivity);
       else setActivity({ status: "hidden" });
+      if (can(next.permissions, "changes.review")) void settle(fetchChanges(next), setChanges);
+      else setChanges({ status: "hidden" });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tylko przy montowaniu
   }, []);
@@ -191,6 +199,16 @@ export default function AdminCockpit() {
 
   const alerts = useMemo(() => {
     const list: Alert[] = [];
+    // Akceptacja zmian edytorów (PageReview.php) — prośby na górze listy.
+    if (changes.status === "ready") {
+      for (const request of changes.data.requests) {
+        list.push({ tone: "warning", title: `${request.login} prosi o weryfikację i akceptację zmian`, detail: request.message || undefined, href: "/admin/zmiany", action: "Przejrzyj" });
+      }
+      const pending = changes.data.pages.reduce((sum, page) => sum + (page.isNew ? 1 : page.fields.length), 0);
+      if (pending > 0 && changes.data.requests.length === 0) {
+        list.push({ tone: "info", title: `Zmiany czekające na akceptację (${pending})`, detail: changes.data.pages.map((page) => page.title.split("|")[0].trim()).join(", "), href: "/admin/zmiany", action: "Przejrzyj" });
+      }
+    }
     if (reportStats) {
       for (const item of reportStats.errors) {
         list.push({ tone: "error", title: `Raport cen: ${item.name} — błąd`, detail: item.status?.message, href: "/admin/raportowanie-cen", action: "Sprawdź" });
@@ -231,7 +249,7 @@ export default function AdminCockpit() {
       }
     }
     return list;
-  }, [pageStats, reportStats, reports]);
+  }, [pageStats, reportStats, reports, changes]);
 
   const lastBuild = activity.status === "ready" ? activity.data.find((entry) => entry.action.startsWith("build.trigger")) : undefined;
   const hour = Number(new Intl.DateTimeFormat("pl-PL", { hour: "numeric", hour12: false, timeZone: "Europe/Warsaw" }).format(new Date()));

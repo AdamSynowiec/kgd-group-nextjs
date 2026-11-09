@@ -15,6 +15,7 @@ use App\Controller\PageAclController;
 use App\Controller\PageLockController;
 use App\Controller\PermissionsController;
 use App\Controller\PriceReportController;
+use App\Controller\ReviewController;
 use App\Controller\RolesController;
 use App\Controller\SiteFileController;
 use App\Controller\UploadController;
@@ -35,10 +36,12 @@ use App\Repository\MysqlAssetRepository;
 use App\Repository\MysqlPageLockRepository;
 use App\Repository\MysqlPageRepository;
 use App\Repository\MysqlPermissionRepository;
+use App\Repository\MysqlReviewRepository;
 use App\Repository\MysqlRoleRepository;
 use App\Repository\MysqlSiteFileRepository;
 use App\Repository\MysqlUserRepository;
 use App\Support\Authorization;
+use App\Support\PageReview;
 use App\Support\SmtpMailer;
 use PDOException;
 
@@ -66,11 +69,18 @@ $activityLogRepository = static fn (): MysqlActivityLogRepository => new MysqlAc
 
 // Połączenie z bazą jest leniwe — otwiera się dopiero, gdy faktycznie
 // obsługujemy trasę, która go potrzebuje.
+// Akceptacja zmian edytorów (PageReview.php, db/042) — wspólna dla zapisu stron i panelu "Zmiany".
+$pageReview = static fn (): PageReview => new PageReview(
+    new MysqlPageRepository(Connection::get($config)),
+    new MysqlReviewRepository(Connection::get($config))
+);
 $adminController = static fn (): AdminController => new AdminController(
     new MysqlPageRepository(Connection::get($config)),
     $activityLogRepository(),
-    new MysqlPageLockRepository(Connection::get($config))
+    new MysqlPageLockRepository(Connection::get($config)),
+    $pageReview()
 );
+$reviewController = static fn (): ReviewController => new ReviewController($pageReview(), $activityLogRepository());
 $pageLockController = static fn (): PageLockController =>
     new PageLockController(new MysqlPageLockRepository(Connection::get($config)), $activityLogRepository());
 
@@ -141,7 +151,7 @@ $router->get('/pages', static function (Request $req) use ($adminController, $au
 });
 $router->post('/pages', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.create');
-    $adminController()->createPage($req, $role, $currentSession);
+    $adminController()->createPage($req, $role, $currentSession, $authorization()->has($currentSession, 'changes.review'));
 });
 $router->get('/page', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.read');
@@ -149,7 +159,8 @@ $router->get('/page', static function (Request $req) use ($adminController, $aut
 });
 $router->post('/page', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.update');
-    $adminController()->savePage($req, $role, $currentSession);
+    // Bez "changes.review" zmiana czeka na akceptację admina (PageReview.php).
+    $adminController()->savePage($req, $role, $currentSession, $authorization()->has($currentSession, 'changes.review'));
 });
 $router->get('/page-acl', static function (Request $req) use ($pageAclController, $authorization, $currentSession) {
     $authorization()->require($currentSession, 'roles.permissions.manage');
@@ -161,7 +172,29 @@ $router->post('/page-acl', static function (Request $req) use ($pageAclControlle
 });
 $router->delete('/page', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.delete');
-    $adminController()->deletePage($req, $role, $currentSession);
+    $adminController()->deletePage($req, $role, $currentSession, $authorization()->has($currentSession, 'changes.review'));
+});
+
+// Akceptacja zmian edytorów — przegląd i decyzje admina ("changes.review"), prośba edytora ("pages.update").
+$router->get('/changes', static function (Request $req) use ($reviewController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'changes.review');
+    $reviewController()->overview();
+});
+$router->post('/changes/approve', static function (Request $req) use ($reviewController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'changes.review');
+    $reviewController()->approve($req, $currentSession);
+});
+$router->post('/changes/revert', static function (Request $req) use ($reviewController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'changes.review');
+    $reviewController()->revert($req, $currentSession);
+});
+$router->get('/changes/mine', static function (Request $req) use ($reviewController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'pages.update');
+    $reviewController()->mine($currentSession);
+});
+$router->post('/changes/request', static function (Request $req) use ($reviewController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'pages.update');
+    $reviewController()->request($req, $currentSession);
 });
 
 $router->post('/upload', static function (Request $req) use ($uploadController, $authorization, $currentSession) {

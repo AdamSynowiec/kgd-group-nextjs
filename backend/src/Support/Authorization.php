@@ -68,6 +68,23 @@ final class Authorization
     }
 
     /**
+     * Czy wołający ma uprawnienie — bez wyjątku (np. "changes.review": zapis admina trafia
+     * od razu do wersji zatwierdzonej, zapis edytora czeka na akceptację, patrz PageReview.php).
+     * Sesja wyłączona (null) = true, jak w require().
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function has(?array $currentSession, string $permission): bool
+    {
+        if ($currentSession === null) {
+            return true;
+        }
+        $user = $this->users->findById($currentSession['userId']);
+
+        return $user !== null && $this->permissions->effectiveHas($user['id'], $user['role'], $permission);
+    }
+
+    /**
      * Wariant require() dla tras, które muszą przetrwać awarię bazy — dziś
      * tylko /build i /build/status (patrz admin.php, SessionAuth::requireRole()).
      * Najpierw próbuje zwykłego require(): w normalnej pracy uprawnienie
