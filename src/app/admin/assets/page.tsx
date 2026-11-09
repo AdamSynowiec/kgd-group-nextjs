@@ -42,7 +42,7 @@ export default function AdminAssetsPage() {
   }, []);
 
   return (
-    <AdminShell title="Assets" session={session} onLogout={goToLogin}>
+    <AdminShell title="Biblioteka plików" session={session} onLogout={goToLogin}>
       <div>
         {state === "checking" && <div className="h-40 animate-pulse rounded-xl bg-zinc-200/60" />}
         {state === "ready" && <AssetLibrary session={session} />}

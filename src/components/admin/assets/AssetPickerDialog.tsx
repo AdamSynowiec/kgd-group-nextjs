@@ -6,7 +6,7 @@ import { CloseIcon } from "../icons";
 import { ui } from "../ui";
 import AssetLibrary, { type AssetAccept } from "./AssetLibrary";
 
-/** "Wybierz z biblioteki" przy polach zdjęć i plików — ta sama biblioteka co zakładka "Assets", w trybie wyboru. */
+/** "Wybierz z biblioteki" przy polach zdjęć i plików — ta sama biblioteka co zakładka "Biblioteka plików", w trybie wyboru. */
 export default function AssetPickerDialog({
   session,
   accept,

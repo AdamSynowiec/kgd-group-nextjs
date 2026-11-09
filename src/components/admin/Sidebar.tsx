@@ -21,7 +21,7 @@ const NAV_GROUPS: { title: string; items: { label: string; href: string; Icon: t
       { label: "Cockpit", href: "/admin", Icon: HomeIcon },
       { label: "Strony", href: "/admin/strony", Icon: PagesIcon, anyOf: ["pages.list"] },
       { label: "Zmiany do akceptacji", href: "/admin/zmiany", Icon: CheckIcon, anyOf: ["changes.review"] },
-      { label: "Assets", href: "/admin/assets", Icon: FolderIcon, anyOf: ["assets.list"] },
+      { label: "Biblioteka plików", href: "/admin/assets", Icon: FolderIcon, anyOf: ["assets.list"] },
     ],
   },
   {
