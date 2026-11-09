@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchMyChanges, PAGE_SAVED_EVENT, requestReview, type Session } from "@/lib/adminApi";
 import { CheckIcon, CloseIcon } from "@/components/admin/icons";
 import { ui } from "@/components/admin/ui";
@@ -74,7 +75,9 @@ export default function ReviewRequestButton({ session }: { session: Session | nu
         <span className="rounded-full bg-white/20 px-1.5 text-xs tabular-nums ring-1 ring-inset ring-current/20">{pending}</span>
       </button>
 
-      {open && (
+      {/* Portal do <body>: Topbar ma backdrop-blur, który dla "fixed" robi z paska okno odniesienia — bez portalu dialog był ucięty do wysokości paska. */}
+      {open &&
+        createPortal(
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-950/40 px-4 py-16 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-labelledby="review-request-title">
           <div className="absolute inset-0" onClick={() => !sending && setOpen(false)} />
           <div className="relative w-full max-w-lg rounded-2xl border border-zinc-200/80 bg-white shadow-2xl">
@@ -127,8 +130,9 @@ export default function ReviewRequestButton({ session }: { session: Session | nu
               )}
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </>
   );
 }
