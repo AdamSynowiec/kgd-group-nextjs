@@ -11,6 +11,7 @@ use App\Controller\AssetController;
 use App\Controller\AdminController;
 use App\Controller\AuthController;
 use App\Controller\BuildController;
+use App\Controller\PageAclController;
 use App\Controller\PageLockController;
 use App\Controller\PermissionsController;
 use App\Controller\PriceReportController;
@@ -95,6 +96,10 @@ $usersController = static fn (): UsersController =>
 
 $rolesController = static fn (): RolesController => new RolesController($roleRepository(), $activityLogRepository());
 
+// Dostęp ról do stron ("acl" strony, kilka ról) — panel: Strony → "Dostęp".
+$pageAclController = static fn (): PageAclController =>
+    new PageAclController(new MysqlPageRepository(Connection::get($config)), $roleRepository(), $activityLogRepository());
+
 $permissionsController = static fn (): PermissionsController =>
     new PermissionsController($userRepository(), $roleRepository(), $permissionRepository(), $activityLogRepository());
 
@@ -145,6 +150,14 @@ $router->get('/page', static function (Request $req) use ($adminController, $aut
 $router->post('/page', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.update');
     $adminController()->savePage($req, $role, $currentSession);
+});
+$router->get('/page-acl', static function (Request $req) use ($pageAclController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'roles.permissions.manage');
+    $pageAclController()->list();
+});
+$router->post('/page-acl', static function (Request $req) use ($pageAclController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'roles.permissions.manage');
+    $pageAclController()->save($req, $currentSession);
 });
 $router->delete('/page', static function (Request $req) use ($adminController, $authorization, $currentSession) {
     $role = $authorization()->require($currentSession, 'pages.delete');

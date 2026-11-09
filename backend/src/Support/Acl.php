@@ -16,6 +16,8 @@ if (!defined('APP_ENTRY')) {
  * kształt {"role": string, "permission": "read"|"write"|"read/write"} w obu
  * przypadkach, więc jedna klasa wystarcza.
  *
+ * "acl" to jeden wpis albo lista wpisów (kilka ról) — patrz entries().
+ *
  * Reguła (identyczna po obu stronach): brak "acl" -> tylko rola "admin".
  * Rola "admin" przechodzi zawsze. $role === null oznacza wyłączone
  * uwierzytelnianie (patrz SessionAuth::guard, ADMIN_AUTH_ENABLED=false) —
@@ -29,11 +31,35 @@ final class Acl
 {
     public const PERMISSIONS = ['read', 'write', 'read/write'];
 
+    /** Pojedynczy wpis {"role", "permission"}. */
     public static function isValid(mixed $acl): bool
     {
         return is_array($acl)
             && is_string($acl['role'] ?? null) && $acl['role'] !== ''
             && in_array($acl['permission'] ?? null, self::PERMISSIONS, true);
+    }
+
+    /**
+     * "acl" -> lista poprawnych wpisów. Dwa kształty w bazie: jeden wpis {"role", "permission"}
+     * (dotychczasowy, np. wpisy bloga) albo lista wpisów [{...}, {...}] — kilka ról z różnym
+     * dostępem do jednej strony (ustawiane w panelu: Strony → "Dostęp", PageAclController).
+     *
+     * @return list<array{role: string, permission: string}>
+     */
+    public static function entries(mixed $acl): array
+    {
+        if (self::isValid($acl)) {
+            /** @var array{role: string, permission: string} $acl */
+            return [['role' => $acl['role'], 'permission' => $acl['permission']]];
+        }
+        if (!is_array($acl) || !array_is_list($acl)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (array $entry): array => ['role' => $entry['role'], 'permission' => $entry['permission']],
+            array_filter($acl, [self::class, 'isValid'])
+        ));
     }
 
     public static function canRead(mixed $acl, ?string $role): bool
@@ -56,15 +82,12 @@ final class Acl
             return true;
         }
 
-        if (!self::isValid($acl)) {
-            return false;
+        foreach (self::entries($acl) as $entry) {
+            if ($entry['role'] === $role && ($entry['permission'] === $need || $entry['permission'] === 'read/write')) {
+                return true;
+            }
         }
 
-        /** @var array{role: string, permission: string} $acl */
-        if ($acl['role'] !== $role) {
-            return false;
-        }
-
-        return $acl['permission'] === $need || $acl['permission'] === 'read/write';
+        return false;
     }
 }

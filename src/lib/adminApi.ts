@@ -10,7 +10,9 @@
  * logowania nad własnym UI panelu (patrz backend/src/Http/SessionAuth.php).
  */
 
-export type PageSummary = { slug: string; title: string; status: string; parent: string | null; updatedAt: string };
+import type { AclEntry } from "@/lib/acl";
+
+export type PageSummary ={ slug: string; title: string; status: string; parent: string | null; updatedAt: string };
 
 /**
  * "permissions" — efektywne uprawnienia operacyjne (patrz src/lib/permissions.ts,
@@ -138,6 +140,16 @@ export async function fetchMe(session: Session | null): Promise<MeResponse> {
 
 export function fetchPages(session: Session | null): Promise<PageSummary[]> {
   return request<PageSummary[]>("/pages", { session });
+}
+
+/** GET /page-acl — dostęp ról do każdej strony (uprawnienie roles.permissions.manage). */
+export function fetchPageAcls(session: Session | null): Promise<{ slug: string; acl: AclEntry[] }[]> {
+  return request<{ slug: string; acl: AclEntry[] }[]>("/page-acl", { session });
+}
+
+/** POST /page-acl — ten sam dostęp na podanych stronach; pusta lista = tylko admin. */
+export function savePageAcl(session: Session | null, slugs: string[], acl: AclEntry[]): Promise<{ saved: number; acl: AclEntry[] }> {
+  return request<{ saved: number; acl: AclEntry[] }>("/page-acl", { method: "POST", body: { slugs, acl }, session });
 }
 
 export function fetchPage(slug: string, session: Session | null): Promise<Record<string, unknown>> {

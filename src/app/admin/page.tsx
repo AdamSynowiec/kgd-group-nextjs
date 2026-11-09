@@ -43,6 +43,7 @@ const ACTION_LABELS: Record<string, string> = {
   "account.email.verify": "potwierdził(a) adres e-mail",
   "pages.create": "utworzył(a) stronę",
   "pages.update": "zapisał(a) stronę",
+  "pages.acl": "zmienił(a) dostęp ról do strony",
   "pages.identity": "nadał(a) identyfikatory API stron",
   "pages.delete": "usunął/usunęła stronę",
   "build.trigger": "uruchomił(a) build",

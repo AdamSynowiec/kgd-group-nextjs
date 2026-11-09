@@ -15,7 +15,24 @@
 
 export type AclPermission = "read" | "write" | "read/write";
 
-export type Acl = { role: string; permission: AclPermission };
+export type AclEntry = { role: string; permission: AclPermission };
+
+/** Jeden wpis (dotychczasowy kształt, np. wpisy bloga) albo lista — kilka ról z różnym dostępem (panel: Strony → "Dostęp"). */
+export type Acl = AclEntry | AclEntry[];
+
+const PERMISSIONS: AclPermission[] = ["read", "write", "read/write"];
+
+function isEntry(value: unknown): value is AclEntry {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const entry = value as Record<string, unknown>;
+  return typeof entry.role === "string" && entry.role !== "" && PERMISSIONS.includes(entry.permission as AclPermission);
+}
+
+/** "acl" -> lista poprawnych wpisów (mirror Acl::entries() w PHP). */
+export function aclEntries(acl: unknown): AclEntry[] {
+  if (isEntry(acl)) return [acl];
+  return Array.isArray(acl) ? acl.filter(isEntry) : [];
+}
 
 function permissionAllows(permission: AclPermission, need: "read" | "write"): boolean {
   return permission === need || permission === "read/write";
@@ -24,8 +41,7 @@ function permissionAllows(permission: AclPermission, need: "read" | "write"): bo
 function check(acl: Acl | null | undefined, role: string | null | undefined, need: "read" | "write"): boolean {
   if (role === null || role === undefined) return true;
   if (role === "admin") return true;
-  if (!acl) return false;
-  return acl.role === role && permissionAllows(acl.permission, need);
+  return aclEntries(acl).some((entry) => entry.role === role && permissionAllows(entry.permission, need));
 }
 
 export function canRead(acl: Acl | null | undefined, role: string | null | undefined): boolean {

@@ -1,12 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AdminApiError, createPage, deletePage, fetchPageLocks, type PageLockHolder, type PageSummary, type Session } from "@/lib/adminApi";
+import {
+  AdminApiError,
+  createPage,
+  deletePage,
+  fetchPageAcls,
+  fetchPageLocks,
+  fetchRoles,
+  savePageAcl,
+  type PageLockHolder,
+  type PageSummary,
+  type RoleAccount,
+  type Session,
+} from "@/lib/adminApi";
+import type { AclEntry, AclPermission } from "@/lib/acl";
 import { PAGE_TEMPLATES, getPageTemplate } from "@/lib/pageTemplates";
 import { slugify } from "@/lib/slugify";
 import { can } from "@/lib/permissions";
 import Can from "@/components/admin/Can";
-import { ChevronDownIcon, CloseIcon, FileIcon, FolderIcon, PlusIcon, SearchIcon, TrashIcon } from "@/components/admin/icons";
+import { ChevronDownIcon, CloseIcon, FileIcon, FolderIcon, LockIcon, PlusIcon, SearchIcon, TrashIcon } from "@/components/admin/icons";
 import { ui } from "@/components/admin/ui";
 
 const COLLAPSED_SECTIONS_KEY = "admin-pages-collapsed-sections";
@@ -123,6 +136,29 @@ export default function PageList({
     };
   }, [session]);
 
+  // Dostęp ról do stron ("acl") — tylko dla zarządzających uprawnieniami (admin).
+  const canManageAcl = can(session?.permissions, "roles.permissions.manage");
+  const [acls, setAcls] = useState<Map<string, AclEntry[]> | null>(null);
+  const [roles, setRoles] = useState<RoleAccount[]>([]);
+  const [accessPage, setAccessPage] = useState<PageSummary | null>(null);
+
+  useEffect(() => {
+    if (!canManageAcl) return;
+    let cancelled = false;
+    Promise.all([fetchPageAcls(session), fetchRoles(session)])
+      .then(([items, loadedRoles]) => {
+        if (cancelled) return;
+        setAcls(new Map(items.map((item) => [item.slug, item.acl])));
+        setRoles(loadedRoles);
+      })
+      .catch(() => undefined); // bez tego lista działa jak dotąd, tylko bez kolumny dostępu
+    return () => {
+      cancelled = true;
+    };
+  }, [canManageAcl, session]);
+
+  const access = canManageAcl && acls ? { acls, roles, onOpen: setAccessPage } : null;
+
   function toggleSection(key: string) {
     setCollapsedSections((prev) => {
       const next = new Set(prev);
@@ -206,7 +242,7 @@ export default function PageList({
 
       {isSearching ? (
         <div className={`${ui.card} overflow-hidden`}>
-          <PageRows items={filtered.map((page) => ({ page, depth: 0 }))} session={session} locks={locks} onEdit={onEdit} onDeleted={removePage} />
+          <PageRows items={filtered.map((page) => ({ page, depth: 0 }))} session={session} locks={locks} access={access} onEdit={onEdit} onDeleted={removePage} />
         </div>
       ) : (
         <div className="space-y-4">
@@ -224,7 +260,7 @@ export default function PageList({
                 </button>
                 {!collapsed && (
                   <div className="border-t border-zinc-100">
-                    <PageRows items={flattenTree(section.items)} session={session} locks={locks} onEdit={onEdit} onDeleted={removePage} />
+                    <PageRows items={flattenTree(section.items)} session={session} locks={locks} access={access} onEdit={onEdit} onDeleted={removePage} />
                   </div>
                 )}
               </section>
@@ -232,6 +268,25 @@ export default function PageList({
           })}
           {(sections ?? []).length === 0 && <EmptyState />}
         </div>
+      )}
+
+      {accessPage && acls && (
+        <AccessDialog
+          page={accessPage}
+          pages={pages}
+          acls={acls}
+          roles={roles}
+          session={session}
+          onClose={() => setAccessPage(null)}
+          onSaved={(slugs, acl) => {
+            setAcls((prev) => {
+              const next = new Map(prev);
+              slugs.forEach((slug) => next.set(slug, acl));
+              return next;
+            });
+            setAccessPage(null);
+          }}
+        />
       )}
 
       {showNewPageForm && (
@@ -411,16 +466,204 @@ function formatDate(value: string): string {
   return date.toLocaleDateString("pl-PL", { day: "numeric", month: "short", year: "numeric" });
 }
 
+type AccessProps = { acls: Map<string, AclEntry[]>; roles: RoleAccount[]; onOpen: (page: PageSummary) => void } | null;
+
+const PERMISSION_LABELS: Record<AclPermission, string> = { read: "podgląd", "read/write": "edycja", write: "tylko zapis" };
+
+/** Znaczki ról z dostępem do strony (admin ma zawsze pełny dostęp — nie jest wypisywany). */
+function AccessBadges({ acl, roles }: { acl: AclEntry[]; roles: RoleAccount[] }) {
+  if (acl.length === 0) {
+    return <span className={`${ui.badge} ${ui.badgeNeutral} shrink-0`}>tylko admin</span>;
+  }
+  return (
+    <>
+      {acl.map((entry) => (
+        <span key={entry.role} className={`${ui.badge} shrink-0 bg-indigo-50 text-indigo-700 ring-indigo-600/15`} title={`${entry.role}: ${PERMISSION_LABELS[entry.permission]}`}>
+          {roles.find((role) => role.name === entry.role)?.label ?? entry.role} · {PERMISSION_LABELS[entry.permission]}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** Podstrony po adresie (np. /inwestycja/foxhills/historia-cen pod /inwestycja/foxhills). */
+function descendantsOf(page: PageSummary, pages: PageSummary[]): PageSummary[] {
+  if (page.slug === "/") return [];
+  const prefix = `${page.slug}/`;
+  return pages.filter((other) => other.slug.startsWith(prefix));
+}
+
+/**
+ * Dostęp ról do strony: lista wpisów rola + uprawnienie (podgląd / edycja), opcjonalnie
+ * ten sam dostęp na podstronach. Zapis: POST /page-acl (PageAclController.php).
+ */
+function AccessDialog({
+  page,
+  pages,
+  acls,
+  roles,
+  session,
+  onClose,
+  onSaved,
+}: {
+  page: PageSummary;
+  pages: PageSummary[];
+  acls: Map<string, AclEntry[]>;
+  roles: RoleAccount[];
+  session: Session | null;
+  onClose: () => void;
+  onSaved: (slugs: string[], acl: AclEntry[]) => void;
+}) {
+  const [entries, setEntries] = useState<AclEntry[]>(() => acls.get(page.slug) ?? []);
+  const descendants = descendantsOf(page, pages);
+  const [withChildren, setWithChildren] = useState(descendants.length > 0);
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const assignable = roles.filter((role) => role.name !== "admin");
+  const free = assignable.filter((role) => !entries.some((entry) => entry.role === role.name));
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && !saving && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, saving]);
+
+  const update = (index: number, patch: Partial<AclEntry>) => setEntries((prev) => prev.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)));
+
+  async function save() {
+    setSaving(true);
+    setErrorMessage("");
+    const slugs = [page.slug, ...(withChildren ? descendants.map((item) => item.slug) : [])];
+    try {
+      const result = await savePageAcl(session, slugs, entries);
+      onSaved(slugs, result.acl);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Zapis nie powiódł się.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-950/40 px-4 py-16 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-labelledby="page-access-title">
+      <div className="absolute inset-0" onClick={() => !saving && onClose()} />
+      <div className="relative w-full max-w-lg rounded-2xl border border-zinc-200/80 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-100 px-6 py-5">
+          <div className="min-w-0">
+            <h2 id="page-access-title" className="text-base font-semibold text-zinc-900">
+              Dostęp do strony
+            </h2>
+            <p className="mt-0.5 truncate text-sm text-zinc-500">
+              {page.title} · <span className="font-mono text-[12px]">{page.slug}</span>
+            </p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} aria-label="Zamknij" className={ui.iconBtn}>
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-6 py-5">
+          {errorMessage && <p className={ui.alertError}>{errorMessage}</p>}
+
+          <p className="text-xs text-zinc-500">
+            Admin ma zawsze pełny dostęp. Pozostałe role widzą stronę w panelu tylko, gdy są na tej liście. <b className="font-medium text-zinc-700">Podgląd</b> — widzi treść,{" "}
+            <b className="font-medium text-zinc-700">edycja</b> — może ją zmieniać i zapisywać.
+          </p>
+
+          {entries.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-zinc-300 px-4 py-5 text-center text-sm text-zinc-500">Brak ról — stronę widzi tylko admin.</p>
+          ) : (
+            <ul className="space-y-2">
+              {entries.map((entry, index) => (
+                <li key={`${index}-${entry.role}`} className="flex items-center gap-2">
+                  <select
+                    value={entry.role}
+                    onChange={(event) => update(index, { role: event.target.value })}
+                    disabled={saving}
+                    className={`${ui.input} min-w-0 flex-1`}
+                    aria-label="Rola"
+                  >
+                    {assignable
+                      .filter((role) => role.name === entry.role || !entries.some((other) => other.role === role.name))
+                      .map((role) => (
+                        <option key={role.name} value={role.name}>
+                          {role.label || role.name}
+                        </option>
+                      ))}
+                    {!assignable.some((role) => role.name === entry.role) && <option value={entry.role}>{entry.role} (rola nie istnieje)</option>}
+                  </select>
+                  <select
+                    value={entry.permission}
+                    onChange={(event) => update(index, { permission: event.target.value as AclPermission })}
+                    disabled={saving}
+                    className={`${ui.input} w-36 shrink-0`}
+                    aria-label="Uprawnienie"
+                  >
+                    <option value="read">Podgląd</option>
+                    <option value="read/write">Edycja</option>
+                    {entry.permission === "write" && <option value="write">Tylko zapis</option>}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setEntries((prev) => prev.filter((_, i) => i !== index))}
+                    disabled={saving}
+                    aria-label={`Usuń rolę ${entry.role}`}
+                    className={`${ui.iconBtn} hover:bg-red-50 hover:text-red-600`}
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <button
+            type="button"
+            onClick={() => free[0] && setEntries((prev) => [...prev, { role: free[0].name, permission: "read/write" }])}
+            disabled={saving || free.length === 0}
+            className={ui.btnSecondarySm}
+          >
+            <PlusIcon className="h-3.5 w-3.5" />
+            {free.length === 0 && assignable.length > 0 ? "Wszystkie role dodane" : "Dodaj rolę"}
+          </button>
+          {assignable.length === 0 && <p className="text-xs text-zinc-500">Nie ma ról poza adminem — dodaj je w Ustawienia → Role.</p>}
+
+          {descendants.length > 0 && (
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg bg-zinc-50 px-3 py-2.5 text-sm text-zinc-700">
+              <input type="checkbox" checked={withChildren} onChange={(event) => setWithChildren(event.target.checked)} disabled={saving} className="mt-0.5 h-4 w-4 rounded border-zinc-300" />
+              <span>
+                Ten sam dostęp na podstronach ({descendants.length})
+                <span className="mt-0.5 block truncate text-xs text-zinc-500">{descendants.map((item) => item.slug.slice(page.slug.length)).join(", ")}</span>
+              </span>
+            </label>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 rounded-b-2xl border-t border-zinc-100 bg-zinc-50/60 px-6 py-4">
+          <button type="button" onClick={onClose} disabled={saving} className={ui.btnSecondary}>
+            Anuluj
+          </button>
+          <button type="button" onClick={save} disabled={saving} className={ui.btnPrimary}>
+            {saving ? "Zapisywanie..." : "Zapisz dostęp"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PageRows({
   items,
   session,
   locks,
+  access,
   onEdit,
   onDeleted,
 }: {
   items: { page: PageSummary; depth: number }[];
   session: Session | null;
   locks: Map<string, PageLockHolder>;
+  access: AccessProps;
   onEdit: (slug: string) => void;
   onDeleted: (slug: string) => void;
 }) {
@@ -486,6 +729,11 @@ function PageRows({
                   <span className="truncate font-mono text-[11px]">{page.slug}</span>
                   <span className="hidden text-zinc-300 sm:inline">•</span>
                   <span className="hidden shrink-0 sm:inline">zmieniono {formatDate(page.updatedAt)}</span>
+                  {access && (
+                    <span className="hidden min-w-0 flex-wrap items-center gap-1 md:flex">
+                      <AccessBadges acl={access.acls.get(page.slug) ?? []} roles={access.roles} />
+                    </span>
+                  )}
                 </span>
               </span>
             </button>
@@ -493,6 +741,11 @@ function PageRows({
               <button onClick={() => onEdit(page.slug)} className={ui.btnSecondarySm}>
                 Edytuj
               </button>
+              {access && (
+                <button onClick={() => access.onOpen(page)} title="Dostęp ról do strony" aria-label={`Dostęp do ${page.title}`} className={ui.iconBtn}>
+                  <LockIcon className="h-4 w-4" />
+                </button>
+              )}
               {canDelete && (
                 <button
                   onClick={() => handleDelete(page)}
