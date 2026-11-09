@@ -53,7 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <Analytics gtmId={analytics?.gtmId} gaId={analytics?.gaId} />
+        <Analytics gtmId={analytics?.gtmId} cookiebotId={analytics?.cookiebotId} />
         <UtmCapture />
         {children}
       </body>

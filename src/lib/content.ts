@@ -36,7 +36,8 @@ export type SiteConfig = {
     author?: string;
   };
   /** Identyfikatory Google Tag Manager / Google Analytics 4 — patrz src/components/seo/Analytics.tsx. Brak = skrypt się nie ładuje. */
-  analytics?: { gtmId?: string; gaId?: string };
+  /** gaId — tylko informacyjnie: GA4 ładuje się przez GTM (po zgodzie z Cookiebota, patrz Analytics.tsx). */
+  analytics?: { gtmId?: string; cookiebotId?: string; gaId?: string };
 };
 
 export type PageSection = {

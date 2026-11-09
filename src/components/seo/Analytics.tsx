@@ -1,54 +1,139 @@
 "use client";
 
-import Script from "next/script";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 /**
- * Google Tag Manager + Google Analytics 4 (gtag.js) — 1:1 ze starej strony
- * (index.html starego projektu): ten sam snippet GTM, <noscript> z iframe na
- * początku <body> i osobny gtag.js z config. Identyfikatory w
- * src/data/site.json ("analytics"), pusty identyfikator = dany skrypt się nie ładuje.
+ * Cookiebot + Google Tag Manager — GTM (a z nim GA4, Google Ads, Meta Pixel, Clarity) ładuje się
+ * DOPIERO po zgodzie z Cookiebota. Identyfikatory w src/data/site.json ("analytics").
  *
- * next/script (wbudowany w Next.js) zamiast @next/third-parties — bez nowej
- * zależności. strategy "lazyOnload" = ładowanie po zdarzeniu `load`, w czasie
- * bezczynności przeglądarki (wcześniej "afterInteractive"). GTM ciągnie za sobą
- * gtag, Facebook Pixel, Clarity i Cookiebot — na mobile blokowały one pierwszy
- * render (Lighthouse mobile, lokalnie: FCP 5,6 → 2,4 s, LCP 16,4 → 7,6 s). Koszt: śledzenie
- * i baner cookies startują ~1–3 s później.
+ * Kolejność:
+ *  1. od razu: tryb zgody Google (Consent Mode v2) — domyślnie wszystko "denied";
+ *  2. po zdarzeniu `load` (jak wcześniej "lazyOnload" — nie blokuje pierwszego renderu):
+ *     baner Cookiebot (uc.js, blokowanie ręczne — o skryptach decyduje ten komponent);
+ *  3. CookiebotOnConsentReady (także przy kolejnej wizycie z zapisaną zgodą): aktualizacja
+ *     trybu zgody Google wg kategorii i — gdy jest zgoda na statystykę lub marketing — GTM;
+ *  4. cofnięcie zgody (kategoria była, teraz jej nie ma) — przeładowanie strony, żeby
+ *     załadowane już skrypty przestały działać.
  *
- * Panel /admin celowo NIE jest śledzony (wejścia redaktorów zawyżałyby
- * statystyki i trafiałyby do GTM razem z danymi z formularzy panelu).
+ * Wcześniej Cookiebot był tagiem w GTM, więc GTM musiał startować przed zgodą. Tag Cookiebota
+ * w kontenerze GTM trzeba teraz WSTRZYMAĆ (inaczej uc.js załaduje się drugi raz po zgodzie).
+ * Uwaga: przy zgodzie tylko na statystykę GTM też się ładuje — tagi marketingowe (Meta Pixel)
+ * muszą mieć w GTM warunek zgody na marketing (ad_storage), bo nie respektują trybu zgody Google.
+ *
+ * Bez cookiebotId (pusta wartość) — GTM ładuje się jak dawniej, z domyślnym "denied".
+ * Panel /admin celowo NIE jest śledzony.
  */
-export default function Analytics({ gtmId, gaId }: { gtmId?: string; gaId?: string }) {
+
+type Consent = { necessary: boolean; preferences: boolean; statistics: boolean; marketing: boolean };
+
+declare global {
+  interface Window {
+    dataLayer?: unknown[];
+    gtag?: (...args: unknown[]) => void;
+    Cookiebot?: { consent?: Consent; hasResponse?: boolean };
+    __kgdGtmLoaded?: boolean;
+    __kgdConsent?: Consent;
+  }
+}
+
+const state = (granted: boolean) => (granted ? "granted" : "denied");
+
+function ensureGtag() {
+  window.dataLayer = window.dataLayer || [];
+  if (!window.gtag) {
+    window.gtag = function gtag() {
+      // eslint-disable-next-line prefer-rest-params -- gtag wymaga obiektu "arguments", nie tablicy
+      window.dataLayer!.push(arguments);
+    };
+  }
+}
+
+function loadGtm(gtmId: string) {
+  if (window.__kgdGtmLoaded) return;
+  window.__kgdGtmLoaded = true;
+  window.dataLayer!.push({ "gtm.start": Date.now(), event: "gtm.js" });
+  const script = document.createElement("script");
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(gtmId)}`;
+  document.head.appendChild(script);
+}
+
+export default function Analytics({ gtmId, cookiebotId }: { gtmId?: string; cookiebotId?: string }) {
   const pathname = usePathname();
-  if (pathname?.startsWith("/admin")) return null;
+  const isAdmin = pathname?.startsWith("/admin") ?? false;
 
-  return (
-    <>
-      {gtmId && (
-        <>
-          <Script id="gtm" strategy="lazyOnload">
-            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer',${JSON.stringify(gtmId)});`}
-          </Script>
-          <noscript>
-            <iframe
-              src={`https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(gtmId)}`}
-              height="0"
-              width="0"
-              style={{ display: "none", visibility: "hidden" }}
-            />
-          </noscript>
-        </>
-      )}
+  useEffect(() => {
+    if (isAdmin || !gtmId) return;
 
-      {gaId && (
-        <>
-          <Script src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`} strategy="lazyOnload" />
-          <Script id="gtag-init" strategy="lazyOnload">
-            {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config',${JSON.stringify(gaId)});`}
-          </Script>
-        </>
-      )}
-    </>
-  );
+    // 1. Domyślnie brak zgody — zanim cokolwiek się załaduje.
+    ensureGtag();
+    if (!window.__kgdConsent) {
+      window.gtag!("consent", "default", {
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied",
+        analytics_storage: "denied",
+        functionality_storage: "denied",
+        personalization_storage: "denied",
+        security_storage: "granted",
+        wait_for_update: 2000,
+      });
+    }
+
+    if (!cookiebotId) {
+      const start = () => loadGtm(gtmId);
+      if (document.readyState === "complete") start();
+      else window.addEventListener("load", start, { once: true });
+      return () => window.removeEventListener("load", start);
+    }
+
+    // 3–4. Decyzja z Cookiebota.
+    const onConsent = () => {
+      const consent = window.Cookiebot?.consent;
+      if (!consent) return;
+      const previous = window.__kgdConsent;
+      window.__kgdConsent = { ...consent };
+
+      if (previous && (["preferences", "statistics", "marketing"] as const).some((key) => previous[key] && !consent[key])) {
+        window.location.reload();
+        return;
+      }
+
+      window.gtag!("consent", "update", {
+        ad_storage: state(consent.marketing),
+        ad_user_data: state(consent.marketing),
+        ad_personalization: state(consent.marketing),
+        analytics_storage: state(consent.statistics),
+        functionality_storage: state(consent.preferences),
+        personalization_storage: state(consent.preferences),
+      });
+      if (consent.statistics || consent.marketing) loadGtm(gtmId);
+    };
+    window.addEventListener("CookiebotOnConsentReady", onConsent);
+
+    // 2. Baner Cookiebot po załadowaniu strony.
+    const startCookiebot = () => {
+      if (document.getElementById("Cookiebot")) return;
+      const script = document.createElement("script");
+      script.id = "Cookiebot";
+      script.src = "https://consent.cookiebot.com/uc.js";
+      script.async = true;
+      script.dataset.cbid = cookiebotId;
+      script.dataset.blockingmode = "manual";
+      document.head.appendChild(script);
+    };
+    if (document.readyState === "complete") startCookiebot();
+    else window.addEventListener("load", startCookiebot, { once: true });
+
+    // Cookiebot mógł być gotowy, zanim dodaliśmy nasłuch (np. po nawigacji w aplikacji).
+    if (window.Cookiebot?.hasResponse) onConsent();
+
+    return () => {
+      window.removeEventListener("CookiebotOnConsentReady", onConsent);
+      window.removeEventListener("load", startCookiebot);
+    };
+  }, [isAdmin, gtmId, cookiebotId]);
+
+  return null;
 }
