@@ -18,6 +18,20 @@ type FeaturesFields = {
  * "Udogodnienia" — części wspólne osiedla: karty ze zdjęciami (restauracja, basen, jacuzzi i sauna, padel, siłownia,
  * symulatory...). Zdjęcie wypełnia kartę, tytuł i opis wjeżdżają po najechaniu (na telefonie widoczne od razu).
  */
+/**
+ * Układ siatki tak, żeby ostatni rząd nie był "dziurawy" (np. 9 kart w 4 kolumnach = 4+4+1):
+ *  - "featured": pierwsza karta 2×2 + reszta pojedynczo — pełne rzędy po 4, gdy (n + 3) dzieli się przez 4 (5, 9, 13...);
+ *  - "three": 3 kolumny, gdy n dzieli się przez 3 (3, 6...);
+ *  - "five": 5 kolumn, gdy n dzieli się przez 5 (10, 15...) — 2 równe rzędy po 5;
+ *  - "four": dotychczasowe 4 kolumny.
+ */
+function gridLayout(count: number): "featured" | "three" | "four" | "five" {
+  if (count >= 10 && count % 5 === 0 && count % 4 !== 0) return "five";
+  if (count >= 5 && (count + 3) % 4 === 0) return "featured";
+  if (count % 4 !== 0 && count % 3 === 0) return "three";
+  return "four";
+}
+
 export default function Features({ fields, id }: { fields: FeaturesFields; id?: string }) {
   const eyebrow = unwrap(fields.eyebrow);
   const header = unwrap(fields.header);
@@ -25,6 +39,7 @@ export default function Features({ fields, id }: { fields: FeaturesFields; id?: 
   const text = unwrap(fields.text);
   const items = unwrap(fields.items) ?? [];
   const note = unwrap(fields.note);
+  const layout = gridLayout(items.length);
 
   return (
     <section id={id ?? "udogodnienia"} className="relative scroll-mt-20 overflow-hidden bg-[#26292B] py-24 font-manrope sm:py-32 lg:py-40">
@@ -33,10 +48,21 @@ export default function Features({ fields, id }: { fields: FeaturesFields; id?: 
       <Container className="relative">
         <SectionHeader eyebrow={eyebrow} title={header} accent={accent} text={text} align="center" />
 
-        <div className="mt-20 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {items.map((item, index) => (
-            <Reveal key={item.title} delay={(index % 4) * 0.08} y={30} className="h-full">
-              <article className="group relative aspect-[4/5] overflow-hidden bg-[#171A1C]">
+        <div className={`mt-20 grid gap-4 sm:grid-cols-2 ${layout === "three" ? "lg:grid-cols-3" : layout === "five" ? "lg:grid-cols-5" : "lg:grid-cols-4"} ${layout === "featured" ? "lg:auto-rows-[340px]" : ""}`}>
+          {items.map((item, index) => {
+            const big = layout === "featured" && index === 0;
+            return (
+            <Reveal
+              key={item.title}
+              delay={(index % (layout === "five" ? 5 : 4)) * 0.08}
+              y={30}
+              className={`h-full ${big ? "sm:col-span-2 lg:row-span-2" : ""}`}
+            >
+              <article
+                className={`group relative overflow-hidden bg-[#171A1C] ${
+                  big ? "aspect-[4/5] sm:aspect-[16/10] lg:aspect-auto lg:h-full" : layout === "featured" ? "aspect-[4/5] lg:aspect-auto lg:h-full" : "aspect-[4/5]"
+                }`}
+              >
                 {item.image && (
                   <img
                     src={item.image}
@@ -51,18 +77,22 @@ export default function Features({ fields, id }: { fields: FeaturesFields; id?: 
 
                 <span className={`${NUM} absolute right-5 top-4 text-[44px] leading-none text-[#E7E7E7]/30 transition-colors duration-700 group-hover:text-[#E7E7E7]/70`}>{String(index + 1).padStart(2, "0")}</span>
 
-                <div className="absolute inset-x-0 bottom-0 p-6 sm:p-7">
+                <div className={`absolute inset-x-0 bottom-0 ${big ? "p-6 sm:p-8 lg:p-10" : layout === "five" ? "p-6 lg:p-5 xl:p-6" : "p-6 sm:p-7"}`}>
                   <span className="block h-px w-8 bg-[#BCC0C1] transition-all duration-700 group-hover:w-20" />
-                  <h3 className="mt-4 font-dmserif text-[24px] leading-tight text-[#F7F7F7]">{item.title}</h3>
-                  {item.text && (
-                    <p className="mt-3 max-h-[8rem] text-[13px] font-light leading-[1.8] text-[#E7E7E7]/75 transition-all duration-700 lg:max-h-0 lg:translate-y-3 lg:opacity-0 lg:group-hover:max-h-[8rem] lg:group-hover:translate-y-0 lg:group-hover:opacity-100">
-                      {item.text}
-                    </p>
-                  )}
+                  <h3 className={`mt-4 font-dmserif leading-tight text-[#F7F7F7] ${big ? "text-[28px] sm:text-[36px] lg:text-[44px]" : layout === "five" ? "text-[24px] lg:text-[20px] xl:text-[22px]" : "text-[24px]"}`}>{item.title}</h3>
+                  {item.text &&
+                    (big ? (
+                      <p className="mt-4 max-w-md text-[14px] font-light leading-[1.8] text-[#E7E7E7]/80">{item.text}</p>
+                    ) : (
+                      <p className="mt-3 max-h-[8rem] text-[13px] font-light leading-[1.8] text-[#E7E7E7]/75 transition-all duration-700 lg:max-h-0 lg:translate-y-3 lg:opacity-0 lg:group-hover:max-h-[8rem] lg:group-hover:translate-y-0 lg:group-hover:opacity-100">
+                        {item.text}
+                      </p>
+                    ))}
                 </div>
               </article>
             </Reveal>
-          ))}
+            );
+          })}
         </div>
 
         {note && <p className="mx-auto mt-10 max-w-3xl text-center text-[12px] font-light text-[#E7E7E7]/45">{note}</p>}

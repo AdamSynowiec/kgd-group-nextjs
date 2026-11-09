@@ -153,7 +153,7 @@ type SortState = { key: SortKey; dir: 1 | -1 };
 function SortHead({ label, k, sort, onSort }: { label: string; k: SortKey; sort: SortState; onSort: (key: SortKey) => void }) {
   return (
     <th scope="col" className="px-4 py-4 text-left font-manrope text-[10px] font-medium uppercase tracking-[0.28em] text-[#BCC0C1]">
-      <button type="button" onClick={() => onSort(k)} className="inline-flex items-center gap-1.5 transition-colors hover:text-[#E7E7E7]" aria-label={`Sortuj: ${label}`}>
+      <button type="button" onClick={() => onSort(k)} className="inline-flex items-center gap-1.5 uppercase tracking-[0.28em] transition-colors hover:text-[#E7E7E7]" aria-label={`Sortuj: ${label}`}>
         {label}
         <span className={`text-[9px] ${sort.key === k ? "opacity-100" : "opacity-30"}`}>{sort.key === k ? (sort.dir === 1 ? "▲" : "▼") : "▲"}</span>
       </button>
@@ -732,7 +732,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                   <SortHead label="Typ" k="type" sort={sort} onSort={toggleSort} />
                   <th scope="col" className="px-4 py-4 text-left text-[10px] font-medium uppercase tracking-[0.28em] text-[#BCC0C1]">Piętro</th>
                   <SortHead label="Pokoje" k="rooms" sort={sort} onSort={toggleSort} />
-                  <SortHead label="PUM" k="area" sort={sort} onSort={toggleSort} />
+                  <SortHead label="Powierzchnia użytkowa" k="area" sort={sort} onSort={toggleSort} />
                   <th scope="col" className="px-4 py-4 text-left text-[10px] font-medium uppercase tracking-[0.28em] text-[#BCC0C1]">Dodatkowe powierzchnie</th>
                   <SortHead label="Status" k="status" sort={sort} onSort={toggleSort} />
                   <th scope="col" className="px-4 py-4 text-left text-[10px] font-medium uppercase tracking-[0.28em] text-[#BCC0C1]">Cena</th>
