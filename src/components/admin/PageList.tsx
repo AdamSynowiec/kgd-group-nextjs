@@ -141,6 +141,7 @@ export default function PageList({
   const [acls, setAcls] = useState<Map<string, AclEntry[]> | null>(null);
   const [roles, setRoles] = useState<RoleAccount[]>([]);
   const [accessPage, setAccessPage] = useState<PageSummary | null>(null);
+  const [aclError, setAclError] = useState("");
 
   useEffect(() => {
     if (!canManageAcl) return;
@@ -150,8 +151,10 @@ export default function PageList({
         if (cancelled) return;
         setAcls(new Map(items.map((item) => [item.slug, item.acl])));
         setRoles(loadedRoles);
+        setAclError("");
       })
-      .catch(() => undefined); // bez tego lista działa jak dotąd, tylko bez kolumny dostępu
+      // Lista działa dalej, tylko bez dostępu ról — komunikat mówi dlaczego (np. backend bez /page-acl).
+      .catch((error) => !cancelled && setAclError(error instanceof Error ? error.message : "Nieznany błąd."));
     return () => {
       cancelled = true;
     };
@@ -215,6 +218,8 @@ export default function PageList({
           </button>
         </Can>
       </div>
+
+      {aclError && <p className={ui.alertError}>Nie udało się wczytać dostępu ról do stron (kłódka przy stronach jest ukryta): {aclError}</p>}
 
       <div className="grid grid-cols-3 gap-3 sm:max-w-xl">
         <StatCard label="Wszystkie" value={pages.length} />
