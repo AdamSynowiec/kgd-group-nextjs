@@ -6,6 +6,7 @@ import { ArrowLeftIcon, CheckIcon, CloseIcon, ExternalIcon, FileIcon, FolderIcon
 import { ui } from "@/components/admin/ui";
 import {
   applyPriceSync,
+  backfillPriceReports,
   fetchPriceReportFile,
   fetchPriceReportFiles,
   fetchPriceReports,
@@ -67,6 +68,27 @@ export default function PriceReportsPanel({ session }: { session: Session | null
     }
   }
 
+  async function backfill(investment: PriceReportInvestment) {
+    const days = investment.missingDates;
+    if (
+      !window.confirm(
+        `Uzupełnić brakujące dni (${days.length}) dla „${investment.name}”?\n\n${days.map(formatDay).join(", ")}\n\nKażdy dzień dostanie plik CSV skopiowany z ostatniego wcześniejszego raportu (ceny bez zmian od tamtego dnia), wpis w dataset.xml i nową sumę MD5. Istniejące pliki zostają bez zmian.`
+      )
+    )
+      return;
+    setGenerating(investment.key);
+    setNotice(null);
+    try {
+      const result = await backfillPriceReports(session, investment.key);
+      setNotice({ tone: result.filled.length > 0 && result.skipped.length === 0 ? "ok" : "error", text: result.message });
+      await load();
+    } catch (err) {
+      setNotice({ tone: "error", text: err instanceof Error ? err.message : "Uzupełnianie nie powiodło się." });
+    } finally {
+      setGenerating(null);
+    }
+  }
+
   async function toggle(investment: PriceReportInvestment, enabled: boolean) {
     let reason = "";
     if (!enabled) {
@@ -100,6 +122,7 @@ export default function PriceReportsPanel({ session }: { session: Session | null
         onBack={() => setOpenKey(null)}
         onGenerate={() => generate(open.key)}
         onToggle={(enabled) => toggle(open, enabled)}
+        onBackfill={() => backfill(open)}
         generating={generating !== null}
         notice={notice}
       />
@@ -191,6 +214,11 @@ function InvestmentCard({ investment, onOpen }: { investment: PriceReportInvestm
       </dl>
 
       {investment.enabled && status?.result === "error" && <p className="mt-3 line-clamp-2 text-xs text-red-600">{status.message}</p>}
+      {(investment.missingDates?.length ?? 0) > 0 && (
+        <p className="mt-3 text-xs font-medium text-amber-700">
+          Brakuje raportów: {investment.missingDates.length} {daysWord(investment.missingDates.length)} ({investment.missingDates.map(formatDay).join(", ")})
+        </p>
+      )}
       {!investment.enabled && investment.disabled?.reason && <p className="mt-3 line-clamp-2 text-xs text-zinc-500">{investment.disabled.reason}</p>}
     </button>
   );
@@ -233,6 +261,7 @@ function FolderView({
   onBack,
   onGenerate,
   onToggle,
+  onBackfill,
   generating,
   notice,
 }: {
@@ -241,6 +270,7 @@ function FolderView({
   onBack: () => void;
   onGenerate: () => void;
   onToggle: (enabled: boolean) => void;
+  onBackfill: () => void;
   generating: boolean;
   notice: { tone: "ok" | "error"; text: string } | null;
 }) {
@@ -263,7 +293,8 @@ function FolderView({
     return () => {
       cancelled = true;
     };
-  }, [investment.key, investment.status, session]);
+    // missingDates — odświeżenie listy plików także po uzupełnieniu brakujących dni.
+  }, [investment.key, investment.status, investment.missingDates, session]);
 
   return (
     <div className="space-y-5">
@@ -324,6 +355,23 @@ function FolderView({
           )}
           {investment.disabled?.reason && <div className="mt-0.5 text-zinc-500">{investment.disabled.reason}</div>}
           <div className="mt-1 text-xs text-zinc-500">Nowe pliki nie powstają; dotychczasowy dataset.xml i pliki CSV pozostają dostępne pod tymi samymi adresami.</div>
+        </div>
+      )}
+
+      {(investment.missingDates?.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <div className="font-medium">
+              Brakuje raportów z {investment.missingDates.length} {daysWord(investment.missingDates.length)}
+            </div>
+            <div className="mt-0.5 text-xs text-amber-800">{investment.missingDates.map(formatDay).join(", ")} — brak pliku CSV lub wpisu w dataset.xml.</div>
+          </div>
+          <Can session={session} permission="reports.generate">
+            <button onClick={onBackfill} disabled={generating} className={`${ui.btnPrimary} shrink-0`}>
+              {generating ? <Spinner /> : <RocketIcon className="h-4 w-4" />}
+              {generating ? "Uzupełnianie…" : `Wygeneruj brakujące (${investment.missingDates.length})`}
+            </button>
+          </Can>
         </div>
       )}
 
@@ -873,6 +921,10 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace(".", ",")} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+}
+
+function daysWord(count: number): string {
+  return count === 1 ? "dnia" : "dni";
 }
 
 function formatDay(iso: string): string {

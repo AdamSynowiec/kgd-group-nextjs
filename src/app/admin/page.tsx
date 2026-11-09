@@ -51,6 +51,7 @@ const ACTION_LABELS: Record<string, string> = {
   "blog.article.update": "zaktualizował(a) wpis bloga (API)",
   "price-reports.generate": "wygenerował(a) raporty cen",
   "price-reports.sync": "zsynchronizował(a) rejestr cen z ofertą",
+  "price-reports.backfill": "uzupełnił(a) brakujące dni raportu cen",
   "api.tokens.create": "utworzył(a) token API",
   "api.tokens.revoke": "cofnął/cofnęła token API",
   "site.files.update": "zmienił(a) plik serwisu",

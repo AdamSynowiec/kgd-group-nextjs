@@ -217,6 +217,173 @@ final class PriceReportGenerator
         return is_array($decoded) ? $decoded : null;
     }
 
+    /**
+     * Dni bez raportu: od pierwszego CSV do wczoraj (dzisiejszy robi cron / "Generuj teraz") — dzień,
+     * dla którego nie ma pliku CSV albo zasobu w dataset.xml. Dla wyłączonej inwestycji tylko do dnia
+     * przed wyłączeniem (później raporty celowo nie powstają).
+     *
+     * @return list<string> daty RRRR-MM-DD, od najstarszej
+     */
+    public function missingDates(string $key): array
+    {
+        $dir = $this->directory($key);
+        $csv = $this->csvDates($key);
+        if ($csv === []) {
+            return [];
+        }
+        $inDataset = array_flip($this->datasetDates($dir . '/dataset.xml'));
+
+        $end = (new DateTimeImmutable('yesterday', $this->zone))->format('Y-m-d');
+        $disabledAt = $this->disabledMap()[$key]['at'] ?? null;
+        if (is_string($disabledAt) && $disabledAt !== '') {
+            $dayBefore = (new DateTimeImmutable($disabledAt))->setTimezone($this->zone)->modify('-1 day')->format('Y-m-d');
+            $end = min($end, $dayBefore);
+        }
+
+        $missing = [];
+        $day = new DateTimeImmutable(array_key_first($csv), $this->zone);
+        for ($guard = 0; $guard < 3660 && ($date = $day->format('Y-m-d')) <= $end; $guard++, $day = $day->modify('+1 day')) {
+            if (!isset($csv[$date]) || !isset($inDataset[$date])) {
+                $missing[] = $date;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Uzupełnia brakujące dni (missingDates): CSV dnia = kopia ostatniego wcześniejszego raportu (ceny
+     * ofertowe bez zmian od tamtego dnia — nowszych danych z tamtych dni nie ma), zasób w dataset.xml
+     * z datą tego dnia (w kolejności dat) i nowa suma MD5. Istniejących plików nie zmienia.
+     *
+     * @return array{key: string, filled: list<string>, skipped: list<string>, md5: ?string, message: string}
+     */
+    public function backfill(string $key): array
+    {
+        $this->ensureRoot();
+        $lock = fopen($this->root . '/.lock', 'c');
+        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
+            throw new RuntimeException('Generowanie raportów już trwa — spróbuj za chwilę.');
+        }
+
+        try {
+            $dir = $this->directory($key);
+            $missing = $this->missingDates($key);
+            if ($missing === []) {
+                return ['key' => $key, 'filled' => [], 'skipped' => [], 'md5' => null, 'message' => 'Nie brakuje żadnego dnia.'];
+            }
+
+            $filled = [];
+            $skipped = [];
+            foreach ($missing as $date) {
+                $csvName = "ceny-ofertowe-{$key}-{$date}.csv";
+                $csvPath = $dir . '/' . $csvName;
+                if (!is_file($csvPath)) {
+                    $source = $this->previousCsv($key, $date);
+                    if ($source === null) {
+                        $skipped[] = $date;
+                        continue;
+                    }
+                    $this->writeAtomic($csvPath, (string) file_get_contents($source));
+                }
+                $developer = $this->developerFromCsv($csvPath);
+                if ($developer === '') {
+                    $skipped[] = $date;
+                    continue;
+                }
+                $this->updateDataset($dir . '/dataset.xml', $developer, $date, $this->publicUrl($key, $csvName));
+                $filled[] = $date;
+            }
+
+            $md5 = null;
+            if ($filled !== []) {
+                $md5 = md5_file($dir . '/dataset.xml');
+                if ($md5 === false) {
+                    throw new RuntimeException("Nie udało się policzyć MD5 dla {$key}/dataset.xml.");
+                }
+                $this->writeAtomic($dir . '/dataset.md5', $md5);
+            }
+
+            $message = $filled === [] ? 'Nie udało się uzupełnić żadnego dnia.' : 'Uzupełniono dni: ' . implode(', ', $filled) . '.';
+            if ($skipped !== []) {
+                $message .= ' Pominięte (brak wcześniejszego raportu lub danych dewelopera): ' . implode(', ', $skipped) . '.';
+            }
+
+            return ['key' => $key, 'filled' => $filled, 'skipped' => $skipped, 'md5' => $md5 === null ? null : (string) $md5, 'message' => $message];
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /** @return array<string, string> data RRRR-MM-DD => ścieżka CSV, od najstarszej */
+    private function csvDates(string $key): array
+    {
+        $dir = $this->directory($key);
+        $dates = [];
+        foreach (is_dir($dir) ? (scandir($dir) ?: []) : [] as $name) {
+            if (preg_match('/^ceny-ofertowe-' . preg_quote($key, '/') . '-(\d{4}-\d{2}-\d{2})\.csv$/', $name, $m) === 1) {
+                $dates[$m[1]] = $dir . '/' . $name;
+            }
+        }
+        ksort($dates);
+
+        return $dates;
+    }
+
+    /** Ostatni CSV sprzed $date (po wcześniejszych uzupełnieniach — także uzupełniony). */
+    private function previousCsv(string $key, string $date): ?string
+    {
+        $found = null;
+        foreach ($this->csvDates($key) as $csvDate => $path) {
+            if ($csvDate >= $date) {
+                break;
+            }
+            $found = $path;
+        }
+
+        return $found;
+    }
+
+    /** Deweloper jak w generateOne(): dwie pierwsze kolumny pierwszego wiersza danych. */
+    private function developerFromCsv(string $path): string
+    {
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            return '';
+        }
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") {
+            rewind($handle);
+        }
+        fgetcsv($handle, null, ';', '"', ''); // nagłówki
+        $row = fgetcsv($handle, null, ';', '"', '');
+        fclose($handle);
+
+        return is_array($row) ? trim(($row[0] ?? '') . ' ' . ($row[1] ?? '')) : '';
+    }
+
+    /** @return list<string> daty zasobów (dataDate) w dataset.xml */
+    private function datasetDates(string $file): array
+    {
+        if (!is_file($file)) {
+            return [];
+        }
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        libxml_use_internal_errors(true);
+        $loaded = $dom->load($file);
+        libxml_clear_errors();
+        if (!$loaded) {
+            return [];
+        }
+        $dates = [];
+        foreach ((new DOMXPath($dom))->query('//*[local-name()="resource"]/*[local-name()="dataDate"]') ?: [] as $node) {
+            $dates[] = trim((string) $node->textContent);
+        }
+
+        return $dates;
+    }
+
     // ---------------------------------------------------------------------------------
 
     /**
@@ -463,7 +630,7 @@ final class PriceReportGenerator
         return $content;
     }
 
-    /** Dopisuje zasób z dnia $today (albo aktualizuje jego adres). @return bool true = nowy zasób */
+    /** Dopisuje zasób z dnia $today (albo aktualizuje jego adres); $today = data zasobu (przy backfill — dzień uzupełniany). @return bool true = nowy zasób */
     private function updateDataset(string $file, string $developer, string $today, string $csvUrl): bool
     {
         $dom = new DOMDocument('1.0', 'UTF-8');
@@ -487,8 +654,13 @@ final class PriceReportGenerator
             throw new RuntimeException('W dataset.xml brakuje elementu <resources>.');
         }
 
+        $later = null;
         foreach ($xpath->query('./*[local-name()="resource"]', $resources) ?: [] as $resource) {
-            if ($resource instanceof DOMElement && $xpath->evaluate('string(./*[local-name()="dataDate"])', $resource) === $today) {
+            if (!$resource instanceof DOMElement) {
+                continue;
+            }
+            $date = $xpath->evaluate('string(./*[local-name()="dataDate"])', $resource);
+            if ($date === $today) {
                 $url = self::first($xpath, './*[local-name()="url"]', $resource);
                 if ($url !== null) {
                     $url->nodeValue = $csvUrl;
@@ -497,9 +669,13 @@ final class PriceReportGenerator
 
                 return false;
             }
+            if ($later === null && is_string($date) && $date > $today) {
+                $later = $resource;
+            }
         }
 
-        $resources->appendChild($this->createResource($dom, $developer, $today, $csvUrl));
+        // W kolejności dat — uzupełniony dzień (backfill) trafia przed późniejsze zasoby, a nie na koniec.
+        $resources->insertBefore($this->createResource($dom, $developer, $today, $csvUrl), $later);
         $this->writeAtomic($file, (string) $dom->saveXML());
 
         return true;

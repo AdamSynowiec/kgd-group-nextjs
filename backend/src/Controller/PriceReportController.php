@@ -131,6 +131,7 @@ final class PriceReportController
                 'csvCount' => count($csvFiles),
                 'lastCsv' => $csvFiles[0]['name'] ?? null,
                 'status' => $this->generator->status($key),
+                'missingDates' => $this->generator->missingDates($key),
             ];
         }
 
@@ -146,7 +147,37 @@ final class PriceReportController
             'key' => $key,
             'files' => $this->files($key),
             'status' => $this->generator->status($key),
+            'missingDates' => $this->generator->missingDates($key),
         ]);
+    }
+
+    /**
+     * POST /price-reports/backfill  body: {"key": "foxhills"} — uzupełnia dni bez raportu (CSV + zasób w dataset.xml + MD5).
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function backfill(Request $request, ?array $currentSession): void
+    {
+        $key = $this->key($request->jsonBody()['key'] ?? null);
+        $this->registerSlug($key); // 404, gdy nie ma takiej inwestycji
+
+        try {
+            $result = $this->generator->backfill($key);
+        } catch (RuntimeException $exception) {
+            throw new ApiException($exception->getMessage(), 409);
+        }
+
+        if ($result['filled'] !== []) {
+            $this->activity->log(
+                $currentSession['userId'] ?? null,
+                $currentSession['login'] ?? null,
+                'price-reports.backfill',
+                $key,
+                ['filled' => $result['filled'], 'skipped' => $result['skipped']]
+            );
+        }
+
+        JsonResponse::ok($result);
     }
 
     /** GET /price-reports/file?key=rudava-park&name=dataset.xml — treść do podglądu. */

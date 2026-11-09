@@ -434,6 +434,8 @@ export type PriceReportInvestment = {
   csvCount: number;
   lastCsv: string | null;
   status: PriceReportStatus | null;
+  /** Dni bez raportu (brak CSV lub zasobu w dataset.xml) od pierwszego raportu do wczoraj, RRRR-MM-DD. */
+  missingDates: string[];
 };
 
 export type PriceReportFile = { name: string; type: string; size: number; modifiedAt: string; url: string };
@@ -444,8 +446,8 @@ export function fetchPriceReports(session: Session | null): Promise<PriceReportI
 }
 
 /** GET /price-reports/files — pliki w katalogu raportu jednej inwestycji. */
-export function fetchPriceReportFiles(key: string, session: Session | null): Promise<{ key: string; files: PriceReportFile[]; status: PriceReportStatus | null }> {
-  return request<{ key: string; files: PriceReportFile[]; status: PriceReportStatus | null }>("/price-reports/files", { params: { key }, session });
+export function fetchPriceReportFiles(key: string, session: Session | null): Promise<{ key: string; files: PriceReportFile[]; status: PriceReportStatus | null; missingDates: string[] }> {
+  return request<{ key: string; files: PriceReportFile[]; status: PriceReportStatus | null; missingDates: string[] }>("/price-reports/files", { params: { key }, session });
 }
 
 /** GET /price-reports/file — treść pliku do podglądu (do 2 MB). */
@@ -508,6 +510,12 @@ export function applyPriceSync(
   input: PriceSyncInput = {}
 ): Promise<PriceSyncResult> {
   return request<PriceSyncResult>("/price-reports/sync", { method: "POST", body: { key, ids, ...input }, session });
+}
+
+/** POST /price-reports/backfill — uzupełnia dni bez raportu jednej inwestycji (uprawnienie reports.generate). */
+export type PriceBackfillResult = { key: string; filled: string[]; skipped: string[]; md5: string | null; message: string };
+export function backfillPriceReports(session: Session | null, key: string): Promise<PriceBackfillResult> {
+  return request<PriceBackfillResult>("/price-reports/backfill", { method: "POST", body: { key }, session });
 }
 
 /** POST /price-reports/generate — jedna inwestycja (key) albo wszystkie (bez key); uprawnienie reports.generate. */

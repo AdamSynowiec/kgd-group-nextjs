@@ -376,6 +376,11 @@ $router->post('/price-reports/generate', static function (Request $req) use ($pr
     $authorization()->require($currentSession, 'reports.generate');
     $priceReportController()->generate($req, $currentSession);
 });
+// Uzupełnienie dni bez raportu (np. cron nie zadziałał) — patrz PriceReportGenerator::backfill().
+$router->post('/price-reports/backfill', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.generate');
+    $priceReportController()->backfill($req, $currentSession);
+});
 
 // Konto bez potwierdzonego adresu e-mail nie dostaje nic poza ekranem jego podania — blokada po stronie
 // serwera, więc nie da się jej pominąć z przeglądarki (panel tylko pokazuje formularz, patrz adminApi.ts).
