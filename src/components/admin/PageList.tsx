@@ -578,14 +578,21 @@ function AccessDialog({
           {entries.length === 0 ? (
             <p className="rounded-lg border border-dashed border-zinc-300 px-4 py-5 text-center text-sm text-zinc-500">Brak ról — stronę widzi tylko admin.</p>
           ) : (
-            <ul className="space-y-2">
+            // Siatka zamiast flex: ui.input ma w-full, które w flexie ściskało wybór roli i wypychało kosz poza okno.
+            <div className="overflow-hidden rounded-lg border border-zinc-200">
+              <div className="grid grid-cols-[minmax(0,1fr)_9rem_2.25rem] gap-2 border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                <span>Rola</span>
+                <span>Uprawnienie</span>
+                <span />
+              </div>
+              <ul className="divide-y divide-zinc-100">
               {entries.map((entry, index) => (
-                <li key={`${index}-${entry.role}`} className="flex items-center gap-2">
+                <li key={`${index}-${entry.role}`} className="grid grid-cols-[minmax(0,1fr)_9rem_2.25rem] items-center gap-2 px-3 py-2">
                   <select
                     value={entry.role}
                     onChange={(event) => update(index, { role: event.target.value })}
                     disabled={saving}
-                    className={`${ui.input} min-w-0 flex-1`}
+                    className={ui.input}
                     aria-label="Rola"
                   >
                     {assignable
@@ -601,7 +608,7 @@ function AccessDialog({
                     value={entry.permission}
                     onChange={(event) => update(index, { permission: event.target.value as AclPermission })}
                     disabled={saving}
-                    className={`${ui.input} w-36 shrink-0`}
+                    className={ui.input}
                     aria-label="Uprawnienie"
                   >
                     <option value="read">Podgląd</option>
@@ -619,7 +626,8 @@ function AccessDialog({
                   </button>
                 </li>
               ))}
-            </ul>
+              </ul>
+            </div>
           )}
 
           <button
