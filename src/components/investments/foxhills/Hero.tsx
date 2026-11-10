@@ -172,12 +172,12 @@ export default function Hero({ fields }: { fields: HeroFields }) {
             {facts.map((fact, factIndex) => (
               <div
                 key={fact.label}
-                className={`flex items-center gap-4 px-5 py-5 sm:px-7 sm:py-6 ${factIndex % 2 === 1 ? "border-l border-[#BCC0C1]/20" : ""} ${factIndex > 0 ? "lg:border-l lg:border-[#BCC0C1]/20" : ""} ${factIndex >= 2 ? "border-t border-[#BCC0C1]/20 lg:border-t-0" : ""}`}
+                className={`flex min-w-0 flex-col items-start gap-2.5 px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-7 sm:py-6 ${factIndex % 2 === 1 ? "border-l border-[#BCC0C1]/20" : ""} ${factIndex > 0 ? "lg:border-l lg:border-[#BCC0C1]/20" : ""} ${factIndex >= 2 ? "border-t border-[#BCC0C1]/20 lg:border-t-0" : ""}`}
               >
-                <Icon name={fact.icon} className="h-7 w-7 flex-none text-[#BCC0C1]" strokeWidth={1} />
-                <div>
-                  <div className="font-manrope text-[10px] font-light uppercase tracking-[0.3em] text-[#E7E7E7]/55">{fact.label}</div>
-                  <div className="mt-1 font-dmserif text-[17px] text-[#E7E7E7] sm:text-[19px]">{fact.value}</div>
+                <Icon name={fact.icon} className="h-6 w-6 flex-none text-[#BCC0C1] sm:h-7 sm:w-7" strokeWidth={1} />
+                <div className="min-w-0">
+                  <div className="font-manrope text-[9px] font-light uppercase tracking-[0.18em] text-[#E7E7E7]/55 sm:text-[10px] sm:tracking-[0.3em]">{fact.label}</div>
+                  <div className="mt-1 break-words font-dmserif text-[15px] leading-snug text-[#E7E7E7] sm:text-[19px]">{fact.value}</div>
                 </div>
               </div>
             ))}
