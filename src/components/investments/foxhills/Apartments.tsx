@@ -96,6 +96,14 @@ const formatMoney = (value: number | string) => `${Math.round(num(value)).toLoca
 const SUBTLE_SCROLL =
   "[scrollbar-width:thin] [scrollbar-color:rgba(188,192,193,0.3)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#BCC0C1]/30 hover:[&::-webkit-scrollbar-thumb]:bg-[#BCC0C1]/50";
 
+/** Odmiana "lokal": 1 lokal, 2–4 / 22–24 / 32–34... lokale, pozostałe (0, 5–21, 25–31, 112–114...) lokali. */
+function unitsWord(count: number) {
+  if (count === 1) return "lokal";
+  const last = count % 10;
+  const lastTwo = count % 100;
+  return last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? "lokale" : "lokali";
+}
+
 /** Cenę i kartę lokalu pokazujemy tylko dla lokali dostępnych — sprzedane i zarezerwowane mają sam status. */
 const forSale = (unit: Unit) => statusOf(unit.status) === "available";
 
@@ -715,7 +723,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
             <div>
               <Eyebrow>{listHeader ?? "Lista lokali"}</Eyebrow>
               <h3 className="mt-5 font-dmserif text-[32px] font-medium text-[#E7E7E7] sm:text-[42px]">
-                <span className={NUM}>{rows.length}</span> {rows.length === 1 ? "lokal" : rows.length > 1 && rows.length < 5 ? "lokale" : "lokali"}
+                <span className={NUM}>{rows.length}</span> {unitsWord(rows.length)}
               </h3>
             </div>
 
