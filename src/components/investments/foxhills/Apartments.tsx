@@ -229,9 +229,30 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
     return { total: list.length, available: list.filter((unit) => statusOf(unit.status) === "available").length, byType };
   };
 
+  /**
+   * Przyciski filtra "Typ" — z tabeli "Typy lokali" w panelu (kolejność i nazwa z kolumny "name"); lokal należy do typu,
+   * gdy jego "type" = name albo kind typu. Typy bez żadnego lokalu są pomijane, a typy lokali spoza tabeli dopisywane na końcu.
+   */
+  const typeFilters = useMemo(() => {
+    const options: { label: string; values: string[] }[] = [];
+    for (const item of types) {
+      const label = String(item.name ?? "").trim();
+      const values = [item.name, item.kind].map((value) => String(value ?? "").trim()).filter(Boolean);
+      if (!label || options.some((option) => option.label === label)) continue;
+      if (units.some((unit) => values.includes(unit.type))) options.push({ label, values });
+    }
+    for (const name of typeNames) {
+      if (!options.some((option) => option.values.includes(name))) options.push({ label: name, values: [name] });
+    }
+    return options;
+  }, [types, units, typeNames]);
+
   const rows = useMemo(() => {
     // Niezależnie od strefy wybranej na planie / w "Strefach osiedla" — te filtrują tylko panel boczny.
-    const filtered = units.filter((unit) => (typeFilter === "all" || unit.type === typeFilter) && (!onlyAvailable || statusOf(unit.status) === "available"));
+    const typeValues = typeFilters.find((option) => option.label === typeFilter)?.values;
+    const filtered = units.filter(
+      (unit) => (typeFilter === "all" || (typeValues ?? [typeFilter]).includes(unit.type)) && (!onlyAvailable || statusOf(unit.status) === "available")
+    );
     const order: Record<StatusKey, number> = { available: 0, reserved: 1, sold: 2 };
     return [...filtered].sort((a, b) => {
       let result = 0;
@@ -240,7 +261,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
       else result = String(a[sort.key]).localeCompare(String(b[sort.key]), "pl", { numeric: true });
       return result * sort.dir;
     });
-  }, [units, typeFilter, onlyAvailable, sort]);
+  }, [units, typeFilters, typeFilter, onlyAvailable, sort]);
 
   const openUnit = (unit: Unit) => forSale(unit) && setOpen(unit);
 
@@ -472,7 +493,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                       </p>
                       <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-[#BCC0C1]/20 pt-4">
                         <div>
-                          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#BCC0C1]/80">PUM</dt>
+                          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#BCC0C1]/80">Powierzchnia użytkowa</dt>
                           <dd className={`mt-1 ${NUM} text-[20px] text-[#E7E7E7]`}>{formatArea(activeUnit.area)}</dd>
                         </div>
                         <div>
@@ -701,7 +722,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
             <div className="flex flex-wrap items-center gap-x-8 gap-y-4 text-[11px] uppercase tracking-[0.25em] text-[#E7E7E7]/70">
               <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Typ lokalu">
                 <span className="text-[#BCC0C1]">Typ</span>
-                {["all", ...typeNames].map((option) => (
+                {["all", ...typeFilters.map((item) => item.label)].map((option) => (
                   <button
                     key={option}
                     type="button"
@@ -820,7 +841,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                       <dd className={`mt-1 ${NUM} text-[20px] text-[#E7E7E7]/85`}>{num(unit.rooms)}</dd>
                     </div>
                     <div>
-                      <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">PUM</dt>
+                      <dt className="text-[10px] uppercase tracking-[0.25em] text-[#BCC0C1]">Powierzchnia użytkowa</dt>
                       <dd className={`mt-1 ${NUM} text-[20px] text-[#E7E7E7]`}>{formatArea(unit.area)}</dd>
                     </div>
                     <div className="col-span-2">
@@ -1003,7 +1024,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
                       ["layers", "Strefa", zoneName(open.zone)],
                       ["facade", "Piętro", open.floor],
                       ["bed", "Pokoje", String(num(open.rooms))],
-                      ["area", "PUM", formatArea(open.area)],
+                      ["area", "Powierzchnia użytkowa", formatArea(open.area)],
                     ].map(([icon, label, value]) => (
                       <div key={label} className="flex items-start gap-3">
                         <Icon name={icon} className="mt-0.5 h-5 w-5 flex-none text-[#BCC0C1]" strokeWidth={1} />

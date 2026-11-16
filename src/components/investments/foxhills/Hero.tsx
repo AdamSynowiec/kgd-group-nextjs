@@ -177,7 +177,11 @@ export default function Hero({ fields }: { fields: HeroFields }) {
                 <Icon name={fact.icon} className="h-6 w-6 flex-none text-[#BCC0C1] sm:h-7 sm:w-7" strokeWidth={1} />
                 <div className="min-w-0">
                   <div className="font-manrope text-[9px] font-light uppercase tracking-[0.18em] text-[#E7E7E7]/55 sm:text-[10px] sm:tracking-[0.3em]">{fact.label}</div>
-                  <div className="mt-1 break-words font-dmserif text-[15px] leading-snug text-[#E7E7E7] sm:text-[19px]">{fact.value}</div>
+                  <div className="mt-1 break-words font-dmserif text-[15px] leading-snug text-[#E7E7E7] sm:text-[19px]">
+                    {/* Twarde spacje (np. "240&nbsp;m&nbsp;nad&nbsp;Krakowem" z edytora) robią z całej frazy jedno "słowo" — przeglądarka
+                        nie może jej zawinąć i łamie ostatni wyraz w środku ("Krakowe / m"). Zostawiamy je tylko po liczbach ("240 m"). */}
+                    {String(fact.value ?? "").replace(/(?<!\d)[  ]/g, " ")}
+                  </div>
                 </div>
               </div>
             ))}

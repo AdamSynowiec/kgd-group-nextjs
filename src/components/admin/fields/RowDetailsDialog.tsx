@@ -311,7 +311,7 @@ function SummaryForm({
   const texts = fields.filter((field) => field.type === "textarea");
   const area = parseArea(str(row.area));
   const pricePerM2 = parseArea(str(row.pricePerM2));
-  const computedPrice = area && pricePerM2 ? `${Math.round(area * pricePerM2).toLocaleString("pl-PL")} zł (PUM × cena za m²)` : "";
+  const computedPrice = area && pricePerM2 ? `${Math.round(area * pricePerM2).toLocaleString("pl-PL")} zł (powierzchnia użytkowa × cena za m²)` : "";
   const suggestionsFor = (field: DetailField) =>
     field.suggest ? Array.from(new Set(rows.map((other) => str(getIn(other, field.key))).filter(Boolean))).slice(0, 30) : [];
 
