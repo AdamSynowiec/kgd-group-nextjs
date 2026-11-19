@@ -11,6 +11,15 @@ export type PriceHistoryRow = Record<string, string | number>;
  * W przeciwieństwie do oryginału nie pobiera danych z zewnętrznego API —
  * `columns`/`rows` przychodzą jako statyczne dane z pól sekcji (baza danych).
  */
+/** 0 -> "A", 25 -> "Z", 26 -> "AA", 27 -> "AB" … (jak nagłówki kolumn w Excelu). */
+function columnLetter(index: number): string {
+  let letters = "";
+  for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) {
+    letters = String.fromCharCode(65 + ((n - 1) % 26)) + letters;
+  }
+  return letters;
+}
+
 export default function PriceHistoryTable({
   columns,
   rows: allRows,
@@ -59,6 +68,15 @@ export default function PriceHistoryTable({
       <div className="overflow-auto border border-gray-300 bg-white">
         <table className="text-sm border-collapse min-w-[1400px]">
           <thead className="sticky top-0 z-20 bg-gray-100">
+            {/* Litery kolumn jak w arkuszu (A, B, … Z, AA, AB, …) — łatwiej odnieść się do konkretnej kolumny. */}
+            <tr>
+              <th className="sticky left-0 z-30 bg-gray-200 border border-gray-300 w-12" aria-hidden="true" />
+              {columns.map((col, index) => (
+                <th key={col.key} scope="col" className="border border-gray-300 bg-gray-200 px-2 py-1 text-center text-xs font-medium text-gray-500">
+                  {columnLetter(index)}
+                </th>
+              ))}
+            </tr>
             <tr>
               <th className="sticky left-0 z-30 bg-gray-200 border border-gray-300 px-3 py-2 text-center w-12">#</th>
               {columns.map((col) => (
