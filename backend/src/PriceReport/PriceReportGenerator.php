@@ -103,13 +103,7 @@ final class PriceReportGenerator
      */
     public function generate(?string $key = null): array
     {
-        $this->ensureRoot();
-        $lock = fopen($this->root . '/.lock', 'c');
-        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
-            throw new RuntimeException('Generowanie raportów już trwa — spróbuj za chwilę.');
-        }
-
-        try {
+        return $this->locked(function () use ($key): array {
             $results = [];
             foreach ($this->discover() as $investment) {
                 if ($key !== null && $investment['key'] !== $key) {
@@ -138,10 +132,7 @@ final class PriceReportGenerator
             }
 
             return $results;
-        } finally {
-            flock($lock, LOCK_UN);
-            fclose($lock);
-        }
+        });
     }
 
     /**
@@ -316,6 +307,233 @@ final class PriceReportGenerator
         }
     }
 
+    /**
+     * Ponowne wygenerowanie raportów z wybranych dni (np. źle wygenerowanych albo usuniętych) z AKTUALNEGO rejestru
+     * cen — tak, jakby tamtego dnia cron wygenerował je poprawnie: plik CSV dnia (nadpisany albo nowy), zasób
+     * w dataset.xml na swoim miejscu w kolejności dat (istniejący zachowuje identyfikator extIdent — dane.gov.pl
+     * podmienia plik w tym samym zasobie, zamiast usuwać go i dodawać nowy) i nowa suma MD5.
+     *
+     * @param list<string> $dates RRRR-MM-DD
+     * @return array{key: string, generated: list<string>, md5: string, warnings: list<string>, message: string}
+     */
+    public function regenerateDays(string $key, array $dates): array
+    {
+        return $this->locked(function () use ($key, $dates): array {
+            $dates = self::validDates($dates);
+            $now = new DateTimeImmutable('now', $this->zone);
+            $today = $now->format('Y-m-d');
+            foreach ($dates as $date) {
+                if ($date > $today) {
+                    throw new RuntimeException("Nie można wygenerować raportu z przyszłej daty ({$date}).");
+                }
+            }
+
+            $investment = $this->investment($key);
+            if (!$investment['published']) {
+                throw new RuntimeException('Strona historii cen jest szkicem — raport nie jest publikowany.');
+            }
+            $prepared = $this->prepare($investment);
+            if ($prepared['error'] !== null) {
+                throw new RuntimeException($prepared['error']);
+            }
+
+            $dir = $this->directory($key);
+            $this->ensureDirectory($dir);
+            $csv = $this->csv($prepared['rows']);
+            foreach ($dates as $date) {
+                $csvName = self::csvName($key, $date);
+                $this->writeAtomic($dir . '/' . $csvName, $csv);
+                $this->updateDataset($dir . '/dataset.xml', $prepared['developer'], $date, $this->publicUrl($key, $csvName));
+            }
+            $md5 = $this->writeMd5($dir);
+
+            // Dzisiejszy dzień — status jak po zwykłym "Generuj teraz".
+            if (in_array($today, $dates, true)) {
+                $csvName = self::csvName($key, $today);
+                $this->finish($dir, $this->statusBase($investment, $now) + [
+                    'result' => 'ok',
+                    'message' => "Wygenerowano ponownie plik z dnia {$today}.",
+                    'developer' => $prepared['developer'],
+                    'dataDate' => $today,
+                    'rows' => count($prepared['rows']),
+                    'csv' => $csvName,
+                    'csvUrl' => $this->publicUrl($key, $csvName),
+                    'md5' => $md5,
+                    'warnings' => $prepared['warnings'],
+                ]);
+            }
+
+            return [
+                'key' => $key,
+                'generated' => $dates,
+                'md5' => $md5,
+                'warnings' => $prepared['warnings'],
+                'message' => 'Wygenerowano z aktualnego rejestru cen: ' . implode(', ', $dates) . '.',
+            ];
+        });
+    }
+
+    /**
+     * Usuwa raporty z wybranych dni bez śladu: zasób dnia z dataset.xml, plik CSV dnia i nowa suma MD5.
+     * Usunięte dni pojawią się w "brakujących" (missingDates) — można je wygenerować od nowa (regenerateDays).
+     *
+     * @param list<string> $dates RRRR-MM-DD
+     * @return array{key: string, deleted: list<string>, notFound: list<string>, md5: ?string, message: string}
+     */
+    public function deleteDays(string $key, array $dates): array
+    {
+        return $this->locked(function () use ($key, $dates): array {
+            $dates = self::validDates($dates);
+            $dir = $this->directory($key);
+            $datasetFile = $dir . '/dataset.xml';
+            $inDataset = array_flip($this->datasetDates($datasetFile));
+
+            $deleted = [];
+            $notFound = [];
+            foreach ($dates as $date) {
+                if (isset($inDataset[$date]) || is_file($dir . '/' . self::csvName($key, $date))) {
+                    $deleted[] = $date;
+                } else {
+                    $notFound[] = $date;
+                }
+            }
+            if ($deleted === []) {
+                return ['key' => $key, 'deleted' => [], 'notFound' => $notFound, 'md5' => null, 'message' => 'Nie ma raportów z wybranych dni.'];
+            }
+
+            // Najpierw dataset.xml (zapis atomowy), potem pliki — przy błędzie zbiór nie wskazuje na usunięte pliki.
+            $md5 = null;
+            if (is_file($datasetFile)) {
+                $this->removeResources($datasetFile, $deleted);
+                $md5 = $this->writeMd5($dir);
+            }
+            foreach ($deleted as $date) {
+                $csvPath = $dir . '/' . self::csvName($key, $date);
+                if (is_file($csvPath) && !unlink($csvPath)) {
+                    throw new RuntimeException('Nie udało się usunąć pliku ' . self::csvName($key, $date) . '.');
+                }
+            }
+            // Status ostatniego uruchomienia opisywał usunięty dzisiejszy plik — nieaktualny.
+            $today = (new DateTimeImmutable('now', $this->zone))->format('Y-m-d');
+            if (in_array($today, $deleted, true) && is_file($dir . '/status.json')) {
+                unlink($dir . '/status.json');
+            }
+
+            $message = 'Usunięto raporty z dni: ' . implode(', ', $deleted) . '.';
+            if ($notFound !== []) {
+                $message .= ' Nie było raportów z dni: ' . implode(', ', $notFound) . '.';
+            }
+
+            return ['key' => $key, 'deleted' => $deleted, 'notFound' => $notFound, 'md5' => $md5, 'message' => $message];
+        });
+    }
+
+    /**
+     * @template T
+     * @param callable(): T $work
+     * @return T
+     */
+    private function locked(callable $work): mixed
+    {
+        $this->ensureRoot();
+        $lock = fopen($this->root . '/.lock', 'c');
+        if ($lock === false) {
+            throw new RuntimeException('Nie udało się założyć blokady generowania raportów.');
+        }
+        if (!flock($lock, LOCK_EX | LOCK_NB)) {
+            fclose($lock);
+            throw new RuntimeException('Generowanie raportów już trwa — spróbuj za chwilę.');
+        }
+
+        try {
+            return $work();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /**
+     * @param array<mixed> $dates
+     * @return list<string> unikalne, poprawne daty RRRR-MM-DD, od najstarszej
+     */
+    private static function validDates(array $dates): array
+    {
+        $valid = [];
+        foreach ($dates as $date) {
+            if (!is_string($date) || preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) !== 1 || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+                throw new RuntimeException('Nieprawidłowa data: ' . (is_scalar($date) ? (string) $date : '?') . ' (wymagany format RRRR-MM-DD).');
+            }
+            $valid[$date] = true;
+        }
+        if ($valid === []) {
+            throw new RuntimeException('Nie wybrano żadnego dnia.');
+        }
+        if (count($valid) > 1000) {
+            throw new RuntimeException('Za dużo dni naraz (maksymalnie 1000).');
+        }
+        $valid = array_keys($valid);
+        sort($valid);
+
+        return $valid;
+    }
+
+    /** @return array{key: string, name: string, sourceSlug: string, published: bool, enabled: bool} */
+    private function investment(string $key): array
+    {
+        $this->directory($key); // walidacja klucza
+        foreach ($this->discover() as $investment) {
+            if ($investment['key'] === $key) {
+                return $investment;
+            }
+        }
+
+        throw new RuntimeException("Nie ma inwestycji z tabelą historii cen o kluczu \"{$key}\".");
+    }
+
+    private static function csvName(string $key, string $date): string
+    {
+        return "ceny-ofertowe-{$key}-{$date}.csv";
+    }
+
+    private function writeMd5(string $dir): string
+    {
+        $md5 = md5_file($dir . '/dataset.xml');
+        if ($md5 === false) {
+            throw new RuntimeException('Nie udało się policzyć MD5 dla ' . basename($dir) . '/dataset.xml.');
+        }
+        $this->writeAtomic($dir . '/dataset.md5', $md5);
+
+        return $md5;
+    }
+
+    /** @param list<string> $dates usuwa z dataset.xml zasoby z tych dni (dataDate) */
+    private function removeResources(string $file, array $dates): void
+    {
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $dom->preserveWhiteSpace = false;
+        $dom->formatOutput = true;
+        libxml_use_internal_errors(true);
+        if (!$dom->load($file)) {
+            $errors = array_map(static fn ($error): string => trim($error->message), libxml_get_errors());
+            libxml_clear_errors();
+            throw new RuntimeException('Nie udało się wczytać dataset.xml: ' . implode('; ', $errors));
+        }
+
+        $xpath = new DOMXPath($dom);
+        $remove = array_flip($dates);
+        $nodes = [];
+        foreach ($xpath->query('//*[local-name()="resources"]/*[local-name()="resource"]') ?: [] as $resource) {
+            if ($resource instanceof DOMElement && isset($remove[trim((string) $xpath->evaluate('string(./*[local-name()="dataDate"])', $resource))])) {
+                $nodes[] = $resource;
+            }
+        }
+        foreach ($nodes as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+        $this->writeAtomic($file, (string) $dom->saveXML());
+    }
+
     /** @return array<string, string> data RRRR-MM-DD => ścieżka CSV, od najstarszej */
     private function csvDates(string $key): array
     {
@@ -396,50 +614,25 @@ final class PriceReportGenerator
         $dir = $this->directory($key);
         $now = new DateTimeImmutable('now', $this->zone);
         $today = $now->format('Y-m-d');
-        $base = [
-            'key' => $key,
-            'name' => $investment['name'],
-            'sourceSlug' => $investment['sourceSlug'],
-            'generatedAt' => $now->format(DATE_ATOM),
-            'datasetUrl' => $this->publicUrl($key, 'dataset.xml'),
-            'md5Url' => $this->publicUrl($key, 'dataset.md5'),
-        ];
+        $base = $this->statusBase($investment, $now);
 
         if (!$investment['published']) {
             return $this->finish($dir, $base + ['result' => 'skipped', 'message' => 'Strona historii cen jest szkicem — raport nie jest publikowany.', 'warnings' => []]);
         }
 
-        $page = $this->pages->findBySlug($investment['sourceSlug']);
-        $section = $page === null ? null : $this->priceHistorySection($page['content']);
-        if ($section === null) {
-            return $this->finish($dir, $base + ['result' => 'error', 'message' => 'Nie znaleziono tabeli historii cen.', 'warnings' => []]);
+        $prepared = $this->prepare($investment);
+        if ($prepared['error'] !== null) {
+            return $this->finish($dir, $base + ['result' => 'error', 'message' => $prepared['error'], 'warnings' => $prepared['warnings']]);
         }
-
-        [$rows, $warnings, $missing] = $this->buildRows($section['columns'], $section['rows']);
-
-        if ($missing !== []) {
-            return $this->finish($dir, $base + [
-                'result' => 'error',
-                'message' => 'Tabela historii cen nie ma kolumn wymaganych w raporcie ustawowym: ' . implode(', ', $missing)
-                    . '. Uzupełnij ją do pełnych 58 kolumn (jak w pozostałych inwestycjach).',
-                'warnings' => $warnings,
-            ]);
-        }
-        if ($rows === []) {
-            return $this->finish($dir, $base + ['result' => 'error', 'message' => 'Tabela historii cen nie ma żadnego wiersza do publikacji.', 'warnings' => $warnings]);
-        }
-
-        $developer = trim($rows[0][0] . ' ' . $rows[0][1]);
-        $csvName = "ceny-ofertowe-{$key}-{$today}.csv";
+        $rows = $prepared['rows'];
+        $warnings = $prepared['warnings'];
+        $developer = $prepared['developer'];
+        $csvName = self::csvName($key, $today);
 
         $this->ensureDirectory($dir);
         $this->writeAtomic($dir . '/' . $csvName, $this->csv($rows));
         $added = $this->updateDataset($dir . '/dataset.xml', $developer, $today, $this->publicUrl($key, $csvName));
-        $md5 = md5_file($dir . '/dataset.xml');
-        if ($md5 === false) {
-            throw new RuntimeException("Nie udało się policzyć MD5 dla {$key}/dataset.xml.");
-        }
-        $this->writeAtomic($dir . '/dataset.md5', $md5);
+        $md5 = $this->writeMd5($dir);
 
         return $this->finish($dir, $base + [
             'result' => 'ok',
@@ -452,6 +645,53 @@ final class PriceReportGenerator
             'md5' => $md5,
             'warnings' => $warnings,
         ]);
+    }
+
+    /**
+     * Wiersze raportu z aktualnego rejestru cen (wspólne dla codziennego generowania i regenerateDays()).
+     *
+     * @param array{key: string, name: string, sourceSlug: string} $investment
+     * @return array{error: ?string, rows: list<list<string>>, warnings: list<string>, developer: string}
+     */
+    private function prepare(array $investment): array
+    {
+        $page = $this->pages->findBySlug($investment['sourceSlug']);
+        $section = $page === null ? null : $this->priceHistorySection($page['content']);
+        if ($section === null) {
+            return ['error' => 'Nie znaleziono tabeli historii cen.', 'rows' => [], 'warnings' => [], 'developer' => ''];
+        }
+
+        [$rows, $warnings, $missing] = $this->buildRows($section['columns'], $section['rows']);
+        if ($missing !== []) {
+            return [
+                'error' => 'Tabela historii cen nie ma kolumn wymaganych w raporcie ustawowym: ' . implode(', ', $missing)
+                    . '. Uzupełnij ją do pełnych 58 kolumn (jak w pozostałych inwestycjach).',
+                'rows' => [],
+                'warnings' => $warnings,
+                'developer' => '',
+            ];
+        }
+        if ($rows === []) {
+            return ['error' => 'Tabela historii cen nie ma żadnego wiersza do publikacji.', 'rows' => [], 'warnings' => $warnings, 'developer' => ''];
+        }
+
+        return ['error' => null, 'rows' => $rows, 'warnings' => $warnings, 'developer' => trim($rows[0][0] . ' ' . $rows[0][1])];
+    }
+
+    /**
+     * @param array{key: string, name: string, sourceSlug: string} $investment
+     * @return array<string, string>
+     */
+    private function statusBase(array $investment, DateTimeImmutable $now): array
+    {
+        return [
+            'key' => $investment['key'],
+            'name' => $investment['name'],
+            'sourceSlug' => $investment['sourceSlug'],
+            'generatedAt' => $now->format(DATE_ATOM),
+            'datasetUrl' => $this->publicUrl($investment['key'], 'dataset.xml'),
+            'md5Url' => $this->publicUrl($investment['key'], 'dataset.md5'),
+        ];
     }
 
     /** @param array<string, mixed> $status */
@@ -630,7 +870,7 @@ final class PriceReportGenerator
         return $content;
     }
 
-    /** Dopisuje zasób z dnia $today (albo aktualizuje jego adres); $today = data zasobu (przy backfill — dzień uzupełniany). @return bool true = nowy zasób */
+    /** Dopisuje zasób z dnia $today (albo odtwarza istniejący z tym samym extIdent); $today = data zasobu (backfill / regenerateDays — wybrany dzień). @return bool true = nowy zasób */
     private function updateDataset(string $file, string $developer, string $today, string $csvUrl): bool
     {
         $dom = new DOMDocument('1.0', 'UTF-8');
@@ -661,10 +901,16 @@ final class PriceReportGenerator
             }
             $date = $xpath->evaluate('string(./*[local-name()="dataDate"])', $resource);
             if ($date === $today) {
-                $url = self::first($xpath, './*[local-name()="url"]', $resource);
-                if ($url !== null) {
-                    $url->nodeValue = $csvUrl;
+                // Zasób tego dnia już jest — odtworzony od nowa (adres, tytuł, opis), ale z TYM SAMYM extIdent:
+                // dla dane.gov.pl to aktualizacja istniejącego zasobu, a nie usunięcie i dodanie nowego.
+                $fresh = $this->createResource($dom, $developer, $today, $csvUrl);
+                $ident = trim((string) $xpath->evaluate('string(./*[local-name()="extIdent"])', $resource));
+                $freshIdent = $fresh->getElementsByTagName('extIdent')->item(0);
+                if ($ident !== '' && $freshIdent !== null) {
+                    $freshIdent->nodeValue = $ident;
                 }
+                $resources->replaceChild($fresh, $resource);
+                self::sortResources($xpath, $resources);
                 $this->writeAtomic($file, (string) $dom->saveXML());
 
                 return false;
@@ -676,9 +922,25 @@ final class PriceReportGenerator
 
         // W kolejności dat — uzupełniony dzień (backfill) trafia przed późniejsze zasoby, a nie na koniec.
         $resources->insertBefore($this->createResource($dom, $developer, $today, $csvUrl), $later);
+        self::sortResources($xpath, $resources);
         $this->writeAtomic($file, (string) $dom->saveXML());
 
         return true;
+    }
+
+    /** Zasoby w dataset.xml zawsze od najstarszego dnia (dataDate) — jak przy codziennym, bezbłędnym generowaniu. */
+    private static function sortResources(DOMXPath $xpath, DOMElement $resources): void
+    {
+        $items = [];
+        foreach ($xpath->query('./*[local-name()="resource"]', $resources) ?: [] as $index => $resource) {
+            if ($resource instanceof DOMElement) {
+                $items[] = ['date' => (string) $xpath->evaluate('string(./*[local-name()="dataDate"])', $resource), 'index' => $index, 'node' => $resource];
+            }
+        }
+        usort($items, static fn (array $a, array $b): int => [$a['date'], $a['index']] <=> [$b['date'], $b['index']]);
+        foreach ($items as $item) {
+            $resources->appendChild($item['node']); // przeniesienie istniejącego węzła na koniec = nowa kolejność
+        }
     }
 
     private function createDataset(DOMDocument $dom, string $developer): void

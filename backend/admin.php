@@ -427,6 +427,15 @@ $router->post('/price-reports/backfill', static function (Request $req) use ($pr
     $authorization()->require($currentSession, 'reports.generate');
     $priceReportController()->backfill($req, $currentSession);
 });
+// Ponowne wygenerowanie wybranych dni z aktualnego rejestru i usuwanie raportów z wybranych dni (CSV + dataset.xml + MD5).
+$router->post('/price-reports/regenerate', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.generate');
+    $priceReportController()->regenerate($req, $currentSession);
+});
+$router->post('/price-reports/delete', static function (Request $req) use ($priceReportController, $authorization, $currentSession) {
+    $authorization()->require($currentSession, 'reports.generate');
+    $priceReportController()->delete($req, $currentSession);
+});
 
 // Konto bez potwierdzonego adresu e-mail nie dostaje nic poza ekranem jego podania — blokada po stronie
 // serwera, więc nie da się jej pominąć z przeglądarki (panel tylko pokazuje formularz, patrz adminApi.ts).

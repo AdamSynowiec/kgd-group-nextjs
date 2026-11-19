@@ -4,14 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Can from "@/components/admin/Can";
 import { ArrowLeftIcon, CheckIcon, CloseIcon, ExternalIcon, FileIcon, FolderIcon, LayersIcon, RocketIcon } from "@/components/admin/icons";
 import { ui } from "@/components/admin/ui";
+import { can } from "@/lib/permissions";
 import {
   applyPriceSync,
   backfillPriceReports,
+  deletePriceReports,
   fetchPriceReportFile,
   fetchPriceReportFiles,
   fetchPriceReports,
   fetchPriceSyncPlan,
   generatePriceReports,
+  regeneratePriceReports,
   togglePriceReport,
   type PriceReportFile,
   type PriceReportInvestment,
@@ -34,6 +37,8 @@ export default function PriceReportsPanel({ session }: { session: Session | null
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  /** Zwiększany po zmianie plików (regeneracja / usuwanie) — FolderView odświeża wtedy listę plików. */
+  const [filesVersion, setFilesVersion] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +94,54 @@ export default function PriceReportsPanel({ session }: { session: Session | null
     }
   }
 
+  /** Raporty z wybranych dni od nowa, z aktualnego rejestru cen. true = udało się (FolderView czyści zaznaczenie). */
+  async function regenerate(investment: PriceReportInvestment, dates: string[]): Promise<boolean> {
+    if (
+      !window.confirm(
+        `Wygenerować od nowa raporty „${investment.name}” z ${dates.length} ${daysWord(dates.length)}?\n\n${dates.map(formatDay).join(", ")}\n\nKażdy z tych dni dostanie plik CSV z AKTUALNEGO rejestru cen (obecne ceny i obecna struktura raportu). Istniejące pliki z tych dni zostaną nadpisane, a wpisy w dataset.xml zostaną na swoim miejscu (kolejność dat), z nową sumą MD5.`
+      )
+    )
+      return false;
+    setGenerating(investment.key);
+    setNotice(null);
+    try {
+      const result = await regeneratePriceReports(session, investment.key, dates);
+      setNotice({ tone: "ok", text: result.message + (result.warnings.length > 0 ? ` Ostrzeżenia: ${result.warnings.length} (szczegóły w statusie po „Generuj teraz”).` : "") });
+      setFilesVersion((version) => version + 1);
+      await load();
+      return true;
+    } catch (err) {
+      setNotice({ tone: "error", text: err instanceof Error ? err.message : "Generowanie nie powiodło się." });
+      return false;
+    } finally {
+      setGenerating(null);
+    }
+  }
+
+  /** Usuwa raporty z wybranych dni (CSV + wpis w dataset.xml, nowa suma MD5). */
+  async function remove(investment: PriceReportInvestment, dates: string[]): Promise<boolean> {
+    if (
+      !window.confirm(
+        `Usunąć raporty „${investment.name}” z ${dates.length} ${daysWord(dates.length)}?\n\n${dates.map(formatDay).join(", ")}\n\nPliki CSV zostaną skasowane, a ich wpisy usunięte z dataset.xml (z nową sumą MD5) — bez śladu. Usunięte dni pojawią się jako brakujące; możesz je od razu wygenerować z aktualnego rejestru.`
+      )
+    )
+      return false;
+    setGenerating(investment.key);
+    setNotice(null);
+    try {
+      const result = await deletePriceReports(session, investment.key, dates);
+      setNotice({ tone: result.deleted.length > 0 ? "ok" : "error", text: result.message });
+      setFilesVersion((version) => version + 1);
+      await load();
+      return true;
+    } catch (err) {
+      setNotice({ tone: "error", text: err instanceof Error ? err.message : "Usuwanie nie powiodło się." });
+      return false;
+    } finally {
+      setGenerating(null);
+    }
+  }
+
   async function toggle(investment: PriceReportInvestment, enabled: boolean) {
     let reason = "";
     if (!enabled) {
@@ -123,6 +176,9 @@ export default function PriceReportsPanel({ session }: { session: Session | null
         onGenerate={() => generate(open.key)}
         onToggle={(enabled) => toggle(open, enabled)}
         onBackfill={() => backfill(open)}
+        onRegenerate={(dates) => regenerate(open, dates)}
+        onDelete={(dates) => remove(open, dates)}
+        filesVersion={filesVersion}
         generating={generating !== null}
         notice={notice}
       />
@@ -262,6 +318,9 @@ function FolderView({
   onGenerate,
   onToggle,
   onBackfill,
+  onRegenerate,
+  onDelete,
+  filesVersion,
   generating,
   notice,
 }: {
@@ -271,6 +330,9 @@ function FolderView({
   onGenerate: () => void;
   onToggle: (enabled: boolean) => void;
   onBackfill: () => void;
+  onRegenerate: (dates: string[]) => Promise<boolean>;
+  onDelete: (dates: string[]) => Promise<boolean>;
+  filesVersion: number;
   generating: boolean;
   notice: { tone: "ok" | "error"; text: string } | null;
 }) {
@@ -279,6 +341,24 @@ function FolderView({
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<PriceReportFile | null>(null);
   const [syncing, setSyncing] = useState(false);
+  /** Zaznaczone dni (RRRR-MM-DD z nazw plików CSV) do ponownego wygenerowania albo usunięcia. */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const canManage = can(session?.permissions, "reports.generate");
+  const csvDates = useMemo(() => (files ?? []).map((file) => csvDate(file.name, investment.key)).filter((date): date is string => date !== null), [files, investment.key]);
+  const selectedDates = csvDates.filter((date) => selected.has(date)).sort();
+
+  function toggleDate(date: string, on: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (on) next.add(date);
+      else next.delete(date);
+      return next;
+    });
+  }
+
+  async function run(action: (dates: string[]) => Promise<boolean>, dates: string[]) {
+    if (await action(dates)) setSelected(new Set());
+  }
 
   // Odświeżane także po wygenerowaniu (investment.status zmienia się po load() w rodzicu).
   useEffect(() => {
@@ -293,8 +373,8 @@ function FolderView({
     return () => {
       cancelled = true;
     };
-    // missingDates — odświeżenie listy plików także po uzupełnieniu brakujących dni.
-  }, [investment.key, investment.status, investment.missingDates, session]);
+    // missingDates — odświeżenie listy plików także po uzupełnieniu brakujących dni; filesVersion — po regeneracji / usunięciu.
+  }, [investment.key, investment.status, investment.missingDates, session, filesVersion]);
 
   return (
     <div className="space-y-5">
@@ -367,10 +447,25 @@ function FolderView({
             <div className="mt-0.5 text-xs text-amber-800">{investment.missingDates.map(formatDay).join(", ")} — brak pliku CSV lub wpisu w dataset.xml.</div>
           </div>
           <Can session={session} permission="reports.generate">
-            <button onClick={onBackfill} disabled={generating} className={`${ui.btnPrimary} shrink-0`}>
-              {generating ? <Spinner /> : <RocketIcon className="h-4 w-4" />}
-              {generating ? "Uzupełnianie…" : `Wygeneruj brakujące (${investment.missingDates.length})`}
-            </button>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                onClick={onBackfill}
+                disabled={generating}
+                className={ui.btnSecondary}
+                title="Kopia ostatniego wcześniejszego raportu — ceny i struktura pliku jak tamtego dnia"
+              >
+                Kopiuj z poprzedniego dnia
+              </button>
+              <button
+                onClick={() => void onRegenerate(investment.missingDates)}
+                disabled={generating}
+                className={ui.btnPrimary}
+                title="Nowe pliki z aktualnego rejestru cen — obecne ceny i obecna struktura raportu"
+              >
+                {generating ? <Spinner /> : <RocketIcon className="h-4 w-4" />}
+                {generating ? "Generowanie…" : `Wygeneruj z aktualnego rejestru (${investment.missingDates.length})`}
+              </button>
+            </div>
           </Can>
         </div>
       )}
@@ -403,16 +498,67 @@ function FolderView({
       {error && <p className={ui.alertError}>{error}</p>}
 
       <div className={`${ui.card} overflow-hidden`}>
-        <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-3">
+        <div className="flex min-h-[3.25rem] flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-100 px-5 py-2.5">
+          {canManage && csvDates.length > 0 && (
+            <input
+              type="checkbox"
+              aria-label="Zaznacz wszystkie dzienne raporty"
+              checked={selectedDates.length === csvDates.length}
+              ref={(input) => {
+                if (input) input.indeterminate = selectedDates.length > 0 && selectedDates.length < csvDates.length;
+              }}
+              onChange={(event) => setSelected(event.target.checked ? new Set(csvDates) : new Set())}
+              className="h-4 w-4 rounded border-zinc-300"
+            />
+          )}
           <span className="text-sm font-semibold text-zinc-900">Pliki</span>
-          <span className="text-xs tabular-nums text-zinc-500">{files?.length ?? 0}</span>
+          {selectedDates.length > 0 ? (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <span className="text-xs text-zinc-500">
+                Zaznaczono: <b className="tabular-nums text-zinc-800">{selectedDates.length}</b> {daysWord(selectedDates.length)}
+              </span>
+              <button
+                onClick={() => void run(onRegenerate, selectedDates)}
+                disabled={generating}
+                className={ui.btnSecondarySm}
+                title="Nadpisz pliki tych dni raportem z aktualnego rejestru cen"
+              >
+                Wygeneruj ponownie
+              </button>
+              <button
+                onClick={() => void run(onDelete, selectedDates)}
+                disabled={generating}
+                className={`${ui.btnSecondarySm} text-red-700 hover:bg-red-50 hover:text-red-800`}
+                title="Usuń pliki CSV tych dni i ich wpisy w dataset.xml"
+              >
+                Usuń
+              </button>
+            </div>
+          ) : (
+            <span className="ml-auto text-xs tabular-nums text-zinc-500">{files?.length ?? 0}</span>
+          )}
         </div>
         {files === null && !error && <div className="h-24 animate-pulse bg-zinc-50" />}
         {files !== null && files.length === 0 && <p className="px-5 py-8 text-center text-sm text-zinc-500">Katalog jest pusty — raport jeszcze nie powstał.</p>}
         {files !== null && files.length > 0 && (
           <ul className="divide-y divide-zinc-100">
-            {files.map((file) => (
-              <li key={file.name} className="group flex items-center gap-3 px-5 py-2.5 hover:bg-zinc-50/80">
+            {files.map((file) => {
+              const date = csvDate(file.name, investment.key);
+              return (
+              <li key={file.name} className={`group flex items-center gap-3 px-5 py-2.5 hover:bg-zinc-50/80 ${date && selected.has(date) ? "bg-indigo-50/50" : ""}`}>
+                {canManage && csvDates.length > 0 && (
+                  <span className="flex w-4 shrink-0 justify-center">
+                    {date && (
+                      <input
+                        type="checkbox"
+                        aria-label={`Zaznacz raport z dnia ${formatDay(date)}`}
+                        checked={selected.has(date)}
+                        onChange={(event) => toggleDate(date, event.target.checked)}
+                        className="h-4 w-4 rounded border-zinc-300"
+                      />
+                    )}
+                  </span>
+                )}
                 <FileBadge type={file.type} />
                 <button onClick={() => setPreview(file)} className="min-w-0 flex-1 text-left">
                   <div className="truncate text-sm font-medium text-zinc-900 group-hover:text-indigo-700">{file.name}</div>
@@ -427,7 +573,8 @@ function FolderView({
                   <ExternalIcon className="h-4 w-4" />
                 </a>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
@@ -921,6 +1068,14 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace(".", ",")} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+}
+
+/** "ceny-ofertowe-foxhills-2026-11-18.csv" -> "2026-11-18" (null dla dataset.xml, .md5 i innych plików). */
+function csvDate(name: string, key: string): string | null {
+  const prefix = `ceny-ofertowe-${key}-`;
+  if (!name.startsWith(prefix) || !name.endsWith(".csv")) return null;
+  const date = name.slice(prefix.length, -4);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
 }
 
 function daysWord(count: number): string {

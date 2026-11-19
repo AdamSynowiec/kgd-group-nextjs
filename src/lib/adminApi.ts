@@ -579,6 +579,18 @@ export function backfillPriceReports(session: Session | null, key: string): Prom
   return request<PriceBackfillResult>("/price-reports/backfill", { method: "POST", body: { key }, session });
 }
 
+/** POST /price-reports/regenerate — raporty z wybranych dni (RRRR-MM-DD) od nowa, z aktualnego rejestru cen. */
+export type PriceRegenerateResult = { key: string; generated: string[]; md5: string; warnings: string[]; message: string };
+export function regeneratePriceReports(session: Session | null, key: string, dates: string[]): Promise<PriceRegenerateResult> {
+  return request<PriceRegenerateResult>("/price-reports/regenerate", { method: "POST", body: { key, dates }, session });
+}
+
+/** POST /price-reports/delete — usuwa raporty z wybranych dni (CSV + zasób w dataset.xml, nowa suma MD5). */
+export type PriceDeleteResult = { key: string; deleted: string[]; notFound: string[]; md5: string | null; message: string };
+export function deletePriceReports(session: Session | null, key: string, dates: string[]): Promise<PriceDeleteResult> {
+  return request<PriceDeleteResult>("/price-reports/delete", { method: "POST", body: { key, dates }, session });
+}
+
 /** POST /price-reports/generate — jedna inwestycja (key) albo wszystkie (bez key); uprawnienie reports.generate. */
 export function generatePriceReports(session: Session | null, key?: string): Promise<PriceReportStatus[]> {
   return request<PriceReportStatus[]>("/price-reports/generate", { method: "POST", body: key ? { key } : {}, session });

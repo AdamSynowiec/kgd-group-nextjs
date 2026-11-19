@@ -180,6 +180,64 @@ final class PriceReportController
         JsonResponse::ok($result);
     }
 
+    /**
+     * POST /price-reports/regenerate  body: {"key": "foxhills", "dates": ["2026-11-17", "2026-11-18"]}
+     * — raporty z tych dni od nowa, z aktualnego rejestru cen (CSV + zasób w dataset.xml w kolejności dat + MD5).
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function regenerate(Request $request, ?array $currentSession): void
+    {
+        $body = $request->jsonBody();
+        $key = $this->key($body['key'] ?? null);
+        $this->registerSlug($key); // 404, gdy nie ma takiej inwestycji
+
+        try {
+            $result = $this->generator->regenerateDays($key, $this->dates($body['dates'] ?? null));
+        } catch (RuntimeException $exception) {
+            throw new ApiException($exception->getMessage(), 409);
+        }
+
+        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'price-reports.regenerate', $key, ['dates' => $result['generated']]);
+
+        JsonResponse::ok($result);
+    }
+
+    /**
+     * POST /price-reports/delete  body: {"key": "foxhills", "dates": ["2026-11-17"]}
+     * — usuwa raporty z tych dni (CSV i zasób w dataset.xml) i przelicza MD5.
+     *
+     * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
+     */
+    public function delete(Request $request, ?array $currentSession): void
+    {
+        $body = $request->jsonBody();
+        $key = $this->key($body['key'] ?? null);
+        $this->registerSlug($key);
+
+        try {
+            $result = $this->generator->deleteDays($key, $this->dates($body['dates'] ?? null));
+        } catch (RuntimeException $exception) {
+            throw new ApiException($exception->getMessage(), 409);
+        }
+
+        if ($result['deleted'] !== []) {
+            $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, 'price-reports.delete', $key, ['dates' => $result['deleted']]);
+        }
+
+        JsonResponse::ok($result);
+    }
+
+    /** @return list<string> */
+    private function dates(mixed $dates): array
+    {
+        if (!is_array($dates) || $dates === []) {
+            throw new ApiException('Wybierz co najmniej jeden dzień (pole "dates").', 400);
+        }
+
+        return array_values(array_map(static fn (mixed $date): string => is_string($date) ? $date : '', $dates));
+    }
+
     /** GET /price-reports/file?key=rudava-park&name=dataset.xml — treść do podglądu. */
     public function file(Request $request): void
     {
