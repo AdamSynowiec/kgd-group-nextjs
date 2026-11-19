@@ -339,7 +339,7 @@ final class PriceReportGenerator
 
             $dir = $this->directory($key);
             $this->ensureDirectory($dir);
-            $csv = $this->csv($prepared['rows']);
+            $csv = $prepared['csv'];
             foreach ($dates as $date) {
                 $csvName = self::csvName($key, $date);
                 $this->writeAtomic($dir . '/' . $csvName, $csv);
@@ -574,11 +574,17 @@ final class PriceReportGenerator
         if ($bom !== "\xEF\xBB\xBF") {
             rewind($handle);
         }
-        fgetcsv($handle, null, ';', '"', ''); // nagłówki
+        $header = fgetcsv($handle, null, ';', '"', '');
         $row = fgetcsv($handle, null, ';', '"', '');
         fclose($handle);
+        if (!is_array($row)) {
+            return '';
+        }
 
-        return is_array($row) ? trim(($row[0] ?? '') . ' ' . ($row[1] ?? '')) : '';
+        // Struktura 48 pól: pierwsza kolumna "Firma" = pełna firma z formą prawną; stary układ: nazwa + forma prawna.
+        return is_array($header) && trim((string) ($header[0] ?? '')) === 'Firma'
+            ? trim((string) ($row[0] ?? ''))
+            : trim(($row[0] ?? '') . ' ' . ($row[1] ?? ''));
     }
 
     /** @return list<string> daty zasobów (dataDate) w dataset.xml */
@@ -630,7 +636,7 @@ final class PriceReportGenerator
         $csvName = self::csvName($key, $today);
 
         $this->ensureDirectory($dir);
-        $this->writeAtomic($dir . '/' . $csvName, $this->csv($rows));
+        $this->writeAtomic($dir . '/' . $csvName, $prepared['csv']);
         $added = $this->updateDataset($dir . '/dataset.xml', $developer, $today, $this->publicUrl($key, $csvName));
         $md5 = $this->writeMd5($dir);
 
@@ -651,31 +657,316 @@ final class PriceReportGenerator
      * Wiersze raportu z aktualnego rejestru cen (wspólne dla codziennego generowania i regenerateDays()).
      *
      * @param array{key: string, name: string, sourceSlug: string} $investment
-     * @return array{error: ?string, rows: list<list<string>>, warnings: list<string>, developer: string}
+     * @return array{error: ?string, csv: string, rows: list<list<string>>, warnings: list<string>, developer: string}
      */
     private function prepare(array $investment): array
     {
         $page = $this->pages->findBySlug($investment['sourceSlug']);
         $section = $page === null ? null : $this->priceHistorySection($page['content']);
         if ($section === null) {
-            return ['error' => 'Nie znaleziono tabeli historii cen.', 'rows' => [], 'warnings' => [], 'developer' => ''];
+            return ['error' => 'Nie znaleziono tabeli historii cen.', 'csv' => '', 'rows' => [], 'warnings' => [], 'developer' => ''];
         }
 
+        // Rejestr przekształcony do struktury 48 pól (Dz.U. 2026 poz. 1489) — raport w nowym układzie.
+        if (self::isCurrentFormat($section['columns'])) {
+            [$rows, $warnings, $errors] = $this->buildCurrentRows($section['columns'], $section['rows']);
+            if ($errors !== []) {
+                return [
+                    'error' => 'Raport nie powstał — rejestr cen ma błędy (' . count($errors) . '), które trzeba poprawić przed publikacją: '
+                        . implode(' · ', array_slice($errors, 0, 5)) . (count($errors) > 5 ? ' · …' : ''),
+                    'csv' => '',
+                    'rows' => [],
+                    'warnings' => [...array_map(static fn (string $error): string => "BŁĄD: {$error}", $errors), ...$warnings],
+                    'developer' => '',
+                ];
+            }
+            if ($rows === []) {
+                return ['error' => 'Tabela historii cen nie ma żadnego wiersza do publikacji.', 'csv' => '', 'rows' => [], 'warnings' => $warnings, 'developer' => ''];
+            }
+
+            return ['error' => null, 'csv' => self::currentCsv($rows), 'rows' => $rows, 'warnings' => $warnings, 'developer' => $rows[0][0]];
+        }
+
+        // Rejestr jeszcze w starym układzie (58 kolumn, 2025) — raport jak dotąd, do czasu przekształcenia rejestru.
         [$rows, $warnings, $missing] = $this->buildRows($section['columns'], $section['rows']);
+        $warnings[] = 'Rejestr cen jest jeszcze w starym układzie 58 kolumn — od 11.11.2026 obowiązuje struktura 48 pól (Dz.U. 2026 poz. 1489). Przekształć rejestr, żeby raport powstawał w nowym układzie.';
         if ($missing !== []) {
             return [
-                'error' => 'Tabela historii cen nie ma kolumn wymaganych w raporcie ustawowym: ' . implode(', ', $missing)
-                    . '. Uzupełnij ją do pełnych 58 kolumn (jak w pozostałych inwestycjach).',
+                'error' => 'Tabela historii cen (stary układ 58 kolumn) nie ma kolumn: ' . implode(', ', $missing)
+                    . '. Przekształć rejestr do struktury 48 pól z Dz.U. 2026 poz. 1489.',
+                'csv' => '',
                 'rows' => [],
                 'warnings' => $warnings,
                 'developer' => '',
             ];
         }
         if ($rows === []) {
-            return ['error' => 'Tabela historii cen nie ma żadnego wiersza do publikacji.', 'rows' => [], 'warnings' => $warnings, 'developer' => ''];
+            return ['error' => 'Tabela historii cen nie ma żadnego wiersza do publikacji.', 'csv' => '', 'rows' => [], 'warnings' => $warnings, 'developer' => ''];
         }
 
-        return ['error' => null, 'rows' => $rows, 'warnings' => $warnings, 'developer' => trim($rows[0][0] . ' ' . $rows[0][1])];
+        return ['error' => null, 'csv' => $this->csv($rows), 'rows' => $rows, 'warnings' => $warnings, 'developer' => trim($rows[0][0] . ' ' . $rows[0][1])];
+    }
+
+    /** @param list<array<string, mixed>> $columns */
+    private static function isCurrentFormat(array $columns): bool
+    {
+        return in_array(ReportColumns::MARKER, array_map(static fn (array $column): string => (string) ($column['key'] ?? ''), $columns), true);
+    }
+
+    /**
+     * Wiersze rejestru w strukturze 48 pól -> wartości w formacie wzoru ministerstwa + walidacja.
+     * Błędy (pole wymagane puste, "[wprowadz dane]", zły format, niespójne dane lokalu) blokują publikację;
+     * ostrzeżenia nie.
+     *
+     * @param list<array<string, mixed>> $columns
+     * @param list<array<string, mixed>> $sourceRows
+     * @return array{0: list<list<string>>, 1: list<string>, 2: list<string>} [wiersze, ostrzeżenia, błędy]
+     */
+    private function buildCurrentRows(array $columns, array $sourceRows): array
+    {
+        $available = array_map(static fn (array $column): string => (string) ($column['key'] ?? ''), $columns);
+        $resolved = [];
+        $missing = [];
+        foreach (ReportColumns::ALL as $index => $definition) {
+            $resolved[$index] = null;
+            foreach ([$definition['key'], ...$definition['aliases']] as $candidate) {
+                if (in_array($candidate, $available, true)) {
+                    $resolved[$index] = $candidate;
+                    break;
+                }
+            }
+            if ($resolved[$index] === null) {
+                $missing[] = "{$definition['field']} {$definition['header']}";
+            }
+        }
+        if ($missing !== []) {
+            return [[], [], ['Rejestr nie ma kolumn: ' . implode('; ', $missing) . '.']];
+        }
+
+        $warnings = [];
+        $known = array_merge(array_filter($resolved), ReportColumns::RETIRED);
+        $unknown = array_values(array_filter(array_diff($available, $known), static fn (string $key): bool => $key !== '' && stripos($key, 'status') === false));
+        if ($unknown !== []) {
+            $warnings[] = 'Kolumny spoza struktury raportu (pominięte): ' . implode(', ', $unknown) . '.';
+        }
+
+        $fieldIndex = array_flip(array_column(ReportColumns::ALL, 'field'));
+        $errors = [];
+        $rows = [];
+        $units = [];
+        $ancillaryIds = [];
+        $seenRows = [];
+        /** @var array<string, list<string>> $grouped problem => numery wierszy */
+        $grouped = [];
+        foreach ($sourceRows as $number => $source) {
+            if (!is_array($source) || self::isSold($source)) {
+                continue;
+            }
+            $row = [];
+            $problems = [];
+            foreach (ReportColumns::ALL as $index => $definition) {
+                $raw = $source[$resolved[$index]] ?? '';
+                $raw = is_scalar($raw) ? (string) $raw : '';
+                if (preg_match('/\[\s*wprowad[zź]/iu', $raw) === 1) {
+                    $problems[] = "{$definition['field']} ({$definition['header']}) — uzupełnij dane (jest „{$raw}”)";
+                    $row[] = 'X';
+                    continue;
+                }
+                [$value, $problem] = self::normalizeCurrent($raw, $definition);
+                if ($problem !== null) {
+                    $problems[] = "{$definition['field']} ({$definition['header']}) — {$problem}";
+                }
+                $row[] = $value;
+            }
+            // Wiersz zupełnie pusty (same "X") — np. pozostawiony w panelu szablon.
+            if (array_filter($row, static fn (string $value): bool => $value !== 'X') === [] && $problems === []) {
+                continue;
+            }
+
+            $unit = $row[$fieldIndex['E2']];
+            $label = 'Wiersz ' . ($number + 1) . ($unit !== 'X' ? " ({$unit})" : '');
+
+            // F5 / G4 / H4: identyfikator lokalu z E2, gdy grupa jest wypełniona, a pole puste.
+            foreach (ReportColumns::UNIT_REFS as $group => [$first, $ref]) {
+                $filled = $row[$fieldIndex[$first]] !== 'X';
+                if ($filled && $row[$fieldIndex[$ref]] === 'X') {
+                    $row[$fieldIndex[$ref]] = $unit;
+                } elseif (!$filled && $row[$fieldIndex[$ref]] !== 'X') {
+                    $problems[] = "{$ref} — identyfikator lokalu podany bez danych w grupie {$group} (pole {$first} puste)";
+                } elseif ($filled && $row[$fieldIndex[$ref]] !== $unit) {
+                    $warnings[] = "{$label}: {$ref} wskazuje lokal „{$row[$fieldIndex[$ref]]}”, inny niż identyfikator lokalu w tym wierszu (E2).";
+                }
+            }
+
+            foreach (ReportColumns::ALL as $index => $definition) {
+                if ($definition['required'] && $row[$index] === 'X' && !self::hasProblem($problems, $definition['field'])) {
+                    $problems[] = "{$definition['field']} ({$definition['header']}) — pole wymagane jest puste";
+                }
+            }
+            foreach (ReportColumns::DEPENDS_ON as $field => $dependsOn) {
+                $has = $row[$fieldIndex[$field]] !== 'X';
+                $parent = $row[$fieldIndex[$dependsOn]] !== 'X';
+                if ($parent && !$has && !self::hasProblem($problems, $field)) {
+                    $problems[] = "{$field} — wymagane, gdy podano {$dependsOn}";
+                } elseif ($has && !$parent && !self::hasProblem($problems, $dependsOn)) {
+                    $problems[] = "{$field} — podane bez {$dependsOn}";
+                }
+            }
+
+            // Ten sam problem w wielu wierszach (np. brak współrzędnych — wspólne dla inwestycji) — jeden wpis z listą wierszy.
+            foreach ($problems as $problem) {
+                $grouped[$problem][] = (string) ($number + 1);
+            }
+
+            // Ten sam lokal w kilku wierszach (kolejne pomieszczenia przynależne) — dane lokalu (E1–E6) muszą być identyczne.
+            if ($unit !== 'X') {
+                $unitData = implode('|', array_slice($row, $fieldIndex['E1'], 6));
+                if (isset($units[$unit]) && $units[$unit] !== $unitData) {
+                    $errors[] = "{$label}: lokal „{$unit}” występuje w kilku wierszach z różnymi danymi (E1–E6) — muszą być takie same.";
+                }
+                $units[$unit] ??= $unitData;
+            }
+            $ancillary = $row[$fieldIndex['F2']];
+            if ($ancillary !== 'X') {
+                if (isset($ancillaryIds[$ancillary])) {
+                    $errors[] = "{$label}: identyfikator pomieszczenia przynależnego „{$ancillary}” (F2) powtarza się — musi być unikalny.";
+                }
+                $ancillaryIds[$ancillary] = true;
+            }
+            $signature = implode('|', $row);
+            if (isset($seenRows[$signature])) {
+                $errors[] = "{$label}: wiersz powtarza wiersz {$seenRows[$signature]}.";
+            }
+            $seenRows[$signature] ??= (string) ($number + 1);
+
+            $rows[] = $row;
+        }
+
+        $rowErrors = [];
+        foreach ($grouped as $problem => $numbers) {
+            $rowErrors[] = (count($numbers) === 1 ? "Wiersz {$numbers[0]}" : 'Wiersze ' . implode(', ', $numbers)) . ": {$problem}";
+        }
+
+        return [$rows, $warnings, [...$rowErrors, ...$errors]];
+    }
+
+    /** @param list<string> $problems */
+    private static function hasProblem(array $problems, string $field): bool
+    {
+        foreach ($problems as $problem) {
+            if (str_starts_with($problem, $field . ' ')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Wartość pola w formacie wzoru ministerstwa (CSV): kwoty "1500000,44", data i czas "2025-11-09 16:00:00",
+     * współrzędne "19,721071", NIP same cyfry, puste = "X".
+     *
+     * @param array{field: string, key: string, kind: string} $definition
+     * @return array{0: string, 1: ?string} [wartość, opis problemu albo null]
+     */
+    private static function normalizeCurrent(string $raw, array $definition): array
+    {
+        $value = trim(preg_replace('/\s+/u', ' ', str_replace(["\u{00A0}", "\u{202F}"], ' ', $raw)) ?? '');
+        if ($value === '' || $value === '-' || $value === '—' || strcasecmp($value, 'x') === 0) {
+            return ['X', null];
+        }
+
+        switch ($definition['kind']) {
+            case ReportColumns::AMOUNT:
+                $number = str_ireplace(['zł', 'pln', ' '], '', $value);
+                if (preg_match('/^\d+([.,]\d+)?$/', $number) !== 1) {
+                    return [$value, "nieprawidłowa kwota „{$value}”"];
+                }
+
+                return [number_format((float) str_replace(',', '.', $number), 2, ',', ''), null];
+
+            case ReportColumns::DATETIME:
+                return self::normalizeDateTime($value);
+
+            case ReportColumns::LONGITUDE:
+            case ReportColumns::LATITUDE:
+                if (preg_match('/^\d{1,3}([.,]\d+)?$/', $value) !== 1) {
+                    return [$value, "nieprawidłowa współrzędna „{$value}” (stopnie dziesiętne, np. 19,936000)"];
+                }
+                $degrees = (float) str_replace(',', '.', $value);
+                [$min, $max, $name] = $definition['kind'] === ReportColumns::LONGITUDE ? [14.0, 24.2, 'długość'] : [49.0, 54.9, 'szerokość'];
+                if ($degrees < $min || $degrees > $max) {
+                    $swapped = $definition['kind'] === ReportColumns::LONGITUDE ? $degrees >= 49.0 && $degrees <= 54.9 : $degrees >= 14.0 && $degrees <= 24.2;
+
+                    return [$value, $swapped ? 'długość i szerokość geograficzna są zamienione (D8 = długość ok. 14–24, D9 = szerokość ok. 49–55)' : "{$name} geograficzna „{$value}” poza Polską"];
+                }
+
+                return [number_format($degrees, 6, ',', ''), null];
+        }
+
+        if ($definition['field'] === 'A2') {
+            $digits = preg_replace('/[\s-]+/', '', $value) ?? '';
+
+            return preg_match('/^\d{10}$/', $digits) === 1 ? [$digits, null] : [$value, "NIP musi mieć 10 cyfr (jest „{$value}”)"];
+        }
+        if (in_array($definition['field'], ['B8', 'C8', 'D7'], true)) {
+            return preg_match('/^\d{2}-\d{3}$/', $value) === 1 ? [$value, null] : [$value, "kod pocztowy musi mieć format NN-NNN (jest „{$value}”)"];
+        }
+        if (in_array($definition['field'], ['B1', 'C1', 'D1'], true)) {
+            return [mb_strtolower($value), null];
+        }
+        if ($definition['field'] === 'E1') {
+            $type = mb_strtolower($value);
+            if (str_starts_with($type, 'lokal')) {
+                $type = 'lokal mieszkalny';
+            } elseif (str_starts_with($type, 'dom')) {
+                $type = 'dom jednorodzinny';
+            }
+
+            return in_array($type, ReportColumns::PROPERTY_TYPES, true) ? [$type, null] : [$value, "dopuszczalne wartości: „lokal mieszkalny” albo „dom jednorodzinny” (jest „{$value}”)"];
+        }
+
+        return [$value, null];
+    }
+
+    /** "2026-09-07", "07.09.2026", "2026.09.07 14:30", "2026-09-07T14:30:00" -> "2026-09-07 14:30:00" @return array{0: string, 1: ?string} */
+    private static function normalizeDateTime(string $value): array
+    {
+        $time = [0, 0, 0];
+        if (preg_match('/^(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/', $value, $m) === 1) {
+            [$year, $month, $day] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+            $time = [(int) ($m[4] ?? 0), (int) ($m[5] ?? 0), (int) ($m[6] ?? 0)];
+        } elseif (preg_match('/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})(?: (\d{1,2}):(\d{2})(?::(\d{2}))?)?$/', $value, $m) === 1) {
+            [$day, $month, $year] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+            $time = [(int) ($m[4] ?? 0), (int) ($m[5] ?? 0), (int) ($m[6] ?? 0)];
+        } else {
+            return [$value, "nieprawidłowa data „{$value}” (format RRRR-MM-DD GG:MM:SS)"];
+        }
+        if (!checkdate($month, $day, $year) || $time[0] > 23 || $time[1] > 59 || $time[2] > 59) {
+            return [$value, "nieistniejąca data lub godzina „{$value}”"];
+        }
+
+        return [sprintf('%04d-%02d-%02d %02d:%02d:%02d', $year, $month, $day, ...$time), null];
+    }
+
+    /**
+     * CSV jak wzorcowy plik ministerstwa: UTF-8 z BOM, separator ";", wiersze CRLF, nagłówki z ReportColumns.
+     * Cudzysłów tylko tam, gdzie wymaga go CSV (";", cudzysłów, nowa linia w wartości).
+     *
+     * @param list<list<string>> $rows
+     */
+    private static function currentCsv(array $rows): string
+    {
+        $line = static fn (array $fields): string => implode(';', array_map(
+            static fn (string $field): string => preg_match('/[;"\r\n]/', $field) === 1 ? '"' . str_replace('"', '""', $field) . '"' : $field,
+            $fields
+        ));
+        $lines = [$line(ReportColumns::headers())];
+        foreach ($rows as $row) {
+            $lines[] = $line($row);
+        }
+
+        return "\xEF\xBB\xBF" . implode("\r\n", $lines) . "\r\n";
     }
 
     /**
@@ -953,7 +1244,7 @@ final class PriceReportGenerator
         $dataset->setAttribute('status', 'published');
         $root->appendChild($dataset);
 
-        $legal = 'art. 19b. ust. 1 Ustawy z dnia 20 maja 2021 r. o ochronie praw nabywcy lokalu mieszkalnego lub domu jednorodzinnego oraz Deweloperskim Funduszu Gwarancyjnym (Dz. U. z 2024 r. poz. 695)';
+        $legal = 'art. 19b. ust. 1 Ustawy z dnia 20 maja 2021 r. o ochronie praw nabywcy lokalu mieszkalnego lub domu jednorodzinnego oraz Deweloperskim Funduszu Gwarancyjnym (Dz. U. z 2026 r. poz. 880 i 1077), w strukturze określonej w rozporządzeniu Ministra Cyfryzacji z dnia 10 listopada 2026 r. (Dz. U. poz. 1489)';
         $dataset->appendChild($this->text($dom, 'extIdent', self::randomIdent()));
         $dataset->appendChild($this->bilingual($dom, 'title', "Ceny ofertowe mieszkań dewelopera {$developer}", "Offer prices of apartments of developer {$developer}"));
         $dataset->appendChild($this->bilingual(

@@ -43,11 +43,15 @@ final class PriceRegisterSync
         'salesVoivodeship', 'salesCounty', 'salesCommune', 'salesCity', 'salesStreet', 'salesBuildingNo', 'salesUnitNo', 'salesPostalCode',
         'salesAdditionalLocations', 'contactMethod',
         'investmentVoivodeship', 'investmentCounty', 'investmentCommune', 'investmentCity', 'investmentStreet', 'investmentBuildingNo', 'investmentPostalCode',
+        'investmentLongitude', 'investmentLatitude',
         'prospectusUrl',
     ];
 
-    /** Wymagane w raporcie (StatutoryColumns::REQUIRED bez rodzaju nieruchomości, który jest per lokal). */
-    private const REQUIRED_SHARED = ['developerName', 'developerLegalForm', 'nip'];
+    /**
+     * Wymagane dane dewelopera w formularzu panelu. Forma prawna nie jest osobno wymagana: w strukturze 48 pól
+     * (ReportColumns) jest częścią firmy (A1); stary układ i tak zgłosi jej brak przy generowaniu raportu.
+     */
+    private const REQUIRED_SHARED = ['developerName', 'nip'];
 
     /** Pole oferty -> [kolumna ceny, kolumna daty obowiązywania]. */
     private const PRICES = [
@@ -87,7 +91,7 @@ final class PriceRegisterSync
             return $change;
         }, $plan['changes']);
         $plan['sharedSuggestions'] = $plan['needsShared'] ? $this->sharedSuggestions($registerSlug) : [];
-        unset($plan['content'], $plan['rows'], $plan['sectionIndex']);
+        unset($plan['content'], $plan['rows'], $plan['sectionIndex'], $plan['unitColumn']);
 
         return $plan;
     }
@@ -109,7 +113,7 @@ final class PriceRegisterSync
         if (($plan['needsShared'] && $creating) || $plan['sharedDiff'] !== []) {
             $missing = array_values(array_filter(self::REQUIRED_SHARED, static fn (string $key): bool => self::isEmpty(self::text($shared[$key] ?? ''))));
             if ($shared === null || $missing !== []) {
-                throw new RuntimeException('Uzupełnij dane dewelopera (wymagane: nazwa, forma prawna, NIP).');
+                throw new RuntimeException('Uzupełnij dane dewelopera (wymagane: firma, NIP).');
             }
         }
         $wanted = array_flip($ids);
@@ -137,14 +141,27 @@ final class PriceRegisterSync
             if (!isset($wanted[$change['id']])) {
                 continue;
             }
+            // Struktura 48 pól: lokal z kilkoma pomieszczeniami przynależnymi ma kilka wierszy (jak we wzorze
+            // ministerstwa) — zmiana ceny / usunięcie dotyczy wszystkich wierszy tego lokalu, nie tylko pierwszego.
+            $targets = [$change['index'] ?? null];
+            if (isset($change['index']) && (str_starts_with($change['id'], 'update:') || $change['action'] === 'remove')) {
+                $unitKey = self::key($rows[$change['index']][$plan['unitColumn']] ?? '');
+                if ($unitKey !== '') {
+                    $targets = array_keys(array_filter($rows, static fn (array $row): bool => self::key($row[$plan['unitColumn']] ?? '') === $unitKey));
+                }
+            }
             if ($change['action'] === 'update') {
-                foreach ($change['fields'] as $field) {
-                    $rows[$change['index']][$field['key']] = $field['to'];
+                foreach ($targets as $index) {
+                    foreach ($change['fields'] as $field) {
+                        $rows[$index][$field['key']] = $field['to'];
+                    }
                 }
             } elseif ($change['action'] === 'create') {
                 $rows[] = $change['row'];
             } else {
-                $removed[$change['index']] = true;
+                foreach ($targets as $index) {
+                    $removed[$index] = true;
+                }
             }
             $counts[$change['action']]++;
             $units[] = $change['unit'];
@@ -208,6 +225,8 @@ final class PriceRegisterSync
         $col = self::columnMap($columns);
         $c = static fn (string $name): string => $col[$name] ?? $name;
         $rows = array_values(array_filter((array) self::unwrap($fields['rows'] ?? []), 'is_array'));
+        // Rejestr w strukturze 48 pól (Dz.U. 2026 poz. 1489) — lokal może mieć kilka wierszy (kolejne pomieszczenia przynależne).
+        $currentFormat = in_array(ReportColumns::MARKER, $columns, true);
 
         $offerSlug = is_string($content['parent'] ?? null) && $content['parent'] !== ''
             ? $content['parent']
@@ -231,7 +250,9 @@ final class PriceRegisterSync
                 continue;
             }
             if (isset($registerIndex[$key])) {
-                $warnings[] = 'Lokal ' . self::text($row[$c('unit')]) . ' występuje w rejestrze więcej niż raz — synchronizowany jest pierwszy wiersz.';
+                if (!$currentFormat) {
+                    $warnings[] = 'Lokal ' . self::text($row[$c('unit')]) . ' występuje w rejestrze więcej niż raz — synchronizowany jest pierwszy wiersz.';
+                }
                 continue;
             }
             $registerIndex[$key] = $index;
@@ -310,7 +331,9 @@ final class PriceRegisterSync
             }
         }
 
-        $today = (new DateTimeImmutable('now', $this->zone))->format('Y-m-d');
+        // Struktura 48 pól wymaga daty i czasu, od których obowiązuje cena ("RRRR-MM-DD GG:MM:SS") — moment synchronizacji.
+        // Stary układ (58 kolumn) — sama data, jak dotąd.
+        $today = (new DateTimeImmutable('now', $this->zone))->format($currentFormat ? 'Y-m-d H:i:s' : 'Y-m-d');
         $changes = [];
         $unchanged = 0;
         $offerKeys = [];
@@ -447,6 +470,7 @@ final class PriceRegisterSync
             'content' => $content,
             'rows' => $rows,
             'sectionIndex' => $sectionIndex,
+            'unitColumn' => $c('unit'),
         ];
     }
 
