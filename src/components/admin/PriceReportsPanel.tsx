@@ -5,6 +5,7 @@ import Can from "@/components/admin/Can";
 import { ArrowLeftIcon, CheckIcon, CloseIcon, ExternalIcon, FileIcon, FolderIcon, LayersIcon, RocketIcon } from "@/components/admin/icons";
 import { ui } from "@/components/admin/ui";
 import { can } from "@/lib/permissions";
+import { createZip, saveBlob } from "@/lib/zip";
 import {
   applyPriceSync,
   backfillPriceReports,
@@ -341,23 +342,50 @@ function FolderView({
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<PriceReportFile | null>(null);
   const [syncing, setSyncing] = useState(false);
-  /** Zaznaczone dni (RRRR-MM-DD z nazw plików CSV) do ponownego wygenerowania albo usunięcia. */
+  /** Zaznaczone pliki (nazwy) — do pobrania; dzienne CSV także do ponownego wygenerowania albo usunięcia. */
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [downloading, setDownloading] = useState(false);
   const canManage = can(session?.permissions, "reports.generate");
-  const csvDates = useMemo(() => (files ?? []).map((file) => csvDate(file.name, investment.key)).filter((date): date is string => date !== null), [files, investment.key]);
-  const selectedDates = csvDates.filter((date) => selected.has(date)).sort();
+  const fileNames = useMemo(() => (files ?? []).map((file) => file.name), [files]);
+  const selectedFiles = (files ?? []).filter((file) => selected.has(file.name));
+  const selectedDates = selectedFiles.map((file) => csvDate(file.name, investment.key)).filter((date): date is string => date !== null).sort();
 
-  function toggleDate(date: string, on: boolean) {
+  function toggleFile(name: string, on: boolean) {
     setSelected((current) => {
       const next = new Set(current);
-      if (on) next.add(date);
-      else next.delete(date);
+      if (on) next.add(name);
+      else next.delete(name);
       return next;
     });
   }
 
   async function run(action: (dates: string[]) => Promise<boolean>, dates: string[]) {
     if (await action(dates)) setSelected(new Set());
+  }
+
+  /** Jeden plik — pobierany wprost; kilka — w jednym ZIP-ie (raporty-cen-<klucz>-<dziś>.zip). */
+  async function download(list: PriceReportFile[]) {
+    if (list.length === 0) return;
+    setDownloading(true);
+    setError("");
+    try {
+      const encoder = new TextEncoder();
+      const loaded = [];
+      for (const file of list) {
+        const result = await fetchPriceReportFile(investment.key, file.name, session);
+        if (result.truncated) throw new Error(`Plik ${file.name} jest za duży do pobrania z panelu — otwórz go przez link.`);
+        loaded.push({ name: file.name, data: encoder.encode(result.content) });
+      }
+      if (loaded.length === 1) {
+        saveBlob(new Blob([loaded[0].data as BlobPart], { type: loaded[0].name.endsWith(".csv") ? "text/csv;charset=utf-8" : "application/octet-stream" }), loaded[0].name);
+      } else {
+        saveBlob(createZip(loaded), `raporty-cen-${investment.key}-${new Date().toISOString().slice(0, 10)}.zip`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nie udało się pobrać plików.");
+    } finally {
+      setDownloading(false);
+    }
   }
 
   // Odświeżane także po wygenerowaniu (investment.status zmienia się po load() w rodzicu).
@@ -499,40 +527,53 @@ function FolderView({
 
       <div className={`${ui.card} overflow-hidden`}>
         <div className="flex min-h-[3.25rem] flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-100 px-5 py-2.5">
-          {canManage && csvDates.length > 0 && (
+          {fileNames.length > 0 && (
             <input
               type="checkbox"
-              aria-label="Zaznacz wszystkie dzienne raporty"
-              checked={selectedDates.length === csvDates.length}
+              aria-label="Zaznacz wszystkie pliki"
+              checked={selectedFiles.length === fileNames.length}
               ref={(input) => {
-                if (input) input.indeterminate = selectedDates.length > 0 && selectedDates.length < csvDates.length;
+                if (input) input.indeterminate = selectedFiles.length > 0 && selectedFiles.length < fileNames.length;
               }}
-              onChange={(event) => setSelected(event.target.checked ? new Set(csvDates) : new Set())}
+              onChange={(event) => setSelected(event.target.checked ? new Set(fileNames) : new Set())}
               className="h-4 w-4 rounded border-zinc-300"
             />
           )}
           <span className="text-sm font-semibold text-zinc-900">Pliki</span>
-          {selectedDates.length > 0 ? (
+          {selectedFiles.length > 0 ? (
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <span className="text-xs text-zinc-500">
-                Zaznaczono: <b className="tabular-nums text-zinc-800">{selectedDates.length}</b> {daysWord(selectedDates.length)}
+                Zaznaczono: <b className="tabular-nums text-zinc-800">{selectedFiles.length}</b> {filesWord(selectedFiles.length)}
               </span>
               <button
-                onClick={() => void run(onRegenerate, selectedDates)}
-                disabled={generating}
+                onClick={() => void download(selectedFiles)}
+                disabled={downloading}
                 className={ui.btnSecondarySm}
-                title="Nadpisz pliki tych dni raportem z aktualnego rejestru cen"
+                title={selectedFiles.length > 1 ? "Pobierz zaznaczone pliki w jednym archiwum ZIP" : "Pobierz plik"}
               >
-                Wygeneruj ponownie
+                {downloading ? <Spinner /> : null}
+                {downloading ? "Pobieranie…" : selectedFiles.length > 1 ? "Pobierz (ZIP)" : "Pobierz"}
               </button>
-              <button
-                onClick={() => void run(onDelete, selectedDates)}
-                disabled={generating}
-                className={`${ui.btnSecondarySm} text-red-700 hover:bg-red-50 hover:text-red-800`}
-                title="Usuń pliki CSV tych dni i ich wpisy w dataset.xml"
-              >
-                Usuń
-              </button>
+              {canManage && selectedDates.length > 0 && (
+                <>
+                  <button
+                    onClick={() => void run(onRegenerate, selectedDates)}
+                    disabled={generating}
+                    className={ui.btnSecondarySm}
+                    title={`Nadpisz pliki CSV zaznaczonych dni (${selectedDates.length}) raportem z aktualnego rejestru cen`}
+                  >
+                    Wygeneruj ponownie
+                  </button>
+                  <button
+                    onClick={() => void run(onDelete, selectedDates)}
+                    disabled={generating}
+                    className={`${ui.btnSecondarySm} text-red-700 hover:bg-red-50 hover:text-red-800`}
+                    title={`Usuń pliki CSV zaznaczonych dni (${selectedDates.length}) i ich wpisy w dataset.xml`}
+                  >
+                    Usuń
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <span className="ml-auto text-xs tabular-nums text-zinc-500">{files?.length ?? 0}</span>
@@ -545,20 +586,16 @@ function FolderView({
             {files.map((file) => {
               const date = csvDate(file.name, investment.key);
               return (
-              <li key={file.name} className={`group flex items-center gap-3 px-5 py-2.5 hover:bg-zinc-50/80 ${date && selected.has(date) ? "bg-indigo-50/50" : ""}`}>
-                {canManage && csvDates.length > 0 && (
-                  <span className="flex w-4 shrink-0 justify-center">
-                    {date && (
-                      <input
-                        type="checkbox"
-                        aria-label={`Zaznacz raport z dnia ${formatDay(date)}`}
-                        checked={selected.has(date)}
-                        onChange={(event) => toggleDate(date, event.target.checked)}
-                        className="h-4 w-4 rounded border-zinc-300"
-                      />
-                    )}
-                  </span>
-                )}
+              <li key={file.name} className={`group flex items-center gap-3 px-5 py-2.5 hover:bg-zinc-50/80 ${selected.has(file.name) ? "bg-indigo-50/50" : ""}`}>
+                <span className="flex w-4 shrink-0 justify-center">
+                  <input
+                    type="checkbox"
+                    aria-label={date ? `Zaznacz raport z dnia ${formatDay(date)}` : `Zaznacz ${file.name}`}
+                    checked={selected.has(file.name)}
+                    onChange={(event) => toggleFile(file.name, event.target.checked)}
+                    className="h-4 w-4 rounded border-zinc-300"
+                  />
+                </span>
                 <FileBadge type={file.type} />
                 <button onClick={() => setPreview(file)} className="min-w-0 flex-1 text-left">
                   <div className="truncate text-sm font-medium text-zinc-900 group-hover:text-indigo-700">{file.name}</div>
@@ -1080,6 +1117,13 @@ function csvDate(name: string, key: string): string | null {
 
 function daysWord(count: number): string {
   return count === 1 ? "dnia" : "dni";
+}
+
+function filesWord(count: number): string {
+  if (count === 1) return "plik";
+  const last = count % 10;
+  const lastTwo = count % 100;
+  return last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? "pliki" : "plików";
 }
 
 function formatDay(iso: string): string {
