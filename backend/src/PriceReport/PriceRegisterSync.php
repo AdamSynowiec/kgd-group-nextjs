@@ -28,7 +28,8 @@ if (!defined('APP_ENTRY')) {
  *    tylko przy cenie, która się zmieniła;
  *  - nowy lokal: dane dewelopera, adresy i prospekt z istniejącego wiersza lokalu, rodzaj
  *    nieruchomości z wiersza lokalu tego samego typu w ofercie, pozostałe kolumny "X";
- *  - lokal sprzedany w ofercie — do usunięcia z rejestru (raport obejmuje lokale w sprzedaży);
+ *  - raportowane są tylko lokale wolne: sprzedany albo zarezerwowany w ofercie — do usunięcia z rejestru, nowy — pomijany;
+ *  - miejsca postojowe z tabeli oferty nie są lokalami (pozycja w wierszu lokalu, utrzymywana ręcznie);
  *  - wiersze rejestru spoza oferty (np. miejsca parkingowe dodane ręcznie) zostają nietknięte.
  * Najpierw plan() (podgląd), zapis dopiero apply() z wybranymi zmianami.
  */
@@ -338,20 +339,35 @@ final class PriceRegisterSync
         $unchanged = 0;
         $offerKeys = [];
 
+        $parkingSkipped = [];
+        $withoutPrice = [];
         foreach ($offer as $unit) {
             $name = self::text($unit['unit']);
             $key = self::key($name);
             if ($key === '' || isset($offerKeys[$key])) {
                 continue;
             }
+            // Miejsca postojowe z tabeli oferty ("Miejsca Parkingowe M2B", "MP 11-2") to nie lokale — w rejestrze są
+            // pozycją w wierszu lokalu (grupa F/G/H, np. "prawo do wyłącznego korzystania z miejsca postojowego"),
+            // utrzymywaną ręcznie. Synchronizacja ich nie dodaje jako nowych lokali.
+            if (self::isParking($name)) {
+                $parkingSkipped[] = $name;
+                continue;
+            }
             $offerKeys[$key] = true;
             $existing = $registerIndex[$key] ?? null;
             $type = self::text($unit['type'] ?? '');
-            $sold = preg_match('/sprzedan|sold/iu', self::text($unit['status'] ?? '')) === 1;
+            // Raportowane są tylko lokale wolne. Sprzedane i zarezerwowane: usunięcie z rejestru (jeśli są), nowe — pomijane.
+            $status = self::text($unit['status'] ?? '');
+            $unavailable = match (true) {
+                preg_match('/sprzedan|sold/iu', $status) === 1 => 'Sprzedany w ofercie.',
+                preg_match('/rezerwac|zarezerwowan|reserv/iu', $status) === 1 => 'Zarezerwowany w ofercie.',
+                default => null,
+            };
 
-            if ($sold) {
+            if ($unavailable !== null) {
                 if ($existing !== null) {
-                    $changes[] = ['id' => "remove:{$key}", 'action' => 'remove', 'unit' => $name, 'fields' => [], 'note' => 'Sprzedany w ofercie.', 'index' => $existing];
+                    $changes[] = ['id' => "remove:{$key}", 'action' => 'remove', 'unit' => $name, 'fields' => [], 'note' => $unavailable, 'index' => $existing];
                 }
                 continue;
             }
@@ -393,6 +409,9 @@ final class PriceRegisterSync
                         'index' => $existing,
                     ];
                 }
+            } elseif (self::isEmpty(self::text($unit['price'] ?? '')) && self::isEmpty(self::text($unit['pricePerM2'] ?? ''))) {
+                // Lokal bez ceny w ofercie (np. "Rezerwacja" z ceną "-") — bez ceny nie ma czego raportować.
+                $withoutPrice[] = $name . (self::text($unit['status'] ?? '') !== '' ? ' (' . self::text($unit['status']) . ')' : '');
             } else {
                 $row = array_fill_keys($columns, 'X');
                 foreach (self::SHARED_KEYS as $sharedName) {
@@ -429,6 +448,13 @@ final class PriceRegisterSync
             if ($area !== null && $perM2 !== null && $total !== null && abs($area * $perM2 - $total) >= 1) {
                 $warnings[] = "Lokal {$name}: cena w ofercie (" . self::text($unit['price']) . ') różni się od metraż × cena m² (' . number_format($area * $perM2, 2, ',', ' ') . ' zł).';
             }
+        }
+
+        if ($parkingSkipped !== []) {
+            $warnings[] = 'Miejsca postojowe z oferty nie są dodawane jako lokale (' . implode(', ', $parkingSkipped) . ') — w rejestrze są pozycją w wierszu lokalu; ich cenę zmień ręcznie w rejestrze.';
+        }
+        if ($withoutPrice !== []) {
+            $warnings[] = 'Lokale bez ceny w ofercie nie są dodawane do rejestru: ' . implode(', ', $withoutPrice) . '.';
         }
 
         // Pozostałe wiersze spoza oferty (np. miejsca parkingowe): bez zmian cen, ale z uzupełnieniem brakujących danych dewelopera.
@@ -589,6 +615,12 @@ final class PriceRegisterSync
     private static function field(string $key, string $label, string $from, string $to): array
     {
         return ['key' => $key, 'label' => $label, 'from' => $from, 'to' => $to];
+    }
+
+    /** "Miejsca Parkingowe M2B", "Miejsce postojowe 4", "MP 11-2" — wiersz oferty z miejscem postojowym, nie lokalem. */
+    private static function isParking(string $name): bool
+    {
+        return preg_match('/^(miejsc[ea]\s+(parkingow|postojow)\w*|mp)\b/iu', $name) === 1;
     }
 
     /** Numer lokalu do porównania: bez odstępów i wielkości liter ("M3 B" = "m3b"). */

@@ -6,6 +6,8 @@ define('APP_ENTRY', true);
 
 use App\Controller\ContactController;
 use App\Controller\PageController;
+use App\Controller\PriceRegisterController;
+use App\PriceReport\PriceReportGenerator;
 use App\Controller\SiteFileController;
 use App\Database\Connection;
 use App\Http\Cors;
@@ -44,6 +46,10 @@ $router->get('/page', [$controller, 'show']);
 // Pliki serwisu edytowane w panelu (robots.txt, …) — czyta je build Next.js (src/lib/content.ts getSiteFile()).
 $siteFiles = new SiteFileController(new MysqlSiteFileRepository($pdo));
 $router->get('/site-file', [$siteFiles, 'show']);
+
+// Aktualny raport cen inwestycji (CSV 48 pól) — dla zewnętrznych generatorów dataset.xml na stronach inwestycji.
+$priceRegister = new PriceRegisterController(new PriceReportGenerator(new MysqlPageRepository($pdo), $config->get('SITE_URL', 'https://kgd-group.pl')));
+$router->get('/price-register', [$priceRegister, 'show']);
 
 // Formularze strony — wysyłka maila przez SMTP (konfiguracja SMTP_* / CONTACT_* w .env).
 $contact = new ContactController(

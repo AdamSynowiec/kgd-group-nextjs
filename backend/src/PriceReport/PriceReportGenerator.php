@@ -478,6 +478,33 @@ final class PriceReportGenerator
         return $valid;
     }
 
+    /**
+     * Aktualny raport inwestycji bez zapisu czegokolwiek na dysk — ten sam CSV, który powstałby dziś
+     * w generate(). Dla zewnętrznych generatorów na stronach inwestycji (ext_price_raport_generator),
+     * które publikują własny dataset.xml pod adresem zgłoszonym wcześniej do dane.gov.pl.
+     *
+     * @return array{key: string, name: string, developer: string, rows: int, csv: string}
+     */
+    public function currentReport(string $key): array
+    {
+        $investment = $this->investment($key);
+        if (!$investment['published']) {
+            throw new RuntimeException("Strona historii cen \"{$investment['name']}\" jest szkicem — raport nie jest publikowany.");
+        }
+        $prepared = $this->prepare($investment);
+        if ($prepared['error'] !== null) {
+            throw new RuntimeException($prepared['error']);
+        }
+
+        return [
+            'key' => $investment['key'],
+            'name' => $investment['name'],
+            'developer' => $prepared['developer'],
+            'rows' => count($prepared['rows']),
+            'csv' => $prepared['csv'],
+        ];
+    }
+
     /** @return array{key: string, name: string, sourceSlug: string, published: bool, enabled: bool} */
     private function investment(string $key): array
     {
@@ -681,7 +708,11 @@ final class PriceReportGenerator
                 ];
             }
             if ($rows === []) {
-                return ['error' => 'Tabela historii cen nie ma żadnego wiersza do publikacji.', 'csv' => '', 'rows' => [], 'warnings' => $warnings, 'developer' => ''];
+                // Inwestycja sprzedana (np. The Emaus) — raport nadal powstaje codziennie: plik z samymi nagłówkami
+                // 48 pól (brak lokali w ofercie). Firma do tytułu zbioru w dataset.xml — z nazwy pliku eksportu rejestru.
+                $warnings[] = 'Brak lokali w sprzedaży — raport zawiera tylko nagłówki (inwestycja sprzedana).';
+
+                return ['error' => null, 'csv' => self::currentCsv([]), 'rows' => [], 'warnings' => $warnings, 'developer' => $section['developer']];
             }
 
             return ['error' => null, 'csv' => self::currentCsv($rows), 'rows' => $rows, 'warnings' => $warnings, 'developer' => $rows[0][0]];
@@ -1326,7 +1357,7 @@ final class PriceReportGenerator
 
     /**
      * @param array<string, mixed> $content
-     * @return array{columns: list<array<string, mixed>>, rows: list<array<string, mixed>>}|null
+     * @return array{columns: list<array<string, mixed>>, rows: list<array<string, mixed>>, developer: string}|null
      */
     private function priceHistorySection(array $content): ?array
     {
@@ -1337,10 +1368,25 @@ final class PriceReportGenerator
             $fields = (array) ($section['fields'] ?? []);
             $columns = self::unwrap($fields['columns'] ?? []);
             $rows = self::unwrap($fields['rows'] ?? []);
+            // Firma, gdy rejestr nie ma żadnego lokalu (inwestycja sprzedana): pierwsza niepusta w wierszach,
+            // a jeśli wszystkie są puste — nazwa pliku eksportu ("KRJ2 DEVELOPMENT SPÓŁKA Z O… .xlsx").
+            $developer = '';
+            foreach (is_array($rows) ? $rows : [] as $row) {
+                $name = is_array($row) && is_scalar($row['developerName'] ?? null) ? trim((string) $row['developerName']) : '';
+                if ($name !== '' && strcasecmp($name, 'x') !== 0 && $name !== '-') {
+                    $developer = $name;
+                    break;
+                }
+            }
+            if ($developer === '') {
+                $export = self::unwrap($fields['exportFileName'] ?? '');
+                $developer = is_string($export) ? trim((string) preg_replace('/\.xlsx?$/i', '', $export)) : '';
+            }
 
             return [
                 'columns' => array_values(array_filter(is_array($columns) ? $columns : [], 'is_array')),
                 'rows' => array_values(is_array($rows) ? $rows : []),
+                'developer' => $developer,
             ];
         }
 

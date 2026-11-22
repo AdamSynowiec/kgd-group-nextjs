@@ -598,7 +598,7 @@ function FolderView({
 const SYNC_GROUPS: { action: PriceSyncChange["action"]; title: string; hint: string; tone: string }[] = [
   { action: "update", title: "Zmienione ceny", hint: "nowa cena i data jej obowiązywania", tone: "bg-amber-50 text-amber-700 ring-amber-600/20" },
   { action: "create", title: "Nowe lokale", hint: "są w ofercie, nie ma ich w rejestrze", tone: "bg-emerald-50 text-emerald-700 ring-emerald-600/15" },
-  { action: "remove", title: "Sprzedane", hint: "znikną z rejestru — raport obejmuje lokale w sprzedaży", tone: "bg-red-50 text-red-700 ring-red-600/15" },
+  { action: "remove", title: "Sprzedane i zarezerwowane", hint: "znikną z rejestru — raportowane są tylko lokale wolne", tone: "bg-red-50 text-red-700 ring-red-600/15" },
 ];
 
 /**
