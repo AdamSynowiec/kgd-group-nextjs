@@ -1,4 +1,5 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type LocFeature = { title: string; text: string };
 
@@ -33,7 +34,7 @@ export default function Localization({ fields }: { fields: LocalizationFields })
 
           <div className="w-16 sm:w-20 lg:w-24 h-[1px] bg-[#7c8c65]/40 mt-6 sm:mt-8" />
 
-          {text && <p className="mt-6 sm:mt-8 text-black/70 leading-[1.7] sm:leading-[1.9] text-sm sm:text-base lg:text-lg">{text}</p>}
+          {text && <p className="mt-6 sm:mt-8 text-black/70 leading-[1.7] sm:leading-[1.9] text-sm sm:text-base lg:text-lg"><RichInline value={text} /></p>}
         </div>
 
         <div className="mt-12 sm:mt-14 lg:mt-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">

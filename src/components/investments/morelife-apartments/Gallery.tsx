@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type GalleryImage = { path: string };
 
@@ -94,7 +95,7 @@ export default function Gallery({ fields }: { fields: GalleryFields }) {
 
         <div className="w-16 sm:w-20 h-[1px] bg-[#7c8c65]/40 mt-6 sm:mt-8" />
 
-        {text && <p className="mt-6 sm:mt-8 text-black/60 max-w-2xl leading-[1.7] sm:leading-[1.8] text-sm sm:text-base lg:text-lg">{text}</p>}
+        {text && <p className="mt-6 sm:mt-8 text-black/60 max-w-2xl leading-[1.7] sm:leading-[1.8] text-sm sm:text-base lg:text-lg"><RichInline value={text} /></p>}
       </div>
 
       <div className="relative pb-16 sm:pb-20 lg:pb-24">

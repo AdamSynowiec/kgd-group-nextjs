@@ -1,4 +1,5 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type ProspectusButton = { label: string; url: string };
 
@@ -35,7 +36,7 @@ export default function Cta({ fields }: { fields: CtaFields }) {
         <div className="text-center min-h-[300px] rounded-[50px] flex flex-col items-center justify-center gap-4 relative overflow-hidden p-10 bg-[#C2A992]">
           <div className="lg:w-2/3 relative z-10">
             <h2 className="font-poppins text-white text-2xl sm:text-5xl md:text-6xl lg:text-[54px] font-extralight mb-2">{standardHeader}</h2>
-            <span className="text-md md:text-xl font-light leading-relaxed text-white max-w-[715px] block">{standardText}</span>
+            <span className="text-md md:text-xl font-light leading-relaxed text-white max-w-[715px] block"><RichInline value={standardText} /></span>
           </div>
           <div className="lg:w-1/3 relative z-10">
             <div className="flex lg:justify-center">
@@ -52,7 +53,7 @@ export default function Cta({ fields }: { fields: CtaFields }) {
         <div className="text-center min-h-[300px] rounded-[50px] flex flex-col items-center justify-center gap-4 relative overflow-hidden p-10 bg-[#C2A992]">
           <div className="lg:w-2/3 relative z-10">
             <h2 className="font-poppins text-white text-2xl sm:text-5xl md:text-6xl lg:text-[54px] font-extralight mb-2">{prospectusHeader}</h2>
-            <span className="text-md md:text-xl font-light leading-relaxed text-white max-w-[715px] block">{prospectusText}</span>
+            <span className="text-md md:text-xl font-light leading-relaxed text-white max-w-[715px] block"><RichInline value={prospectusText} /></span>
           </div>
           <div className="w-full relative z-10">
             <div className="flex flex-row justify-center gap-[24px]">

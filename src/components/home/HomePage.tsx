@@ -13,6 +13,7 @@ import Partners, { type PartnerCategory } from "./Partners";
 import LatestPosts from "./LatestPosts";
 import PressFeature from "./PressFeature";
 import type { MenuItem } from "./NavMenuItem";
+import RichInline from "@/components/shared/RichInline";
 
 type StatCard = { icon: string; header: string; lines: { value: string; label: string }[] };
 type SimpleCard = { icon: string; header: string; content?: string };
@@ -185,7 +186,7 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
         </H2>
         {aktualneText && (
           <P reveal delay={200} className="mb-[32.0px] md:mb-[40px]">
-            {aktualneText}
+            <RichInline value={aktualneText} />
           </P>
         )}
 
@@ -205,7 +206,7 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
             </H2>
             {zakonczoneText && (
               <P reveal delay={200} className="mb-[32.0px] md:mb-[40px]">
-                {zakonczoneText}
+                <RichInline value={zakonczoneText} />
               </P>
             )}
 
@@ -236,7 +237,7 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
               </H2>
               {wykonczenieText && (
                 <P reveal delay={200} className="mb-[32.0px] md:mb-[40px]">
-                  {wykonczenieText}
+                  <RichInline value={wykonczenieText} />
                 </P>
               )}
               {wykonczenieCtaLabel && (
@@ -260,7 +261,7 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
             </H2>
             {dlaInwestoraText && (
               <P reveal delay={200} className="mb-[32.0px] md:mb-[40px]">
-                {dlaInwestoraText}
+                <RichInline value={dlaInwestoraText} />
               </P>
             )}
 
@@ -289,7 +290,7 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
           </H2>
           {zakupGruntowText && (
             <P className="mb-[32.0px] md:mb-[40px]" reveal delay={200}>
-              {zakupGruntowText}
+              <RichInline value={zakupGruntowText} />
             </P>
           )}
         </Container>
@@ -327,7 +328,7 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
             </H2>
             {kgdBuildingPrivateText && (
               <P reveal delay={200} className="mb-[32.0px] md:mb-[40px]">
-                {kgdBuildingPrivateText}
+                <RichInline value={kgdBuildingPrivateText} />
               </P>
             )}
             {kgdBuildingPrivateCtaLabel && (
@@ -352,7 +353,7 @@ export default function HomePage({ fields }: { fields: HomePageFields }) {
             </H2>
             {kgdBuildingDeveloperText && (
               <P reveal delay={200} className="mb-[32.0px] md:mb-[40px]">
-                {kgdBuildingDeveloperText}
+                <RichInline value={kgdBuildingDeveloperText} />
               </P>
             )}
             {kgdBuildingDeveloperCtaLabel && (

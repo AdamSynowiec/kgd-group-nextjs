@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type DeweloperFields = {
   header: EditableValue<string> | string;
@@ -21,7 +22,7 @@ export default function Deweloper({ fields }: { fields: DeweloperFields }) {
             <h2 className="text-[#1D1D1D] text-2xl md:text-3xl font-semibold mb-6">{header}</h2>
 
             <p className="font-light text-gray-600 mb-8 md:mb-10 text-[16px] md:text-[19px] leading-relaxed md:leading-[36px]">
-              {aboutKGD}
+              <RichInline value={aboutKGD} />
             </p>
 
             {buttonLabel && (

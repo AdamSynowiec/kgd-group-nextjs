@@ -6,7 +6,7 @@ import BooleanEditor from "./BooleanEditor";
 import NumberEditor from "./NumberEditor";
 import TableEditor from "./TableEditor";
 import AssetEditor from "./AssetEditor";
-import RichTextEditor from "./RichTextEditor";
+import RichTextField from "./RichTextField";
 
 /**
  * JEDYNE miejsce, które łączy field.type z komponentem edytora. Panel
@@ -22,5 +22,5 @@ export const fieldEditors: Record<FieldType, ComponentType<FieldEditorProps>> = 
   number: NumberEditor,
   table: TableEditor,
   asset: AssetEditor,
-  richtext: RichTextEditor,
+  richtext: RichTextField,
 };

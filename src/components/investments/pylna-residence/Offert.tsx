@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { isSold } from "@/lib/investments/status";
 import Container from "./Container";
+import RichInline from "@/components/shared/RichInline";
 
 type House = {
   unit: string;
@@ -178,7 +179,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
             <motion.p initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} viewport={{ once: false, amount: 0.3 }}>
               <span className="block text-[#FCFCFC] text-[18px] md:text-[24px] font-ranade-variable font-semibold">{eyebrow}</span>
               <h2 className="text-[#FCFCFC] text-[36px] md:text-[48px] font-ranade-variable">{header}</h2>
-              <p className="text-[#FCFCFC] text-[18px] md:text-[24px] font-ranade-variable font-thin">{text}</p>
+              <p className="text-[#FCFCFC] text-[18px] md:text-[24px] font-ranade-variable font-thin"><RichInline value={text} /></p>
             </motion.p>
           </div>
         </Container>
@@ -268,9 +269,9 @@ export default function Offert({ fields }: { fields: OffertFields }) {
               <span className="block text-[#FCFCFC] text-[18px] md:text-[24px] font-ranade-variable font-semibold">{listEyebrow}</span>
               <h2 className="text-[#FCFCFC] text-[36px] md:text-[48px] font-ranade-variable">{listHeader}</h2>
               <p className="text-[#FCFCFC] text-[18px] md:text-[24px] font-ranade-variable font-thin">
-                {listText}
+                <RichInline value={listText} />
                 <br />
-                {listSubText}
+                <RichInline value={listSubText} />
               </p>
             </motion.p>
           </div>
@@ -342,7 +343,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-[24px]">
             <div className="text-center bg-[#1C1D21] pt-[50px]">
               <h3 className="text-[#fff] font-ranade-variable text-[24px] lg:text-[48px] mb-[24px]">{standardHeader}</h3>
-              <p className="text-[#fff] font-ranade-variable font-thin text-[18px] lg:text-[18px] whitespace-pre-line">{standardText}</p>
+              <p className="text-[#fff] font-ranade-variable font-thin text-[18px] lg:text-[18px] whitespace-pre-line"><RichInline value={standardText} /></p>
               {standardFile && (
                 <div className="mt-[24px]">
                   <a href={standardFile} target="_blank" rel="noreferrer" className="text-[#fff] font-ranade-variable hover:underline text-[18px]">
@@ -353,7 +354,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
             </div>
             <div className="text-center bg-[#1C1D21] px-1 pt-[50px]">
               <h3 className="text-[#fff] font-ranade-variable text-[24px] lg:text-[48px] mb-[24px]">{prospectusHeader}</h3>
-              <p className="text-[#fff] font-ranade-variable font-thin text-[18px] lg:text-[18px]">{prospectusText}</p>
+              <p className="text-[#fff] font-ranade-variable font-thin text-[18px] lg:text-[18px]"><RichInline value={prospectusText} /></p>
               {prospectusFile && (
                 <div className="mt-[24px]">
                   <a href={prospectusFile} target="_blank" rel="noreferrer" className="text-[#fff] font-ranade-variable hover:underline text-[18px]">

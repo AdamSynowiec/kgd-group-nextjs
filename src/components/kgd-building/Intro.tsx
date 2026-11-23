@@ -1,5 +1,6 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
+import RichInline from "@/components/shared/RichInline";
 
 type IntroFields = {
   header: EditableValue<string> | string;
@@ -21,7 +22,7 @@ export default function Intro({ fields }: { fields: IntroFields }) {
           </div>
           {text && (
             <div className="lg:col-span-7 lg:border-l lg:border-black/[0.08] lg:pl-14">
-              <p className="text-[19px] md:text-[23px] font-light leading-relaxed text-[#1a1a1a]">{text}</p>
+              <p className="text-[19px] md:text-[23px] font-light leading-relaxed text-[#1a1a1a]"><RichInline value={text} /></p>
             </div>
           )}
         </div>

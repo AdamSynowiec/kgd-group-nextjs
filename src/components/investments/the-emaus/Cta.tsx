@@ -1,4 +1,5 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type Block = { header: string; pdfUrl: string };
 
@@ -20,7 +21,7 @@ export default function Cta({ fields }: { fields: CtaFields }) {
           <div key={block.header} className="text-center min-h-[300px] rounded-[50px] flex flex-col items-center justify-center gap-4 relative overflow-hidden p-10 bg-[#C2A992]">
             <div className="lg:w-2/3 relative z-10">
               <h2 className="font-poppins text-white text-2xl sm:text-5xl md:text-6xl lg:text-[54px] font-extralight mb-2">{block.header}</h2>
-              <span className="text-md md:text-xl font-light leading-relaxed text-white max-w-[715px] block">{text}</span>
+              <span className="text-md md:text-xl font-light leading-relaxed text-white max-w-[715px] block"><RichInline value={text} /></span>
             </div>
             <div className="lg:w-1/3 relative z-10">
               <div className="flex lg:justify-center">

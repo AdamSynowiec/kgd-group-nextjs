@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { Icon } from "./icons";
 import { Button, Container, NUM, Reveal, SectionHeader } from "./ui";
+import RichInline from "@/components/shared/RichInline";
 
 type Standard = {
   name: string;
@@ -189,7 +190,7 @@ export default function Standards({ fields, id }: { fields: StandardsFields; id?
                       {requestLabel ?? downloadLabel}
                     </Button>
                   )}
-                  {note && <p className="max-w-md text-[12px] font-light leading-relaxed text-[#171A1C]/50">{note}</p>}
+                  {note && <p className="max-w-md text-[12px] font-light leading-relaxed text-[#171A1C]/50"><RichInline value={note} /></p>}
                 </div>
               </div>
             </motion.div>

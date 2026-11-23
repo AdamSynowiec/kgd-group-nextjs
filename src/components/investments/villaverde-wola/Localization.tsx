@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
 import type { MapPoint } from "./LocalizationMap";
+import RichInline from "@/components/shared/RichInline";
 
 const LocalizationMap = dynamic(() => import("./LocalizationMap"), { ssr: false });
 
@@ -30,7 +31,7 @@ export default function Localization({ fields }: { fields: LocalizationFields })
       <div className="py-[50px] lg:py-[100px]">
         <Container>
           <h2 className="text-[#474747] font-ebgaramond-regular text-[64px] mb-[40px] text-center">{header}</h2>
-          <p className="font-ebgaramond-regular text-[#474747] text-[26px] text-center max-w-[1200px] mx-auto">{text}</p>
+          <p className="font-ebgaramond-regular text-[#474747] text-[26px] text-center max-w-[1200px] mx-auto"><RichInline value={text} /></p>
         </Container>
       </div>
       <div className="bg-[#FCFCFC] py-[50px] lg:py-[100px]">

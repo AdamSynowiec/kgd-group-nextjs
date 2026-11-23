@@ -30,6 +30,8 @@ export type FieldEditorProps<T = unknown> = {
     siblings?: Record<string, unknown>;
     /** Dla type:"table" — "details" zapisane przy polu (preset np. "unitCard" albo opis okna, patrz rowDetails.ts). */
     rowDetails?: unknown;
+    /** Dla type:"richtext" — "inline" = lekki edytor opisów (patrz RichTextField.tsx). */
+    format?: string;
   };
 };
 

@@ -1,4 +1,5 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type AboutUsFields = {
   eyebrow?: EditableValue<string> | string;
@@ -27,7 +28,7 @@ export default function AboutUs({ fields }: { fields: AboutUsFields }) {
 
           <div className="w-16 sm:w-20 h-[1px] bg-[#7c8c65]/40 mt-6 sm:mt-8" />
 
-          {text && <p className="mt-8 sm:mt-10 text-black/70 text-base sm:text-lg leading-[1.7] sm:leading-[1.9] max-w-none lg:max-w-xl font-sans">{text}</p>}
+          {text && <p className="mt-8 sm:mt-10 text-black/70 text-base sm:text-lg leading-[1.7] sm:leading-[1.9] max-w-none lg:max-w-xl font-sans"><RichInline value={text} /></p>}
         </div>
 
         <div className="lg:col-span-6 order-2 lg:order-2">

@@ -6,6 +6,7 @@ import { unwrap, type EditableValue } from "@/lib/editable";
 import { legacyTabs, parseArea, roomsTotal, visibleTabs, type LegacyUnitView, type UnitCardData } from "@/lib/investments/unitCards";
 import { Icon } from "./icons";
 import { Button, Container, Eyebrow, NUM, Reveal, SectionHeader } from "./ui";
+import RichInline from "@/components/shared/RichInline";
 
 /** Strefa na planie: jeden lub kilka wielokątów we współrzędnych zdjęcia ("x,y x,y ..." rozdzielone znakiem |). */
 type Zone = { id: string; name: string; kind?: string; polygons?: string; image?: string; summary?: string };
@@ -880,7 +881,7 @@ export default function Apartments({ fields, id }: { fields: ApartmentsFields; i
             {rows.length === 0 && <li className="py-12 text-center text-[14px] font-light text-[#E7E7E7]/55">Brak lokali spełniających wybrane kryteria.</li>}
           </ul>
 
-          {disclaimer && <p className="mt-8 max-w-4xl text-[12px] font-light leading-relaxed text-[#E7E7E7]/45">{disclaimer}</p>}
+          {disclaimer && <p className="mt-8 max-w-4xl text-[12px] font-light leading-relaxed text-[#E7E7E7]/45"><RichInline value={disclaimer} /></p>}
         </div>
       </Container>
 

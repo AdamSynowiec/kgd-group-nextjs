@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
+import RichInline from "@/components/shared/RichInline";
 
 /**
  * Wspólne prymitywy Fox Hills Residences — zgodne z księgą znaku.
@@ -97,7 +98,7 @@ export function SectionHeader({
             tone === "dark" ? "text-[#E7E7E7]/65" : "text-[#171A1C]/65"
           }`}
         >
-          {text}
+          <RichInline value={text} />
         </p>
       )}
     </Reveal>

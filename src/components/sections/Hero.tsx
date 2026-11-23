@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { JSX } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type HeroFields = {
   eyebrow?: EditableValue<string> | string;
@@ -35,7 +36,7 @@ export default function Hero({
       </Heading>
       {lead && (
         <p className="mt-4 text-lg leading-8 text-zinc-600">
-          {lead}
+          <RichInline value={lead} />
         </p>
       )}
       {(primaryCta || secondaryCta) && (

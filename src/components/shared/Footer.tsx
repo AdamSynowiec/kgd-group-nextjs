@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type SocialLink = { icon: "youtube" | "instagram" | "facebook"; href: string; label: string };
 type InvestmentLink = { text: string; url: string };
@@ -71,13 +72,13 @@ export default function Footer({ fields }: { fields: FooterFields }) {
               <img loading="lazy" decoding="async" src="/investments/shared/kgd-group-logo.svg" alt="KGD Group Logo" className="h-9 w-auto mb-4" />
             </Link>
 
-            {description && <p className="text-sm leading-relaxed text-gray-500">{description}</p>}
+            {description && <p className="text-sm leading-relaxed text-gray-500"><RichInline value={description} /></p>}
 
             <Link href="/kgd-building">
               <img loading="lazy" decoding="async" src="/investments/shared/kgd-building-logo.svg" alt="KGD Building Logo" className="h-9 w-auto mb-4" />
             </Link>
 
-            {buildingDescription && <p className="text-sm leading-relaxed text-gray-500">{buildingDescription}</p>}
+            {buildingDescription && <p className="text-sm leading-relaxed text-gray-500"><RichInline value={buildingDescription} /></p>}
 
             <ul className="flex items-center gap-3 pt-2">
               {socials.map((social) => (

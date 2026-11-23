@@ -7,6 +7,7 @@ import { unwrap, type EditableValue } from "@/lib/editable";
 import { isSold } from "@/lib/investments/status";
 import Container from "./Container";
 import Header from "./Header";
+import RichInline from "@/components/shared/RichInline";
 
 type Apartment = {
   unit: string;
@@ -308,7 +309,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
           <div className="grid grid-cols-1 md:grid-cols-2 py-[50px] md:py-[100px]">
             <div className="p-[30px]">
               <h3 className="text-[32px] mb-[24px] font-libre-caslon text-[#3d3d3d]">{prospectusHeader}</h3>
-              <p className="text-[18px]/[36px] mb-[24px] font-libre-caslon text-[#3d3d3d]">{prospectusText}</p>
+              <p className="text-[18px]/[36px] mb-[24px] font-libre-caslon text-[#3d3d3d]"><RichInline value={prospectusText} /></p>
               {prospectusFile && (
                 <a href={prospectusFile} target="_blank" rel="noreferrer" className="underline">
                   {labels.download}
@@ -317,7 +318,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
             </div>
             <div className="p-[30px]">
               <h3 className="text-[32px] mb-[24px] font-libre-caslon text-[#3d3d3d]">{standardHeader}</h3>
-              <p className="text-[18px]/[36px] mb-[24px] font-libre-caslon text-[#3d3d3d]">{standardText}</p>
+              <p className="text-[18px]/[36px] mb-[24px] font-libre-caslon text-[#3d3d3d]"><RichInline value={standardText} /></p>
               {standardFile && (
                 <a href={standardFile} target="_blank" rel="noreferrer" className="underline">
                   {labels.download}

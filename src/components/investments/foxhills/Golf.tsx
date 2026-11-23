@@ -2,6 +2,7 @@
 
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { Container, Reveal } from "./ui";
+import RichInline from "@/components/shared/RichInline";
 
 type GolfPhoto = { image: string; alt?: string };
 
@@ -78,7 +79,7 @@ export default function Golf({ fields, id }: { fields: GolfFields; id?: string }
               {logo && <img src={logo} alt={logoAlt} loading="lazy" decoding="async" className="mb-8 h-16 w-auto sm:h-20" />}
               {header && <h2 className={H2}>{header}</h2>}
               <span className={LINE} />
-              {text && <p className={`${P} mt-7 max-w-xl`}>{text}</p>}
+              {text && <p className={`${P} mt-7 max-w-xl`}><RichInline value={text} /></p>}
             </Reveal>
             {image && (
               <Reveal delay={0.1}>
@@ -98,7 +99,7 @@ export default function Golf({ fields, id }: { fields: GolfFields; id?: string }
               <Reveal delay={0.1} className="order-1 lg:order-2">
                 {familyHeader && <h2 className={H2}>{familyHeader}</h2>}
                 <span className={LINE} />
-                {familyText && <p className={`${P} mt-7 max-w-md`}>{familyText}</p>}
+                {familyText && <p className={`${P} mt-7 max-w-md`}><RichInline value={familyText} /></p>}
               </Reveal>
             </div>
           )}
@@ -110,7 +111,7 @@ export default function Golf({ fields, id }: { fields: GolfFields; id?: string }
                 <h3 className="whitespace-pre-line font-dmserif text-[28px] leading-[1.15] tracking-[0.02em] text-[#E7E7E7] sm:text-[36px] xl:text-[42px]">{generationsHeader}</h3>
               )}
               <span className="mt-6 block h-px w-16 bg-[#C98A3B]/80" />
-              {generationsText && <p className={`${P} mt-6`}>{generationsText}</p>}
+              {generationsText && <p className={`${P} mt-6`}><RichInline value={generationsText} /></p>}
             </Reveal>
           )}
 

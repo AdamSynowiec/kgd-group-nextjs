@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { isSold } from "@/lib/investments/status";
+import RichInline from "@/components/shared/RichInline";
 
 type ApartmentImage = { url: string; title?: string };
 
@@ -192,7 +193,7 @@ export default function Offert({ fields }: { fields: OffertFields }) {
 
               <div className="w-24 h-[1px] bg-[#7c8c65]/40 mt-8 mb-10" />
 
-              {standardText && <p className="text-black/60 leading-[1.9] text-[15px] md:text-[16px] font-light">{standardText}</p>}
+              {standardText && <p className="text-black/60 leading-[1.9] text-[15px] md:text-[16px] font-light"><RichInline value={standardText} /></p>}
 
               {finishStandardUrl && (
                 <a

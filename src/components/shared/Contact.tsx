@@ -5,6 +5,7 @@ import Link from "next/link";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { publicApiUrl } from "@/lib/publicApi";
 import { getUtm } from "@/lib/utm";
+import RichInline from "@/components/shared/RichInline";
 
 type FieldLabels = { company: string; address: string; phone: string; email: string; krs: string; nip: string; regon: string };
 type Placeholders = { name: string; email: string; subject: string; message: string };
@@ -380,7 +381,7 @@ export default function Contact({ fields }: { fields: ContactFields }) {
               </div>
             </label>
 
-            {disclaimerText && <p>{disclaimerText}</p>}
+            {disclaimerText && <p><RichInline value={disclaimerText} /></p>}
 
             {errors.consentPhone && <p className="text-red-500 text-xs">{errors.consentPhone}</p>}
             {errors.form && <p className="text-red-500 text-md">{errors.form}</p>}

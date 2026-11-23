@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { isSold } from "@/lib/investments/status";
 import Container from "./Container";
+import RichInline from "@/components/shared/RichInline";
 
 type Apartment = {
   unit: string;
@@ -420,7 +421,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
         <div className="grid grid-cols-1 md:grid-cols-2 pb-[50px] md:pb-[100px] gap-[24px]">
           <div className="p-[30px] border border-zinc-400">
             <h3 className="text-[32px] mb-[24px] text-[#3d3d3d]">{prospectusHeader}</h3>
-            <p className="text-[18px]/[36px] mb-[24px] text-[#3d3d3d]">{prospectusText}</p>
+            <p className="text-[18px]/[36px] mb-[24px] text-[#3d3d3d]"><RichInline value={prospectusText} /></p>
             {prospectusFile && (
               <a href={prospectusFile} target="_blank" rel="noopener noreferrer" className="underline">
                 {labels.download}
@@ -429,7 +430,7 @@ export default function Apartaments({ fields }: { fields: ApartamentsFields }) {
           </div>
           <div className="p-[30px] border border-zinc-400">
             <h3 className="text-[32px] mb-[24px] text-[#3d3d3d]">{standardHeader}</h3>
-            <p className="text-[18px]/[36px] mb-[24px] text-[#3d3d3d]">{standardText}</p>
+            <p className="text-[18px]/[36px] mb-[24px] text-[#3d3d3d]"><RichInline value={standardText} /></p>
             {standardFile && (
               <a href={standardFile} target="_blank" rel="noopener noreferrer" className="underline">
                 {labels.download}

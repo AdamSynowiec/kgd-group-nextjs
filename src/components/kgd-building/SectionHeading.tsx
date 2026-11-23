@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import RichInline from "@/components/shared/RichInline";
 
 /**
  * Edytorialny nagłówek sekcji (jak w /wykonczenie-pod-klucz): złota kreska,
@@ -14,7 +15,7 @@ export default function SectionHeading({ eyebrow, header, text, children }: { ey
       </div>
       {(text || children) && (
         <div className="lg:col-span-5">
-          {text && <p className="text-[16px] md:text-[17px] font-light leading-relaxed text-[#6b6b6b]">{text}</p>}
+          {text && <p className="text-[16px] md:text-[17px] font-light leading-relaxed text-[#6b6b6b]"><RichInline value={text} /></p>}
           {children}
         </div>
       )}

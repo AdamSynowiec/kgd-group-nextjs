@@ -1,4 +1,5 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type AboutUsFields = {
   header?: EditableValue<string> | string;
@@ -20,7 +21,7 @@ export default function AboutUs({ fields }: { fields: AboutUsFields }) {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             <div className="md:col-span-6 flex flex-col items-start justify-center text-center md:text-left">
               <h2 className="font-poppins text-[#856F5B] text-3xl sm:text-4xl md:text-5xl lg:text-[65px] font-extralight max-w-[537px] mb-6">{header}</h2>
-              <p className="font-poppins text-[#313131] font-extralight max-w-[715px] text-lg md:text-xl">{text}</p>
+              <p className="font-poppins text-[#313131] font-extralight max-w-[715px] text-lg md:text-xl"><RichInline value={text} /></p>
             </div>
             <div className="md:col-span-6 relative flex flex-col items-center md:items-start justify-center">
               <img loading="lazy" decoding="async" src="/investments/krj307-2/aboutus.webp" alt="" className="w-full max-w-[777px] h-auto" />

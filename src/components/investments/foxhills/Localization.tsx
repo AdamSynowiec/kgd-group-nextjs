@@ -3,6 +3,7 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { Icon } from "./icons";
 import { Container, NUM, Reveal, SectionHeader } from "./ui";
+import RichInline from "@/components/shared/RichInline";
 
 type Place = { title: string; image?: string; text?: string };
 type Distance = { icon: string; name: string; time: string; distance?: string; mode?: string };
@@ -124,7 +125,7 @@ export default function Localization({ fields, id }: { fields: LocalizationField
               ))}
             </ul>
 
-            {note && <p className="mt-6 text-[12px] font-light text-[#171A1C]/50">{note}</p>}
+            {note && <p className="mt-6 text-[12px] font-light text-[#171A1C]/50"><RichInline value={note} /></p>}
           </div>
         )}
       </Container>

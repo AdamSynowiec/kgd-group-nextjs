@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import RichInline from "@/components/shared/RichInline";
 
 export type PartnerItem = { img: string; title: string; description: string };
 export type PartnerCategory = { name: string; icon?: string; items: PartnerItem[] };
@@ -19,7 +20,7 @@ export default function Partners({ eyebrow, header, text, categories }: { eyebro
         <div className="max-w-3xl mb-8 md:mb-14">
           <p className="text-[10px] md:text-xs uppercase tracking-[0.2em] text-gray-400">{eyebrow}</p>
           <h2 className="text-2xl md:text-5xl font-semibold text-[#1D1D1D] mt-3 md:mt-4">{header}</h2>
-          <p className="text-sm md:text-base text-gray-600 mt-3 md:mt-5 leading-relaxed">{text}</p>
+          <p className="text-sm md:text-base text-gray-600 mt-3 md:mt-5 leading-relaxed"><RichInline value={text} /></p>
         </div>
 
         <div className="mb-8 md:mb-14">

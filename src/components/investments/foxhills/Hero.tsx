@@ -6,6 +6,7 @@ import { unwrap, type EditableValue } from "@/lib/editable";
 import { KGD_SOCIAL_LINKS, SocialIcon, type SocialLink } from "@/components/shared/socials";
 import { Icon } from "./icons";
 import { Button, Container } from "./ui";
+import RichInline from "@/components/shared/RichInline";
 
 type Slide = { image: string; alt?: string };
 type Fact = { icon: string; label: string; value: string };
@@ -113,7 +114,7 @@ export default function Hero({ fields }: { fields: HeroFields }) {
                 transition={{ duration: 1.1, delay: 0.9 }}
                 className="mt-7 max-w-xl font-manrope text-[14px] font-light leading-[1.9] text-[#E7E7E7]/75 sm:text-[16px]"
               >
-                {text}
+                <RichInline value={text} />
               </motion.p>
             )}
 

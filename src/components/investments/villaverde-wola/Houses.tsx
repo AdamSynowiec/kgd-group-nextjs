@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { isSold } from "@/lib/investments/status";
 import Container from "./Container";
+import RichInline from "@/components/shared/RichInline";
 
 type House = {
   unit: string;
@@ -327,7 +328,7 @@ export default function Houses({ fields }: { fields: HousesFields }) {
             <div className="grid grid-cols-1 lg:grid-cols-2">
               <div className="text-center border-b lg:border-b-0 lg:border-r border-[#ccc] pb-[32px] lg:pr-[32px]">
                 <h2 className="text-[#C8A35F] font-ebgaramond-regular text-[32px] xl:text-[64px] mb-[20px]">{standardHeader}</h2>
-                <p className="text-[#474747] font-ebgaramond-regular text-[26px] text-center mb-[20px] whitespace-pre-line">{standardText}</p>
+                <p className="text-[#474747] font-ebgaramond-regular text-[26px] text-center mb-[20px] whitespace-pre-line"><RichInline value={standardText} /></p>
                 {standardFile && (
                   <a href={standardFile} target="_blank" rel="noreferrer" className="font-ebgaramond-regular text-[24px] lg:text-[28px] text-[#C8A35F] underline">
                     {labels.downloadStandard}
@@ -336,7 +337,7 @@ export default function Houses({ fields }: { fields: HousesFields }) {
               </div>
               <div className="text-center lg:pl-[32px]">
                 <h2 className="text-[#C8A35F] font-ebgaramond-regular text-[32px] xl:text-[64px] mb-[20px]">{prospectusHeader}</h2>
-                <p className="text-[#474747] font-ebgaramond-regular text-[26px] text-center mb-[20px]">{prospectusText}</p>
+                <p className="text-[#474747] font-ebgaramond-regular text-[26px] text-center mb-[20px]"><RichInline value={prospectusText} /></p>
                 {prospectusFile && (
                   <a href={prospectusFile} target="_blank" rel="noreferrer" className="font-ebgaramond-regular text-[24px] lg:text-[28px] text-[#C8A35F] underline">
                     {labels.downloadProspectus}

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
+import RichInline from "@/components/shared/RichInline";
 
 type Feature = { icon: string; text: string };
 type WhyItem = { icon: string; text: string };
@@ -117,7 +118,7 @@ export default function AboutUs({ fields }: { fields: AboutUsFields }) {
 
         <div className="p-[50px] grid gap-[24px]">
           <Motion>
-            <p className="text-white text-[18px] md:text-[24px] font-thin">{bottomText}</p>
+            <p className="text-white text-[18px] md:text-[24px] font-thin"><RichInline value={bottomText} /></p>
           </Motion>
 
           <div className="grid grid-cols-1 md:grid-cols-2">

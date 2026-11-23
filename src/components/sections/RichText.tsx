@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { unwrap, type EditableValue } from "@/lib/editable";
+import RichInline from "@/components/shared/RichInline";
 
 type Block =
   | { type: "paragraph"; text: string }
@@ -65,7 +66,7 @@ export default function RichText({
         </p>
       )}
       {heading && <Heading className="text-2xl font-semibold tracking-tight">{heading}</Heading>}
-      {lead && <p className="mt-2 text-lg text-zinc-600">{lead}</p>}
+      {lead && <p className="mt-2 text-lg text-zinc-600"><RichInline value={lead} /></p>}
 
       {blocks.map((block, i) => (
         <BlockView key={`${block.type}-${i}`} block={block} baseLevel={headingLevel + 1} />

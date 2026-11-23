@@ -1,5 +1,6 @@
 import { unwrap, type EditableValue } from "@/lib/editable";
 import Container from "./Container";
+import RichInline from "@/components/shared/RichInline";
 
 type CtaFields = {
   phone?: EditableValue<string> | string;
@@ -18,7 +19,7 @@ export default function Cta({ fields }: { fields: CtaFields }) {
           <h2 className="text-[#C8A35F] font-ebgaramond-regular text-[32px] lg:text-[64px] py-[24px]">
             <a href={`tel:${phone}`}>{phone}</a>
           </h2>
-          <p className="font-ebgaramond-regular text-[#FCFCFC] text-[26px] text-center max-w-[1200px] mx-auto">{text}</p>
+          <p className="font-ebgaramond-regular text-[#FCFCFC] text-[26px] text-center max-w-[1200px] mx-auto"><RichInline value={text} /></p>
         </div>
       </Container>
     </div>

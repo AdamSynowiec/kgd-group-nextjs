@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ReactNode } from "react";
 import { preload } from "react-dom";
 import HeroVideo from "./HeroVideo";
+import RichInline from "./RichInline";
 
 /**
  * Lżejszy wariant wideo dla telefonów: obok "/x/film.mp4" leży "/x/film-mobile.mp4"
@@ -83,7 +84,7 @@ export default function EditorialHero({ heading, lead, eyebrow, video, poster, s
 
           {lead && (
             <p className="mt-8 text-white/75 text-[16px] md:text-[19px] leading-relaxed font-light max-w-2xl animate-[kgdFadeUp_1.3s_ease_forwards] opacity-0">
-              {lead}
+              <RichInline value={lead} />
             </p>
           )}
         </div>

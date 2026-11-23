@@ -2,6 +2,7 @@
 
 import { unwrap, type EditableValue } from "@/lib/editable";
 import { Container, NUM, Reveal, SectionHeader } from "./ui";
+import RichInline from "@/components/shared/RichInline";
 
 type Feature = { title: string; text?: string; image?: string };
 
@@ -95,7 +96,7 @@ export default function Features({ fields, id }: { fields: FeaturesFields; id?: 
           })}
         </div>
 
-        {note && <p className="mx-auto mt-10 max-w-3xl text-center text-[12px] font-light text-[#E7E7E7]/45">{note}</p>}
+        {note && <p className="mx-auto mt-10 max-w-3xl text-center text-[12px] font-light text-[#E7E7E7]/45"><RichInline value={note} /></p>}
       </Container>
     </section>
   );
