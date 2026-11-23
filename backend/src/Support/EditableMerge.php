@@ -56,15 +56,28 @@ final class EditableMerge
             $incomingValue = Editable::isEditableNode($incoming) ? $incoming['value'] : $incoming;
             $incomingLabel = is_array($incoming) ? ($incoming['label'] ?? null) : null;
 
-            $type = $stored['type'] ?? null;
-            $value = Editable::isValidType($type)
-                ? (self::matchesType($incomingValue, $type) ? $incomingValue : $stored['value'])
-                : self::coerceSameType($stored['value'], $incomingValue);
+            // Rola "admin" może zmienić też DEFINICJĘ pola (type, format, details, acl) — edytor JSON
+            // pola w panelu. Inne role: jak dotąd tylko value/label/apiKey.
+            $definition = $role === 'admin' && is_array($incoming) && Editable::isEditableNode($incoming)
+                ? self::definitionChanges($stored, $incoming)
+                : [];
 
-            // Tylko "value" i "label" są edytowalne z panelu. "type" NIGDY nie
-            // trafia do $overrides — array_merge poniżej więc zawsze zachowuje
-            // to, co już było zapisane w $stored, bez względu na to, co
-            // (jeśli cokolwiek) przyszło w żądaniu w polu "type".
+            $type = array_key_exists('type', $definition) ? $definition['type'] : ($stored['type'] ?? null);
+            if (array_key_exists('type', $definition)) {
+                // Zmiana typu: wartość musi pasować do NOWEGO typu — inaczej czytelny błąd zamiast cichego odrzucenia.
+                if (!self::matchesType($incomingValue, $type)) {
+                    throw new ApiException("Pole \"" . ($stored['label'] ?? '') . "\": wartość nie pasuje do typu \"{$type}\".", 422);
+                }
+                $value = $incomingValue;
+            } else {
+                $value = Editable::isValidType($type)
+                    ? (self::matchesType($incomingValue, $type) ? $incomingValue : $stored['value'])
+                    : self::coerceSameType($stored['value'], $incomingValue);
+            }
+
+            // Z panelu edytowalne są "value" i "label" (+ "apiKey" niżej). "type"/"format"/"details"/"acl"
+            // zmienia wyłącznie admin przez $definition (sprawdzone w definitionChanges); dla innych ról
+            // array_merge poniżej zachowuje to, co już było zapisane w $stored.
             $overrides = [
                 'value' => $value,
                 'editable' => true,
@@ -72,6 +85,13 @@ final class EditableMerge
 
             if (is_string($incomingLabel) && trim($incomingLabel) !== '') {
                 $overrides['label'] = $incomingLabel;
+            }
+
+            if ($definition !== []) {
+                $stored = array_merge($stored, array_filter($definition, static fn (mixed $v): bool => $v !== null));
+                foreach (array_keys(array_filter($definition, static fn (mixed $v): bool => $v === null)) as $removed) {
+                    unset($stored[$removed]);
+                }
             }
 
             // "apiKey" — klucz pola w REST API v1 (App\Api\PublicFields): edytowalny z panelu jak "label";
@@ -138,6 +158,59 @@ final class EditableMerge
         }
 
         return $incomingValue;
+    }
+
+    /**
+     * Zmiany definicji pola z edytora JSON (tylko rola "admin"): type, format, details, acl.
+     * Klucz nieobecny w żądaniu = bez zmian; null = usunięcie (nie dotyczy "type").
+     * "editable" i "value"/"label"/"apiKey" obsługuje apply() jak dotąd ("editable" nie da się
+     * zmienić z panelu — wyłączenie edycji zablokowałoby pole na stałe).
+     *
+     * @param array<string, mixed> $stored
+     * @param array<string, mixed> $incoming
+     * @return array<string, mixed> tylko faktycznie zmienione klucze
+     */
+    private static function definitionChanges(array $stored, array $incoming): array
+    {
+        $label = (string) ($stored['label'] ?? '');
+        $changes = [];
+
+        if (array_key_exists('type', $incoming) && $incoming['type'] !== ($stored['type'] ?? null)) {
+            if (!Editable::isValidType($incoming['type'])) {
+                throw new ApiException("Pole \"{$label}\": nieznany typ. Dozwolone: " . implode(', ', Editable::FIELD_TYPES) . '.', 422);
+            }
+            $changes['type'] = $incoming['type'];
+        }
+
+        if (array_key_exists('format', $incoming) && $incoming['format'] !== ($stored['format'] ?? null)) {
+            $format = $incoming['format'];
+            if ($format === null || $format === '') {
+                $changes['format'] = null;
+            } elseif (is_string($format) && preg_match('/^[a-z][a-z0-9-]{0,31}$/', $format) === 1) {
+                $changes['format'] = $format;
+            } else {
+                throw new ApiException("Pole \"{$label}\": \"format\" to krótki tekst z małych liter, np. \"inline\".", 422);
+            }
+        }
+
+        if (array_key_exists('details', $incoming) && $incoming['details'] !== ($stored['details'] ?? null)) {
+            $details = $incoming['details'];
+            if ($details !== null && !is_string($details) && !is_array($details)) {
+                throw new ApiException("Pole \"{$label}\": \"details\" musi być nazwą presetu albo obiektem.", 422);
+            }
+            $changes['details'] = $details;
+        }
+
+        if (array_key_exists('acl', $incoming) && $incoming['acl'] !== ($stored['acl'] ?? null)) {
+            $acl = $incoming['acl'];
+            $validList = is_array($acl) && array_is_list($acl) && $acl !== [] && count(Acl::entries($acl)) === count($acl);
+            if ($acl !== null && !Acl::isValid($acl) && !$validList) {
+                throw new ApiException("Pole \"{$label}\": \"acl\" ma postać {\"role\": \"…\", \"permission\": \"read|write|read/write\"} albo listy takich wpisów.", 422);
+            }
+            $changes['acl'] = $acl;
+        }
+
+        return $changes;
     }
 
     /** Prawdziwa walidacja względem zadeklarowanego "type" pola — patrz Editable::FIELD_TYPES. */

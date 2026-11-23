@@ -8,6 +8,7 @@ import type { Session } from "@/lib/adminApi";
 import { describeArrayItem, groupLabelFor, labelFor } from "./fields/labels";
 import { fieldEditors } from "./fields/registry";
 import type { Path, OnChange } from "./fields/types";
+import FieldJsonDialog from "./FieldJsonDialog";
 
 /** Czysto techniczne klucze-kontenery bez własnego znaczenia dla użytkownika — ich zawartość spłaszcza się bez dodawania niczego do etykiety. */
 const TRANSPARENT_KEYS = new Set(["fields"]);
@@ -249,6 +250,10 @@ function EditableControl({
 }) {
   const { ownLabel, name, node, path, columnLabels, siblings } = field;
   const valuePath = [...path, "value"];
+  const [jsonOpen, setJsonOpen] = useState(false);
+  // Po zmianie z edytora JSON edytor wartości montuje się od nowa (część edytorów czyta "value" tylko raz).
+  const [editorVersion, setEditorVersion] = useState(0);
+  const isAdmin = session?.role === "admin";
 
   // "acl" z permission:"read" (bez "write") blokuje edycję dokładnie tak samo jak
   // editable:false — widoczne, ale zablokowane. collectFields() już odfiltrował
@@ -287,6 +292,17 @@ function EditableControl({
           className="-mx-1 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium text-zinc-800 outline-none transition hover:border-zinc-200 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
         />
         <code className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">{name}</code>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setJsonOpen(true)}
+            aria-label={`Edytuj JSON pola ${ownLabel}`}
+            title="Edytuj JSON pola (typ, format, wartość…)"
+            className="grid h-6 shrink-0 place-items-center rounded-md px-1 font-mono text-[11px] font-semibold text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+          >
+            {"{ }"}
+          </button>
+        )}
         <FieldMenu
           fieldId={typeof node.apiKey === "string" ? node.apiKey : ""}
           usedIds={usedIds}
@@ -301,7 +317,22 @@ function EditableControl({
         </div>
       )}
 
+      {jsonOpen && (
+        <FieldJsonDialog
+          label={ownLabel}
+          path={path}
+          node={node as unknown as Record<string, unknown>}
+          onApply={(next) => {
+            onChange(path, next);
+            setEditorVersion((version) => version + 1);
+            setJsonOpen(false);
+          }}
+          onClose={() => setJsonOpen(false)}
+        />
+      )}
+
       <Editor
+        key={editorVersion}
         label={ownLabel}
         name={name}
         value={node.value}
