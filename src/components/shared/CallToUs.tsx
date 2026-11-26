@@ -43,6 +43,16 @@ const phoneCountries = [
 
 const initialFormData = { phone: "", consent: false, country: "PL" };
 
+/** dataLayer.push({event: "form_sluchawka", phone_number}) — błąd pomiaru nigdy nie psuje formularza. */
+function pushPhoneFormEvent(phoneNumber: string) {
+  try {
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ event: "form_sluchawka", phone_number: phoneNumber });
+  } catch {
+    // pomiar jest dodatkiem — formularz działa niezależnie
+  }
+}
+
 /**
  * Pływający przycisk "szybki telefon" — dymek + modal z formularzem
  * "zostaw numer, oddzwonimy". Naprawdę globalny (identyczny na każdej
@@ -115,6 +125,12 @@ export default function CallToUs({ fields }: { fields: CallToUsFields }) {
       });
 
       if (!res.ok) throw new Error(errorsCopy.submitFailed);
+
+      // Pomiar w GTM (prośba analityka): zdarzenie tylko po UDANYM wysłaniu — formularz wysyła w tle
+      // (bez przeładowania i strony "dziękujemy"), więc GTM nie ma innego sygnału. Numer w formacie
+      // E.164 (+48600100200). dataLayer może jeszcze nie istnieć (brak zgody / GTM nie załadowany) —
+      // GTM przetworzy kolejkę po załadowaniu; tagi i tak respektują zgodę z Cookiebota.
+      pushPhoneFormEvent(`${country.dial}${formData.phone}`);
 
       setFormData(initialFormData);
       setOpen(false);
