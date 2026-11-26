@@ -213,6 +213,10 @@ $router->get('/build/status', static function (Request $req) use ($buildControll
     $authorization()->requireResilient($currentSession, 'build.status');
     $buildController->status($req);
 });
+$router->get('/build/changes', static function () use ($buildController, $authorization, $currentSession) {
+    $authorization()->requireResilient($currentSession, 'build.trigger');
+    $buildController->changes();
+});
 
 // Zarządzanie kontami ("Ustawienia" w panelu).
 $router->get('/users', static function (Request $req) use ($usersController, $authorization, $currentSession) {

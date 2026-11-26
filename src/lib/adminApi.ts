@@ -306,11 +306,22 @@ export type BuildStatus = {
 };
 
 /** Odpala GitHub Actions (workflow_dispatch) przez backend — token GitHuba nigdy nie trafia do przeglądarki. */
-export type BuildMode = "quick" | "full";
+/**
+ * Zakres builda (BuildController, input "scope" w .github/workflows/deploy.yml):
+ *   pages — wybrane strony ("pages"), investments — /inwestycja/**, admin — panel + /api,
+ *   site — cały serwis bez bloga, full — wszystko z blogiem. "quick" = alias "site" (zgodność wstecz).
+ */
+export type BuildMode = "pages" | "investments" | "admin" | "site" | "full" | "quick";
 
-/** mode "quick" (domyślny) = bez wgrywania /blog; "full" = pełna przebudowa i deploy wszystkiego. */
-export function triggerBuild(session: Session | null, mode: BuildMode = "quick"): Promise<{ triggered: boolean; dispatchedAt: string }> {
-  return request<{ triggered: boolean; dispatchedAt: string }>("/build", { method: "POST", body: { mode }, session });
+export function triggerBuild(session: Session | null, mode: BuildMode = "site", pages: string[] = []): Promise<{ triggered: boolean; dispatchedAt: string }> {
+  return request<{ triggered: boolean; dispatchedAt: string }>("/build", { method: "POST", body: mode === "pages" ? { mode, pages } : { mode }, session });
+}
+
+export type BuildChanges = { since: string | null; pages: { slug: string; changedAt: string; login: string | null }[] };
+
+/** GET /build/changes — strony zmienione od ostatniego builda całego serwisu (podpowiedź do szybkiego buildu). */
+export function fetchBuildChanges(session: Session | null): Promise<BuildChanges> {
+  return request<BuildChanges>("/build/changes", { session });
 }
 
 /** Odpytuje status przebiegu uruchomionego przez triggerBuild() — "since" to jego dispatchedAt. */

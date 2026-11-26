@@ -15,6 +15,20 @@ on:
         description: "Pomiń przy wgrywaniu (po przecinku), np. blog/, /inwestycja/rudava-park, api/. Doliczane do pliku .deploy-exclude."
         type: string
         default: ""
+      # Zakres z okna "Zbuduj stronę" w panelu (BuildController). Pusty = jak dotąd (wg skip_blog).
+      #   pages       — tylko strony z pola "pages" (z podstronami), bez bloga, bez api/
+      #   investments — tylko /inwestycja/**
+      #   admin       — tylko panel /admin i backend /api
+      #   site        — cały serwis bez bloga
+      #   full        — wszystko, z blogiem
+      scope:
+        description: "Zakres deployu: pages | investments | admin | site | full (puste = wg skip_blog)."
+        type: string
+        default: ""
+      pages:
+        description: "Dla scope=pages: adresy stron po przecinku, np. /inwestycja/rudava-park,/o-nas"
+        type: string
+        default: ""
 
 # Jeden deploy naraz (np. push + build zlecony przez system bloga) — kolejny czeka,
 # zamiast wgrywać na FTP równolegle i nadpisywać sobie stan synchronizacji.
@@ -66,7 +80,30 @@ jobs:
           EVENT: ${{ github.event_name }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           INPUT_SKIP_BLOG: ${{ inputs.skip_blog }}
+          INPUT_SCOPE: ${{ inputs.scope }}
+          INPUT_PAGES: ${{ inputs.pages }}
         run: |
+          scope="${INPUT_SCOPE:-}"
+          case "$scope" in
+            ""|pages|investments|admin|site|full) ;;
+            *) echo "::error::Nieznany zakres deployu: $scope"; exit 1 ;;
+          esac
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+          if [ -n "$scope" ]; then
+            # Blog budujemy tylko w "full" albo gdy na liście stron jest wpis bloga.
+            if [ "$scope" = "full" ] || { [ "$scope" = "pages" ] && printf '%s' "$INPUT_PAGES" | grep -qE '(^|,)[[:space:]]*/blog(/|,|$)'; }; then
+              skip=false
+            else
+              skip=true
+            fi
+            {
+              echo "### 🧭 Zakres z panelu: \`$scope\`"
+              [ "$scope" = "pages" ] && echo "Strony: \`$INPUT_PAGES\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "skip_blog=$skip" >> "$GITHUB_OUTPUT"
+            echo "scope=$scope skip_blog=$skip"
+            exit 0
+          fi
           if [ "$EVENT" = "push" ]; then
             if printf '%s' "$COMMIT_MESSAGE" | grep -qiF '[full]'; then
               skip=false
@@ -141,7 +178,13 @@ jobs:
         env:
           INPUT_EXCLUDE: ${{ inputs.exclude }}
           SKIP_BLOG: ${{ steps.scope.outputs.skip_blog }}
+          SCOPE: ${{ steps.scope.outputs.scope }}
+          PAGES: ${{ inputs.pages }}
         run: |
+          # Zakres z panelu (scripts/deploy-scope.mjs): katalogi stron spoza zakresu — dokładane do "exclude".
+          scoped="$(node scripts/deploy-scope.mjs)"
+          export INPUT_EXCLUDE="${INPUT_EXCLUDE:-}
+          ${scoped}"
           patterns="$(bash scripts/deploy-exclude.sh)"
           {
             echo "patterns<<EXCLUDE_EOF"

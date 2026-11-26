@@ -24,18 +24,60 @@ final class BuildController
     ) {
     }
 
+    /** Tryby z okna "Zbuduj stronę" (= input "scope" workflow, patrz .github/workflows/deploy.yml). */
+    private const MODES = ['pages', 'investments', 'admin', 'site', 'full'];
+
+    /** Buildy obejmujące cały serwis (bez bloga albo z blogiem) — od nich liczymy "zmienione strony". */
+    private const COVERING_BUILDS = ['build.trigger', 'build.trigger.site', 'build.trigger.full'];
+
+    private const MAX_PAGES = 50;
+
     /**
-     * POST /build  (opcjonalnie JSON: {"mode": "quick" | "full"}; domyślnie "quick")
+     * POST /build  JSON: {"mode": "pages" | "investments" | "admin" | "site" | "full", "pages": ["/inwestycja/xyz", …]}
      *
-     * "quick" = workflow z skip_blog=true (bez wgrywania /blog na FTP — dużo szybciej),
-     * "full" = pełny deploy ze wszystkim (po zmianie stopki, nawigacji, kontaktu, wspólnych komponentów).
+     *   pages       — tylko wybrane strony (z podstronami) — "Szybki build"
+     *   investments — wszystkie inwestycje (/inwestycja/**), bez bloga
+     *   admin       — panel /admin + backend /api
+     *   site        — cały serwis bez bloga (dawny "quick" — "quick" nadal działa jako alias)
+     *   full        — wszystko, z blogiem
      *
      * @param array{userId: int, login: string, role: string, exp: int}|null $currentSession
      */
     public function trigger(Request $request, ?array $currentSession): void
     {
-        $mode = $request->jsonBody()['mode'] ?? 'quick';
-        $inputs = $mode === 'full' ? ['skip_blog' => 'false'] : ['skip_blog' => 'true'];
+        $body = $request->jsonBody();
+        $mode = $body['mode'] ?? 'site';
+        if ($mode === 'quick') {
+            $mode = 'site';
+        }
+        if (!is_string($mode) || !in_array($mode, self::MODES, true)) {
+            throw new ApiException('Nieznany tryb budowania.', 400);
+        }
+
+        $pages = [];
+        if ($mode === 'pages') {
+            $raw = is_array($body['pages'] ?? null) ? $body['pages'] : [];
+            foreach ($raw as $slug) {
+                if (!is_string($slug) || preg_match('#^/[a-z0-9/_-]*$#i', $slug) !== 1 || str_contains($slug, '..') || str_contains($slug, '//')) {
+                    throw new ApiException('Niepoprawny adres strony do budowania.', 400);
+                }
+                $pages[rtrim($slug, '/') === '' ? '/' : rtrim($slug, '/')] = true;
+            }
+            $pages = array_keys($pages);
+            if ($pages === []) {
+                throw new ApiException('Wybierz co najmniej jedną stronę do szybkiego buildu.', 400);
+            }
+            if (count($pages) > self::MAX_PAGES) {
+                throw new ApiException('Za dużo stron do szybkiego buildu (maks. ' . self::MAX_PAGES . ') — wybierz "Build pełny".', 400);
+            }
+        }
+
+        // skip_blog ustawia też workflow na podstawie scope — przekazywany dla czytelności przebiegu w GitHubie.
+        $inputs = [
+            'scope' => $mode,
+            'pages' => implode(',', $pages),
+            'skip_blog' => $mode === 'full' ? 'false' : 'true',
+        ];
 
         $dispatchedAt = $this->dispatcher->dispatch($inputs);
 
@@ -44,9 +86,21 @@ final class BuildController
         // gdy baza akurat nie odpowiada. Ten log więc MOŻE się nie zapisać w
         // takiej sytuacji — akceptowane świadomie, log nie może być
         // warunkiem działania przycisku odzyskiwania po awarii.
-        $this->activity->log($currentSession['userId'] ?? null, $currentSession['login'] ?? null, $mode === 'full' ? 'build.trigger.full' : 'build.trigger');
+        $this->activity->log(
+            $currentSession['userId'] ?? null,
+            $currentSession['login'] ?? null,
+            "build.trigger.{$mode}",
+            null,
+            $pages !== [] ? ['pages' => $pages] : null
+        );
 
-        JsonResponse::ok(['triggered' => true, 'dispatchedAt' => $dispatchedAt]);
+        JsonResponse::ok(['triggered' => true, 'dispatchedAt' => $dispatchedAt, 'mode' => $mode]);
+    }
+
+    /** GET /build/changes — strony zmienione od ostatniego builda całego serwisu (podpowiedź do "Szybkiego buildu"). */
+    public function changes(): void
+    {
+        JsonResponse::ok($this->activity->pagesChangedSinceBuild(self::COVERING_BUILDS));
     }
 
     /** GET /build/status?since=2026-09-01T13:00:00Z — panel odpytuje to cyklicznie po kliknięciu. */

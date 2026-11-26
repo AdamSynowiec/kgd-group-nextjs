@@ -79,6 +79,42 @@ final class MysqlActivityLogRepository implements ActivityLogRepositoryInterface
         return (int) $statement->fetchColumn();
     }
 
+    public function pagesChangedSinceBuild(array $coveringBuilds): array
+    {
+        $since = null;
+        $lastId = 0;
+        if ($coveringBuilds !== []) {
+            $placeholders = implode(',', array_fill(0, count($coveringBuilds), '?'));
+            $statement = $this->pdo->prepare("SELECT id, created_at FROM activity_log WHERE action IN ({$placeholders}) ORDER BY id DESC LIMIT 1");
+            $statement->execute(array_values($coveringBuilds));
+            $row = $statement->fetch();
+            if ($row) {
+                $lastId = (int) $row['id'];
+                $since = (string) $row['created_at'];
+            }
+        }
+
+        // Zmiany treści, które trafiają na stronę: zapis strony, nowa strona, zatwierdzenie/cofnięcie zmian edytora.
+        $statement = $this->pdo->prepare(
+            "SELECT id, target, login, created_at FROM activity_log WHERE id > :lastId "
+            . "AND action IN ('pages.update', 'pages.create', 'changes.approve', 'changes.revert') "
+            . "AND target LIKE '/%' ORDER BY id DESC LIMIT 500"
+        );
+        $statement->bindValue('lastId', $lastId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $pages = [];
+        foreach ($statement->fetchAll() as $row) {
+            $slug = (string) $row['target'];
+            if (isset($pages[$slug])) {
+                continue; // najnowsza zmiana wygrywa (sortowanie malejąco)
+            }
+            $pages[$slug] = ['slug' => $slug, 'changedAt' => (string) $row['created_at'], 'login' => $row['login'] !== null ? (string) $row['login'] : null];
+        }
+
+        return ['since' => $since, 'pages' => array_values($pages)];
+    }
+
     public function countRecentFromClient(string $action, int $seconds, ?string $login = null): int
     {
         $ip = $this->clientIp();

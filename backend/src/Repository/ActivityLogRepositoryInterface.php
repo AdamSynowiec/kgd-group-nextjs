@@ -31,6 +31,16 @@ interface ActivityLogRepositoryInterface
 
     public function count(): int;
 
+    /**
+     * Strony zmienione w panelu od ostatniego builda CAŁEGO serwisu (zdarzenia $coveringBuilds) —
+     * podpowiedź dla "Szybkiego buildu". Celowo od pełnego, nie od ostatniego dowolnego builda:
+     * build częściowy (np. tylko /admin) nie wgrał tych stron, a ponowne wgranie strony nic nie psuje.
+     *
+     * @param list<string> $coveringBuilds np. ["build.trigger", "build.trigger.site", "build.trigger.full"]
+     * @return array{since: string|null, pages: list<array{slug: string, changedAt: string, login: string|null}>}
+     */
+    public function pagesChangedSinceBuild(array $coveringBuilds): array;
+
     /** Ile zdarzeń $action z adresu IP bieżącego żądania (opcjonalnie: dla tego loginu) w ostatnich $seconds sekundach. */
     public function countRecentFromClient(string $action, int $seconds, ?string $login = null): int;
 }
