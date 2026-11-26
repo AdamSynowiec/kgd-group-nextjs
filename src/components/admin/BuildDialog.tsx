@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ui } from "@/components/admin/ui";
 import { fetchBuildChanges, fetchPages, type BuildChanges, type BuildMode, type PageSummary, type Session } from "@/lib/adminApi";
 
@@ -95,7 +96,8 @@ export default function BuildDialog({ session, onConfirm, onClose }: { session: 
     onConfirm({ mode, pages: mode === "pages" ? selectedPages : [] });
   }
 
-  return (
+  // Portal do <body>: rodzic z backdrop-filter (np. górny pasek) zamyka position:fixed w swoim obszarze.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <div role="dialog" aria-modal="true" aria-labelledby="build-dialog-title" className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-2xl">
         <div className="border-b border-zinc-100 px-6 py-4">
@@ -213,6 +215,7 @@ export default function BuildDialog({ session, onConfirm, onClose }: { session: 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { FIELD_TYPES, isFieldType } from "@/lib/fieldType";
 
 /**
@@ -145,7 +146,8 @@ export default function FieldJsonDialog({
 
   const lines = text.split("\n").length;
 
-  return (
+  // Portal do <body>: rodzic z backdrop-filter (np. górny pasek) zamyka position:fixed w swoim obszarze.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-[2px]" onMouseDown={(event) => event.target === event.currentTarget && close()}>
       <div role="dialog" aria-modal="true" aria-labelledby="field-json-title" className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-zinc-900/5">
         <div className="flex items-start gap-3 border-b border-zinc-100 px-5 py-4">
@@ -230,6 +232,7 @@ export default function FieldJsonDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
